@@ -222,8 +222,7 @@ class WMSScannerApp:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create tabs
-        self.create_database_settings_tab()
+        # Create tabs (ไม่รวม database settings tab)
         self.create_settings_tab()
         self.create_sub_job_settings_tab()
         self.create_scanning_tab()
@@ -231,73 +230,7 @@ class WMSScannerApp:
         self.create_history_tab()
         self.create_reports_tab()
     
-    def create_database_settings_tab(self):
-        """Create database settings tab"""
-        db_settings_frame = ttk.Frame(self.notebook)
-        self.notebook.add(db_settings_frame, text="ตั้งค่าฐานข้อมูล")
-        
-        # Main frame
-        main_frame = ttk.LabelFrame(db_settings_frame, text="การตั้งค่าฐานข้อมูล", padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Server settings
-        server_frame = ttk.Frame(main_frame)
-        server_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(server_frame, text="เซิร์ฟเวอร์:", width=15).pack(side=tk.LEFT)
-        self.server_entry = ttk.Entry(server_frame, width=40)
-        self.server_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Database settings
-        db_frame = ttk.Frame(main_frame)
-        db_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(db_frame, text="ฐานข้อมูล:", width=15).pack(side=tk.LEFT)
-        self.database_entry = ttk.Entry(db_frame, width=40)
-        self.database_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Authentication type
-        auth_frame = ttk.Frame(main_frame)
-        auth_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(auth_frame, text="การยืนยันตัวตน:", width=15).pack(side=tk.LEFT)
-        self.auth_var = tk.StringVar()
-        auth_combo = ttk.Combobox(auth_frame, textvariable=self.auth_var, 
-                                 values=["Windows", "SQL"], state="readonly", width=15)
-        auth_combo.pack(side=tk.LEFT, padx=10)
-        auth_combo.bind('<<ComboboxSelected>>', self.on_auth_change)
-        
-        # Username (for SQL auth)
-        user_frame = ttk.Frame(main_frame)
-        user_frame.pack(fill=tk.X, pady=5)
-        self.user_label = ttk.Label(user_frame, text="ผู้ใช้:", width=15)
-        self.user_label.pack(side=tk.LEFT)
-        self.username_entry = ttk.Entry(user_frame, width=40)
-        self.username_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Password (for SQL auth)
-        pass_frame = ttk.Frame(main_frame)
-        pass_frame.pack(fill=tk.X, pady=5)
-        self.pass_label = ttk.Label(pass_frame, text="รหัสผ่าน:", width=15)
-        self.pass_label.pack(side=tk.LEFT)
-        self.password_entry = ttk.Entry(pass_frame, width=40, show="*")
-        self.password_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=20)
-        
-        ttk.Button(button_frame, text="ทดสอบการเชื่อมต่อ", 
-                  command=self.test_db_connection).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="บันทึกการตั้งค่า", 
-                  command=self.save_db_settings).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="รีเซ็ตเป็นค่าเริ่มต้น", 
-                  command=self.reset_db_settings).pack(side=tk.LEFT, padx=5)
-        
-        # Status
-        self.db_status_label = ttk.Label(main_frame, text="สถานะ: ยังไม่ได้ทดสอบ", 
-                                        foreground="orange")
-        self.db_status_label.pack(pady=10)
-        
-        # Load current settings
-        self.load_db_settings_to_ui()
+
 
     def create_settings_tab(self):
         """Create settings tab for job type management"""
@@ -1900,109 +1833,7 @@ class WMSScannerApp:
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถส่งออกไฟล์ได้: {str(e)}")
 
-    # Database settings methods
-    def load_db_settings_to_ui(self):
-        """โหลดการตั้งค่าฐานข้อมูลลง UI"""
-        config = self.db.get_config()
-        if config:
-            self.server_entry.delete(0, tk.END)
-            self.server_entry.insert(0, config.get('server', ''))
-            
-            self.database_entry.delete(0, tk.END)
-            self.database_entry.insert(0, config.get('database', ''))
-            
-            self.auth_var.set(config.get('auth_type', 'Windows'))
-            
-            self.username_entry.delete(0, tk.END)
-            self.username_entry.insert(0, config.get('username', ''))
-            
-            self.password_entry.delete(0, tk.END)
-            self.password_entry.insert(0, config.get('password', ''))
-            
-            self.on_auth_change()
-    
-    def on_auth_change(self, event=None):
-        """เมื่อเปลี่ยนประเภทการยืนยันตัวตน"""
-        auth_type = self.auth_var.get()
-        if auth_type == "Windows":
-            # ซ่อนช่องผู้ใช้และรหัสผ่าน
-            self.user_label.pack_forget()
-            self.username_entry.pack_forget()
-            self.pass_label.pack_forget()
-            self.password_entry.pack_forget()
-        else:
-            # แสดงช่องผู้ใช้และรหัสผ่าน
-            self.user_label.pack(side=tk.LEFT)
-            self.username_entry.pack(side=tk.LEFT, padx=10)
-            self.pass_label.pack(side=tk.LEFT)
-            self.password_entry.pack(side=tk.LEFT, padx=10)
-    
-    def test_db_connection(self):
-        """ทดสอบการเชื่อมต่อฐานข้อมูล"""
-        # อัพเดทการตั้งค่าชั่วคราว
-        temp_config = {
-            'server': self.server_entry.get().strip(),
-            'database': self.database_entry.get().strip(),
-            'auth_type': self.auth_var.get(),
-            'username': self.username_entry.get().strip(),
-            'password': self.password_entry.get()
-        }
-        
-        # สร้าง connection string ชั่วคราว
-        original_config = self.db.config.copy()
-        original_connection = self.db.connection_string
-        
-        try:
-            self.db.config.update(temp_config)
-            self.db.update_connection_string()
-            
-            if self.db.test_connection():
-                self.db_status_label.config(text="สถานะ: เชื่อมต่อสำเร็จ ✓", foreground="green")
-                messagebox.showinfo("สำเร็จ", "ทดสอบการเชื่อมต่อสำเร็จ!")
-            else:
-                self.db_status_label.config(text="สถานะ: เชื่อมต่อไม่สำเร็จ ✗", foreground="red")
-                messagebox.showerror("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
-        
-        except Exception as e:
-            self.db_status_label.config(text="สถานะ: เกิดข้อผิดพลาด ✗", foreground="red")
-            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
-        
-        finally:
-            # คืนค่าการตั้งค่าเดิม
-            self.db.config = original_config
-            self.db.connection_string = original_connection
-    
-    def save_db_settings(self):
-        """บันทึกการตั้งค่าฐานข้อมูล"""
-        new_config = {
-            'server': self.server_entry.get().strip(),
-            'database': self.database_entry.get().strip(),
-            'auth_type': self.auth_var.get(),
-            'username': self.username_entry.get().strip(),
-            'password': self.password_entry.get()
-        }
-        
-        if self.db.update_config(new_config):
-            self.db_status_label.config(text="สถานะ: บันทึกสำเร็จ ✓", foreground="green")
-            messagebox.showinfo("สำเร็จ", "บันทึกการตั้งค่าเรียบร้อยแล้ว")
-            
-            # ทดสอบการเชื่อมต่อใหม่
-            if self.db.test_connection():
-                self.refresh_job_types()
-            else:
-                messagebox.showwarning("คำเตือน", "บันทึกสำเร็จแต่ไม่สามารถเชื่อมต่อได้")
-        else:
-            self.db_status_label.config(text="สถานะ: บันทึกไม่สำเร็จ ✗", foreground="red")
-    
-    def reset_db_settings(self):
-        """รีเซ็ตการตั้งค่าฐานข้อมูล"""
-        if messagebox.askyesno("ยืนยัน", "ต้องการรีเซ็ตการตั้งค่าเป็นค่าเริ่มต้นหรือไม่?"):
-            if self.db.reset_to_default():
-                self.load_db_settings_to_ui()
-                self.db_status_label.config(text="สถานะ: รีเซ็ตเรียบร้อย ✓", foreground="green")
-                messagebox.showinfo("สำเร็จ", "รีเซ็ตการตั้งค่าเรียบร้อยแล้ว")
-            else:
-                self.db_status_label.config(text="สถานะ: รีเซ็ตไม่สำเร็จ ✗", foreground="red")
+
     
     # Import/Export functionality
     def download_template(self):

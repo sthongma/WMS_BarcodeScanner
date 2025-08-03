@@ -391,17 +391,22 @@ class LoginWindow:
             
             self.status_label.config(text="✓ เข้าสู่ระบบสำเร็จ", foreground="green")
             
-            # ปิดหน้าต่าง login
-            self.root.quit()
+            # ปิดหน้าต่าง login อย่างถูกต้อง
+            self.root.destroy()
             
         except Exception as e:
             self.status_label.config(text="✗ เกิดข้อผิดพลาด", foreground="red")
             messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการเข้าสู่ระบบ: {str(e)}")
         
         finally:
-            # ซ่อน progress bar
-            self.progress.stop()
-            self.progress.pack_forget()
+            # ซ่อน progress bar (ตรวจสอบว่า window ยังมีอยู่หรือไม่)
+            try:
+                if hasattr(self, 'progress') and self.progress.winfo_exists():
+                    self.progress.stop()
+                    self.progress.pack_forget()
+            except tk.TclError:
+                # Window ถูกทำลายไปแล้ว ไม่ต้องทำอะไร
+                pass
     
     def run(self) -> Optional[Dict[str, Any]]:
         """รันหน้าต่าง login และส่งคืนข้อมูลการเชื่อมต่อ"""

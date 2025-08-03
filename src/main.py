@@ -21,18 +21,11 @@ from ui.main_window import WMSScannerApp
 def main():
     """จุดเริ่มต้นของโปรแกรม"""
     try:
-        # สร้าง root window สำหรับ login
-        root = tk.Tk()
-        root.withdraw()  # ซ่อน root window
-        
         # แสดงหน้าต่าง login
         login_window = LoginWindow()
         connection_info = login_window.run()
         
         if connection_info:
-            # ปิด root window เดิม
-            root.destroy()
-            
             # สร้าง root window ใหม่สำหรับ main application
             main_root = tk.Tk()
             main_root.title("WMS Barcode Scanner")
@@ -45,7 +38,6 @@ def main():
             main_root.mainloop()
         else:
             # ปิดโปรแกรมถ้าไม่มีการเชื่อมต่อ
-            root.destroy()
             sys.exit(0)
             
     except Exception as e:
