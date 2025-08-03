@@ -7,8 +7,12 @@ pyodbc>=4.0.39
 pandas>=1.5.0
 openpyxl>=3.0.10
 
-# GUI
-tkinter
+# Web Application
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# QR Code
+qrcode[pil]>=7.4.0
 
 # Utilities
 typing-extensions>=4.0.0 
