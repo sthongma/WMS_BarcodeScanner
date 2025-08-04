@@ -319,16 +319,15 @@ BEGIN
     
     SELECT 
         CAST(sl.scan_date AS DATE) as scan_date,
-        sl.job_type,
-        jt.id as job_id,
-        sl.user_id,
-        COUNT(*) as scan_count,
-        COUNT(DISTINCT sl.barcode) as unique_barcodes
+        jt.job_name as job_main,
+        ISNULL(sjt.sub_job_name, 'ไม่มี') as job_sub,
+        COUNT(*) as scan_count
     FROM scan_logs sl
     LEFT JOIN job_types jt ON sl.job_type = jt.job_name
+    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
     WHERE sl.scan_date >= DATEADD(day, -7, GETDATE())
-    GROUP BY CAST(sl.scan_date AS DATE), sl.job_type, jt.id, sl.user_id
-    ORDER BY scan_date DESC, sl.job_type, sl.user_id;
+    GROUP BY CAST(sl.scan_date AS DATE), jt.job_name, sjt.sub_job_name
+    ORDER BY scan_date DESC, jt.job_name, sjt.sub_job_name;
 END
 GO
 
