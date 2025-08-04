@@ -184,8 +184,8 @@ class WMSScannerApp:
     
     def __init__(self, root, connection_info: Optional[Dict[str, Any]] = None):
         self.root = root
-        self.root.title("WMS Barcode Scanner")
-        self.root.geometry("1024x768")
+        self.root.title("WMS EP Asia Group Co., Ltd.")
+        self.root.geometry("1200x900")
         self.root.resizable(False, False)
         
         # Initialize database manager with connection info
@@ -223,12 +223,12 @@ class WMSScannerApp:
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Create tabs (ไม่รวม database settings tab)
+        self.create_scanning_tab()
+        self.create_history_tab()        
+        self.create_reports_tab()
+        self.create_import_tab()
         self.create_settings_tab()
         self.create_sub_job_settings_tab()
-        self.create_scanning_tab()
-        self.create_import_tab()
-        self.create_history_tab()
-        self.create_reports_tab()
     
 
 
@@ -392,7 +392,7 @@ class WMSScannerApp:
     def create_scanning_tab(self):
         """Create scanning tab"""
         scan_frame = ttk.Frame(self.notebook)
-        self.notebook.add(scan_frame, text="สแกน")
+        self.notebook.add(scan_frame, text="หน้าจอหลัก")
         
         # Main scanning area
         main_frame = ttk.LabelFrame(scan_frame, text="สแกนบาร์โค้ด", padding=20)

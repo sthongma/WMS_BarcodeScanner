@@ -50,21 +50,14 @@ if errorlevel 1 (
 
 echo.
 echo [INFO] Dependencies ติดตั้งเสร็จแล้ว
-echo [INFO] กำลังเริ่มโปรแกรม WMS Barcode Scanner...
+echo [INFO] กำลังเริ่มโปรแกรม WMS Barcode Scanner ในพื้นหลัง...
+echo [INFO] โปรแกรมจะทำงานในพื้นหลัง
+echo [INFO] สามารถปิดโปรแกรมได้จาก Task Manager หรือ System Tray
 echo.
 
-:: รันโปรแกรม
-python run.py
+:: รันโปรแกรมแบบซ่อนหน้าต่าง
+start /min python run.py
 
-:: ตรวจสอบ exit code
-if errorlevel 1 (
-    echo.
-    echo [ERROR] โปรแกรมทำงานผิดพลาด
-    echo กรุณาตรวจสอบข้อผิดพลาดด้านบน
-    pause
-    exit /b 1
-)
-
-echo.
-echo [INFO] โปรแกรมปิดตัวลงแล้ว
-pause 
+echo [INFO] โปรแกรมเริ่มทำงานแล้วในพื้นหลัง
+timeout /t 1 /nobreak >nul
+exit

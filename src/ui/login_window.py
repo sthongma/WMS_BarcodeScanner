@@ -11,6 +11,7 @@ import pyodbc
 import json
 import os
 from typing import Optional, Dict, Any
+from PIL import Image, ImageTk
 
 class LoginWindow:
     """Database connection login window"""
@@ -20,6 +21,9 @@ class LoginWindow:
         self.root.title("WMS Barcode Scanner - เข้าสู่ระบบ")
         self.root.geometry("550x550")
         self.root.resizable(False, False)
+        
+        # ตั้งค่า icon สำหรับแอพ
+        self.set_app_icon()
         
         # Center window
         self.center_window()
@@ -45,6 +49,49 @@ class LoginWindow:
         # Bind Enter key to login
         self.root.bind('<Return>', lambda e: self.login())
         
+    def set_app_icon(self):
+        """ตั้งค่า icon สำหรับแอพ"""
+        try:
+            # พยายามโหลด icon จากไฟล์ PNG
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets', 'icons', 'app_icon.png')
+            
+            if os.path.exists(icon_path):
+                # โหลดและปรับขนาด icon
+                image = Image.open(icon_path)
+                
+                # สร้าง icon ขนาดต่างๆ สำหรับ Windows
+                icon_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+                icons = []
+                
+                for size in icon_sizes:
+                    resized_image = image.resize(size, Image.Resampling.LANCZOS)
+                    icon = ImageTk.PhotoImage(resized_image)
+                    icons.append(icon)
+                
+                # ตั้งค่า icon สำหรับ window
+                self.root.iconphoto(True, *icons)
+                
+                # ตั้งค่า icon สำหรับ taskbar (Windows)
+                if hasattr(self.root, 'iconbitmap'):
+                    try:
+                        # สร้างไฟล์ ICO ชั่วคราว
+                        temp_ico_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets', 'icons', 'temp_icon.ico')
+                        image.save(temp_ico_path, format='ICO', sizes=icon_sizes)
+                        self.root.iconbitmap(temp_ico_path)
+                        
+                        # ลบไฟล์ชั่วคราว
+                        if os.path.exists(temp_ico_path):
+                            os.remove(temp_ico_path)
+                    except Exception as e:
+                        print(f"ไม่สามารถตั้งค่า icon สำหรับ taskbar ได้: {e}")
+                        
+            else:
+                print(f"ไม่พบไฟล์ icon ที่: {icon_path}")
+                print("กรุณาใส่ไฟล์ app_icon.png ในโฟลเดอร์ assets/icons/")
+                
+        except Exception as e:
+            print(f"เกิดข้อผิดพลาดในการตั้งค่า icon: {e}")
+    
     def center_window(self):
         """Center the window on screen"""
         self.root.update_idletasks()
