@@ -192,6 +192,13 @@
             border-left: 3px solid #667eea;
         }
 
+        .history-user {
+            font-size: 12px;
+            color: #007bff;
+            margin-top: 5px;
+            font-weight: 500;
+        }
+
         .loading {
             text-align: center;
             padding: 20px;
@@ -393,17 +400,24 @@
             }
         }
 
-        // Scan barcode
+        // Scan barcode - ทำงานเหมือน Desktop App
         async function scanBarcode() {
-            const barcode = document.getElementById('barcode').value;
+            const barcode = document.getElementById('barcode').value.trim();
             const jobTypeId = document.getElementById('jobType').value;
             const subJobTypeId = document.getElementById('subJobType').value;
             const note = document.getElementById('note').value;
 
-            if (!barcode || !jobTypeId || !subJobTypeId) {
-                showStatus('scanStatus', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+            if (!barcode) {
+                showStatus('scanStatus', 'กรุณากรอกบาร์โค้ด', 'error');
                 return;
             }
+
+            if (!jobTypeId) {
+                showStatus('scanStatus', 'กรุณาเลือก Job Type', 'error');
+                return;
+            }
+
+            // Sub Job Type เป็นตัวเลือก (ไม่บังคับ) เหมือน Desktop App
 
             showStatus('scanStatus', 'กำลังบันทึก...', 'info');
 
@@ -427,19 +441,10 @@
                     showStatus('scanStatus', data.message, 'success');
                     document.getElementById('barcode').value = '';
                     document.getElementById('barcode').focus();
-                    
-                    // ประทับหมายเหตุ (เพิ่มต่อจากเดิม)
-                    if (note.trim()) {
-                        const currentNote = document.getElementById('note').value;
-                        const timestamp = new Date().toLocaleString('th-TH');
-                        const newNote = currentNote + (currentNote ? '\n' : '') + `${timestamp}: ${note}`;
-                        document.getElementById('note').value = newNote;
-                    }
-                    
                     loadHistory();
                 } else {
                     if (data.duplicate) {
-                        const message = `${data.message}\n\nข้อมูลเดิม:\nเวลา: ${new Date(data.existing_record.scan_datetime).toLocaleString()}\nJob Type: ${data.existing_record.job_type_name}\nSub Job Type: ${data.existing_record.sub_job_type_name}`;
+                        const message = `${data.message}\n\nข้อมูลเดิม:\nเวลา: ${new Date(data.existing_record.scan_date).toLocaleString('th-TH')}\nJob Type: ${data.existing_record.job_type_name}\nSub Job Type: ${data.existing_record.sub_job_type_name}\nผู้สแกน: ${data.existing_record.user_id}`;
                         showStatus('scanStatus', message, 'error');
                     } else {
                         showStatus('scanStatus', data.message, 'error');
@@ -469,11 +474,11 @@
                         const historyItem = document.createElement('div');
                         historyItem.className = `history-item ${item.status === 'ใหม่' ? 'new' : ''}`;
                         
-                        const time = new Date(item.scan_datetime).toLocaleString('th-TH');
+                        const time = new Date(item.scan_date).toLocaleString('th-TH');
                         
                         let noteHtml = '';
-                        if (item.note && item.note.trim()) {
-                            noteHtml = `<div class="history-note">📝 ${item.note}</div>`;
+                        if (item.notes && item.notes.trim()) {
+                            noteHtml = `<div class="history-note">📝 ${item.notes}</div>`;
                         }
                         
                         historyItem.innerHTML = `
@@ -481,6 +486,7 @@
                             <div class="history-details">
                                 ${item.job_type_name} > ${item.sub_job_type_name}
                             </div>
+                            <div class="history-user">👤 ${item.user_id}</div>
                             ${noteHtml}
                             <div class="history-time">${time}</div>
                         `;

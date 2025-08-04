@@ -25,6 +25,10 @@ def get_local_ip():
 def generate_qr_code(url, filename="wms_scanner_qr.png"):
     """สร้าง QR Code"""
     try:
+        # ลบไฟล์เดิมถ้ามี
+        if os.path.exists(filename):
+            os.remove(filename)
+
         # สร้าง QR Code
         qr = qrcode.QRCode(
             version=1,
@@ -37,14 +41,14 @@ def generate_qr_code(url, filename="wms_scanner_qr.png"):
 
         # สร้างภาพ
         img = qr.make_image(fill_color="black", back_color="white")
-        
+
         # บันทึกไฟล์
         img.save(filename)
-        
+
         print(f"✅ สร้าง QR Code สำเร็จ: {filename}")
         print(f"📱 URL: {url}")
         print(f"📱 สแกน QR Code ด้วยมือถือเพื่อเข้าถึงแอป")
-        
+
         return True
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการสร้าง QR Code: {e}")
