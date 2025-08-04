@@ -1,7 +1,20 @@
--- WMS Barcode Scanner Database Setup
--- Execute these scripts in your SQL Server database
+-- =====================================================
+-- WMS Barcode Scanner Database Setup Script
+-- =====================================================
+-- คำอธิบาย: สคริปต์นี้ใช้สำหรับสร้างและตั้งค่าฐานข้อมูล WMS
+-- วันที่สร้าง: 2024
+-- เวอร์ชัน: 1.0
+-- =====================================================
 
--- Create job_types table
+USE WMS_EP;
+GO
+
+-- =====================================================
+-- ส่วนที่ 1: สร้างตารางหลัก (Core Tables)
+-- =====================================================
+
+-- 1.1 สร้างตาราง job_types (ประเภทงานหลัก)
+-- =====================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='job_types' AND xtype='U')
 BEGIN
     CREATE TABLE job_types (
@@ -9,7 +22,7 @@ BEGIN
         job_name VARCHAR(100) NOT NULL UNIQUE
     );
     
-    -- Insert sample job types
+    -- เพิ่มข้อมูลตัวอย่างประเภทงาน
     INSERT INTO job_types (job_name) VALUES 
     ('1.Release'),
     ('2.Inprocess'),
@@ -17,32 +30,40 @@ BEGIN
     ('4.Loading'),
     ('5.Return'),
     ('6.Repack');
+    
+    PRINT 'Table job_types created successfully with sample data.';
 END
 ELSE
 BEGIN
-    -- Add id column if it doesn't exist (for existing tables)
+    -- จัดการตารางที่มีอยู่แล้ว
+    PRINT 'Table job_types already exists. Checking for updates...';
+    
+    -- เพิ่มคอลัมน์ id ถ้ายังไม่มี (สำหรับตารางที่มีอยู่)
     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
                    WHERE TABLE_NAME = 'job_types' AND COLUMN_NAME = 'id')
     BEGIN
-        -- Add identity column
         ALTER TABLE job_types ADD id INT IDENTITY(1,1);
-        
-        -- Make job_name unique if not already
-        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('job_types') AND name = 'UQ_job_types_job_name')
-        BEGIN
-            ALTER TABLE job_types ADD CONSTRAINT UQ_job_types_job_name UNIQUE (job_name);
-        END
+        PRINT 'Added id column to existing job_types table.';
     END
     
-    -- Remove priority_order column if it exists (old system)
+    -- เพิ่ม unique constraint สำหรับ job_name ถ้ายังไม่มี
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('job_types') AND name = 'UQ_job_types_job_name')
+    BEGIN
+        ALTER TABLE job_types ADD CONSTRAINT UQ_job_types_job_name UNIQUE (job_name);
+        PRINT 'Added unique constraint for job_name.';
+    END
+    
+    -- ลบคอลัมน์ priority_order ถ้ามี (ระบบเก่า)
     IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
                WHERE TABLE_NAME = 'job_types' AND COLUMN_NAME = 'priority_order')
     BEGIN
         ALTER TABLE job_types DROP COLUMN priority_order;
+        PRINT 'Removed old priority_order column.';
     END
 END
 
--- Create job_dependencies table for the new dependency system
+-- 1.2 สร้างตาราง job_dependencies (ความสัมพันธ์ระหว่างงาน)
+-- =====================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='job_dependencies' AND xtype='U')
 BEGIN
     CREATE TABLE job_dependencies (
@@ -51,19 +72,21 @@ BEGIN
         required_job_id INT NOT NULL,
         
         -- Foreign key constraints
-        CONSTRAINT FK_job_dependencies_job_id FOREIGN KEY (job_id) REFERENCES job_types(id) ON DELETE CASCADE,
-        CONSTRAINT FK_job_dependencies_required_job_id FOREIGN KEY (required_job_id) REFERENCES job_types(id) ON DELETE NO ACTION,
+        CONSTRAINT FK_job_dependencies_job_id 
+            FOREIGN KEY (job_id) REFERENCES job_types(id) ON DELETE CASCADE,
+        CONSTRAINT FK_job_dependencies_required_job_id 
+            FOREIGN KEY (required_job_id) REFERENCES job_types(id) ON DELETE NO ACTION,
         
-        -- Prevent self-dependency and duplicate dependencies
+        -- ป้องกันการอ้างอิงตัวเองและความซ้ำซ้อน
         CONSTRAINT CK_job_dependencies_no_self CHECK (job_id != required_job_id),
-        CONSTRAINT UQ_job_dependencies UNIQUE (job_id, required_job_id),
-        
-        -- Indexes for better performance
-        INDEX IX_job_dependencies_job_id (job_id),
-        INDEX IX_job_dependencies_required_job_id (required_job_id)
+        CONSTRAINT UQ_job_dependencies UNIQUE (job_id, required_job_id)
     );
     
-    -- Insert sample dependencies (ตรวจนับ ต้องมี รับของ ก่อน, โอนย้าย ต้องมี ตรวจนับ ก่อน)
+    -- สร้าง indexes สำหรับประสิทธิภาพ
+    CREATE INDEX IX_job_dependencies_job_id ON job_dependencies (job_id);
+    CREATE INDEX IX_job_dependencies_required_job_id ON job_dependencies (required_job_id);
+    
+    -- เพิ่มข้อมูลตัวอย่างความสัมพันธ์
     INSERT INTO job_dependencies (job_id, required_job_id) 
     SELECT j1.id, j2.id 
     FROM job_types j1, job_types j2 
@@ -73,9 +96,16 @@ BEGIN
     SELECT j1.id, j2.id 
     FROM job_types j1, job_types j2 
     WHERE j1.job_name = 'โอนย้าย' AND j2.job_name = 'ตรวจนับ';
+    
+    PRINT 'Table job_dependencies created successfully with sample dependencies.';
+END
+ELSE
+BEGIN
+    PRINT 'Table job_dependencies already exists.';
 END
 
--- Create scan_logs table  
+-- 1.3 สร้างตาราง scan_logs (บันทึกการสแกน)
+-- =====================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='scan_logs' AND xtype='U')
 BEGIN
     CREATE TABLE scan_logs (
@@ -87,50 +117,138 @@ BEGIN
         job_id INT NULL,
         
         -- Foreign key to job_types
-        CONSTRAINT FK_scan_logs_job_id FOREIGN KEY (job_id) REFERENCES job_types(id),
-        
-        -- Add indexes for better performance
-        INDEX IX_scan_logs_barcode (barcode),
-        INDEX IX_scan_logs_scan_date (scan_date),
-        INDEX IX_scan_logs_job_type (job_type),
-        INDEX IX_scan_logs_user_id (user_id),
-        INDEX IX_scan_logs_job_id (job_id),
-        INDEX IX_scan_logs_barcode_job_id (barcode, job_id)
+        CONSTRAINT FK_scan_logs_job_id 
+            FOREIGN KEY (job_id) REFERENCES job_types(id)
     );
+    
+    -- สร้าง indexes สำหรับประสิทธิภาพ
+    CREATE INDEX IX_scan_logs_barcode ON scan_logs (barcode);
+    CREATE INDEX IX_scan_logs_scan_date ON scan_logs (scan_date);
+    CREATE INDEX IX_scan_logs_job_type ON scan_logs (job_type);
+    CREATE INDEX IX_scan_logs_user_id ON scan_logs (user_id);
+    CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
+    CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
+    
+    PRINT 'Table scan_logs created successfully with indexes.';
 END
 ELSE
 BEGIN
-    -- Add job_id column if it doesn't exist
+    PRINT 'Table scan_logs already exists. Checking for updates...';
+    
+    -- เพิ่มคอลัมน์ job_id ถ้ายังไม่มี
     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
                    WHERE TABLE_NAME = 'scan_logs' AND COLUMN_NAME = 'job_id')
     BEGIN
         ALTER TABLE scan_logs ADD job_id INT NULL;
         
-        -- Add foreign key constraint
+        -- เพิ่ม foreign key constraint
         ALTER TABLE scan_logs ADD CONSTRAINT FK_scan_logs_job_id 
         FOREIGN KEY (job_id) REFERENCES job_types(id);
         
-        -- Create indexes for job_id
+        -- สร้าง indexes สำหรับ job_id
         CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
         CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
         
-        -- Update existing records to set job_id based on job_type
+        -- อัปเดตข้อมูลที่มีอยู่ให้ตรงกับ job_id
         UPDATE sl SET job_id = jt.id 
         FROM scan_logs sl 
         INNER JOIN job_types jt ON sl.job_type = jt.job_name
         WHERE sl.job_id IS NULL;
+        
+        PRINT 'Added job_id column and updated existing records.';
     END
     
-    -- Remove priority_order column if it exists (old system)
+    -- ลบคอลัมน์ priority_order ถ้ามี (ระบบเก่า)
     IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
                WHERE TABLE_NAME = 'scan_logs' AND COLUMN_NAME = 'priority_order')
     BEGIN
         DROP INDEX IF EXISTS IX_scan_logs_priority_order ON scan_logs;
         ALTER TABLE scan_logs DROP COLUMN priority_order;
+        PRINT 'Removed old priority_order column from scan_logs.';
     END
 END
 
--- Sample stored procedure for history report
+-- =====================================================
+-- ส่วนที่ 2: ระบบประเภทงานย่อย (Sub Job Types System)
+-- =====================================================
+
+-- 2.1 สร้างตาราง sub_job_types
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'sub_job_types')
+BEGIN
+    CREATE TABLE sub_job_types (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        main_job_id INT NOT NULL,
+        sub_job_name NVARCHAR(255) NOT NULL,
+        description NVARCHAR(500) NULL,
+        created_date DATETIME2 DEFAULT GETDATE(),
+        updated_date DATETIME2 DEFAULT GETDATE(),
+        is_active BIT DEFAULT 1,
+        
+        -- Foreign Key
+        CONSTRAINT FK_sub_job_types_main_job 
+            FOREIGN KEY (main_job_id) REFERENCES job_types(id) 
+            ON DELETE CASCADE,
+        
+        -- Unique constraint
+        CONSTRAINT UQ_sub_job_types_name_per_main 
+            UNIQUE (main_job_id, sub_job_name)
+    );
+    
+    -- สร้าง Index สำหรับการค้นหาที่เร็วขึ้น
+    CREATE INDEX IX_sub_job_types_main_job_id ON sub_job_types(main_job_id);
+    
+    PRINT 'Table sub_job_types created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'Table sub_job_types already exists.';
+END
+
+-- 2.2 เพิ่มคอลัมน์ใน scan_logs สำหรับประเภทงานย่อยและหมายเหตุ
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('scan_logs') AND name = 'sub_job_id')
+BEGIN
+    ALTER TABLE scan_logs 
+    ADD sub_job_id INT NULL,
+        notes NVARCHAR(1000) NULL;
+    
+    PRINT 'Added sub_job_id and notes columns to scan_logs.';
+END
+ELSE
+BEGIN
+    PRINT 'Columns sub_job_id and notes already exist in scan_logs.';
+END
+
+-- 2.3 เพิ่ม Foreign Key สำหรับ sub_job_id
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_scan_logs_sub_job')
+BEGIN
+    ALTER TABLE scan_logs
+    ADD CONSTRAINT FK_scan_logs_sub_job 
+        FOREIGN KEY (sub_job_id) REFERENCES sub_job_types(id);
+    
+    PRINT 'Foreign key FK_scan_logs_sub_job added.';
+END
+ELSE
+BEGIN
+    PRINT 'Foreign key FK_scan_logs_sub_job already exists.';
+END
+
+-- 2.4 สร้าง Index สำหรับ sub_job_id
+-- =====================================================
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_sub_job_id')
+BEGIN
+    CREATE INDEX IX_scan_logs_sub_job_id ON scan_logs(sub_job_id);
+    PRINT 'Index IX_scan_logs_sub_job_id created.';
+END
+
+-- =====================================================
+-- ส่วนที่ 3: Stored Procedures สำหรับรายงาน
+-- =====================================================
+
+-- 3.1 Stored Procedure สำหรับประวัติการสแกน
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetScanHistory')
     DROP PROCEDURE sp_GetScanHistory;
 GO
@@ -155,7 +273,8 @@ BEGIN
 END
 GO
 
--- Sample stored procedure for dependency validation report
+-- 3.2 Stored Procedure สำหรับความสัมพันธ์ระหว่างงาน
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetJobDependencies')
     DROP PROCEDURE sp_GetJobDependencies;
 GO
@@ -177,7 +296,8 @@ BEGIN
 END
 GO
 
--- Sample stored procedure for daily summary report
+-- 3.3 Stored Procedure สำหรับสรุปรายวัน
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetDailySummary')
     DROP PROCEDURE sp_GetDailySummary;
 GO
@@ -202,7 +322,8 @@ BEGIN
 END
 GO
 
--- Sample stored procedure for barcode frequency report
+-- 3.4 Stored Procedure สำหรับความถี่ของบาร์โค้ด
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetBarcodeFrequency')
     DROP PROCEDURE sp_GetBarcodeFrequency;
 GO
@@ -224,12 +345,13 @@ BEGIN
     LEFT JOIN job_types jt ON sl.job_type = jt.job_name
     WHERE sl.scan_date >= DATEADD(day, -30, GETDATE())
     GROUP BY sl.barcode
-    HAVING COUNT(*) > 1  -- Only show barcodes scanned more than once
+    HAVING COUNT(*) > 1  -- แสดงเฉพาะบาร์โค้ดที่สแกนมากกว่า 1 ครั้ง
     ORDER BY scan_count DESC;
 END
 GO
 
--- Sample stored procedure for dependency compliance report
+-- 3.5 Stored Procedure สำหรับตรวจสอบความสอดคล้องของความสัมพันธ์
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetDependencyCompliance')
     DROP PROCEDURE sp_GetDependencyCompliance;
 GO
@@ -240,7 +362,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Check dependency compliance for barcodes
+    -- ตรวจสอบความสอดคล้องของความสัมพันธ์สำหรับบาร์โค้ด
     WITH BarcodeDependencies AS (
         SELECT DISTINCT
             sl.barcode,
@@ -281,100 +403,8 @@ BEGIN
 END
 GO
 
--- Grant permissions (adjust as needed for your environment)
--- GRANT SELECT, INSERT, UPDATE, DELETE ON scan_logs TO [your_user];
--- GRANT SELECT, INSERT, UPDATE, DELETE ON job_types TO [your_user];
--- GRANT SELECT, INSERT, UPDATE, DELETE ON job_dependencies TO [your_user];
--- GRANT EXECUTE ON sp_GetScanHistory TO [your_user];
--- GRANT EXECUTE ON sp_GetJobDependencies TO [your_user];
--- GRANT EXECUTE ON sp_GetDailySummary TO [your_user];
--- GRANT EXECUTE ON sp_GetBarcodeFrequency TO [your_user];
--- GRANT EXECUTE ON sp_GetDependencyCompliance TO [your_user];
-
--- Migration Script for Sub Job Types System
--- สร้างตารางประเภทงานย่อยและปรับปรุงตาราง scan_logs
-
-USE WMS_EP;
-GO
-
--- 1. สร้างตาราง sub_job_types
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'sub_job_types')
-BEGIN
-    CREATE TABLE sub_job_types (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        main_job_id INT NOT NULL,
-        sub_job_name NVARCHAR(255) NOT NULL,
-        description NVARCHAR(500) NULL,
-        created_date DATETIME2 DEFAULT GETDATE(),
-        updated_date DATETIME2 DEFAULT GETDATE(),
-        is_active BIT DEFAULT 1,
-        
-        -- Foreign Key
-        CONSTRAINT FK_sub_job_types_main_job 
-            FOREIGN KEY (main_job_id) REFERENCES job_types(id) 
-            ON DELETE CASCADE,
-        
-        -- Unique constraint
-        CONSTRAINT UQ_sub_job_types_name_per_main 
-            UNIQUE (main_job_id, sub_job_name)
-    );
-    
-    PRINT 'Table sub_job_types created successfully.';
-END
-ELSE
-BEGIN
-    PRINT 'Table sub_job_types already exists.';
-END
-
--- 2. เพิ่มคอลัมน์ใน scan_logs สำหรับประเภทงานย่อยและหมายเหตุ
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('scan_logs') AND name = 'sub_job_id')
-BEGIN
-    ALTER TABLE scan_logs 
-    ADD sub_job_id INT NULL,
-        notes NVARCHAR(1000) NULL;
-    
-    PRINT 'Added sub_job_id and notes columns to scan_logs.';
-END
-ELSE
-BEGIN
-    PRINT 'Columns sub_job_id and notes already exist in scan_logs.';
-END
-
--- 3. เพิ่ม Foreign Key สำหรับ sub_job_id
-IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_scan_logs_sub_job')
-BEGIN
-    ALTER TABLE scan_logs
-    ADD CONSTRAINT FK_scan_logs_sub_job 
-        FOREIGN KEY (sub_job_id) REFERENCES sub_job_types(id);
-    
-    PRINT 'Foreign key FK_scan_logs_sub_job added.';
-END
-ELSE
-BEGIN
-    PRINT 'Foreign key FK_scan_logs_sub_job already exists.';
-END
-
--- 4. สร้าง Index สำหรับการค้นหาที่เร็วขึ้น
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_sub_job_types_main_job_id')
-BEGIN
-    CREATE INDEX IX_sub_job_types_main_job_id ON sub_job_types(main_job_id);
-    PRINT 'Index IX_sub_job_types_main_job_id created.';
-END
-
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_sub_job_id')
-BEGIN
-    CREATE INDEX IX_scan_logs_sub_job_id ON scan_logs(sub_job_id);
-    PRINT 'Index IX_scan_logs_sub_job_id created.';
-END
-
--- 5. เพิ่มข้อมูลตัวอย่าง (ถ้าต้องการ)
--- INSERT INTO sub_job_types (main_job_id, sub_job_name, description) VALUES
--- (1, 'รับสินค้าปกติ', 'การรับสินค้าแบบปกติ'),
--- (1, 'รับสินค้าด่วน', 'การรับสินค้าที่ต้องรีบ'),
--- (2, 'จัดส่งภายในประเทศ', 'จัดส่งสินค้าภายในประเทศ'),
--- (2, 'จัดส่งต่างประเทศ', 'จัดส่งสินค้าไปต่างประเทศ');
-
--- 6. สร้าง Stored Procedure สำหรับการจัดการประเภทงานย่อย
+-- 3.6 Stored Procedure สำหรับจัดการประเภทงานย่อย
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetSubJobTypes')
     DROP PROCEDURE sp_GetSubJobTypes;
 GO
@@ -400,7 +430,8 @@ BEGIN
 END
 GO
 
--- 7. สร้าง Stored Procedure สำหรับการรายงานที่รวมประเภทงานย่อย
+-- 3.7 Stored Procedure สำหรับรายงานที่รวมประเภทงานย่อย
+-- =====================================================
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetScanLogsWithSubJobs')
     DROP PROCEDURE sp_GetScanLogsWithSubJobs;
 GO
@@ -433,5 +464,55 @@ BEGIN
 END
 GO
 
-PRINT 'Migration completed successfully!';
-PRINT 'Sub job types system is ready to use.';
+-- =====================================================
+-- ส่วนที่ 4: การตั้งค่าสิทธิ์ (Permissions)
+-- =====================================================
+
+-- หมายเหตุ: ปรับแต่งตามสภาพแวดล้อมของคุณ
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON scan_logs TO [your_user];
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON job_types TO [your_user];
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON job_dependencies TO [your_user];
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON sub_job_types TO [your_user];
+-- GRANT EXECUTE ON sp_GetScanHistory TO [your_user];
+-- GRANT EXECUTE ON sp_GetJobDependencies TO [your_user];
+-- GRANT EXECUTE ON sp_GetDailySummary TO [your_user];
+-- GRANT EXECUTE ON sp_GetBarcodeFrequency TO [your_user];
+-- GRANT EXECUTE ON sp_GetDependencyCompliance TO [your_user];
+-- GRANT EXECUTE ON sp_GetSubJobTypes TO [your_user];
+-- GRANT EXECUTE ON sp_GetScanLogsWithSubJobs TO [your_user];
+
+-- =====================================================
+-- ส่วนที่ 5: ข้อมูลตัวอย่าง (Sample Data)
+-- =====================================================
+
+-- หมายเหตุ: เปิดใช้งานส่วนนี้ถ้าต้องการเพิ่มข้อมูลตัวอย่าง
+-- INSERT INTO sub_job_types (main_job_id, sub_job_name, description) VALUES
+-- (1, 'รับสินค้าปกติ', 'การรับสินค้าแบบปกติ'),
+-- (1, 'รับสินค้าด่วน', 'การรับสินค้าที่ต้องรีบ'),
+-- (2, 'จัดส่งภายในประเทศ', 'จัดส่งสินค้าภายในประเทศ'),
+-- (2, 'จัดส่งต่างประเทศ', 'จัดส่งสินค้าไปต่างประเทศ');
+
+-- =====================================================
+-- สรุปการติดตั้ง
+-- =====================================================
+
+PRINT '=====================================================';
+PRINT 'WMS Database Setup Completed Successfully!';
+PRINT '=====================================================';
+PRINT 'Tables created/updated:';
+PRINT '- job_types (ประเภทงานหลัก)';
+PRINT '- job_dependencies (ความสัมพันธ์ระหว่างงาน)';
+PRINT '- scan_logs (บันทึกการสแกน)';
+PRINT '- sub_job_types (ประเภทงานย่อย)';
+PRINT '';
+PRINT 'Stored Procedures created:';
+PRINT '- sp_GetScanHistory (ประวัติการสแกน)';
+PRINT '- sp_GetJobDependencies (ความสัมพันธ์ระหว่างงาน)';
+PRINT '- sp_GetDailySummary (สรุปรายวัน)';
+PRINT '- sp_GetBarcodeFrequency (ความถี่บาร์โค้ด)';
+PRINT '- sp_GetDependencyCompliance (ตรวจสอบความสอดคล้อง)';
+PRINT '- sp_GetSubJobTypes (จัดการประเภทงานย่อย)';
+PRINT '- sp_GetScanLogsWithSubJobs (รายงานรวมประเภทงานย่อย)';
+PRINT '';
+PRINT 'System is ready to use!';
+PRINT '=====================================================';

@@ -24,7 +24,7 @@ except ImportError:
 
 class DatabaseManager:
     """Handle all database operations"""
-    CONFIG_FILE = "sql_config.json"
+    CONFIG_FILE = "config/sql_config.json"
     
     def __init__(self, connection_info: Optional[Dict[str, Any]] = None):
         self.config = None
