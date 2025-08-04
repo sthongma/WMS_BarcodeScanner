@@ -83,8 +83,10 @@ BEGIN
     );
     
     -- สร้าง indexes สำหรับประสิทธิภาพ
-    CREATE INDEX IX_job_dependencies_job_id ON job_dependencies (job_id);
-    CREATE INDEX IX_job_dependencies_required_job_id ON job_dependencies (required_job_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_job_dependencies_job_id')
+        CREATE INDEX IX_job_dependencies_job_id ON job_dependencies (job_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_job_dependencies_required_job_id')
+        CREATE INDEX IX_job_dependencies_required_job_id ON job_dependencies (required_job_id);
     
     -- เพิ่มข้อมูลตัวอย่างความสัมพันธ์
     INSERT INTO job_dependencies (job_id, required_job_id) 
@@ -122,12 +124,18 @@ BEGIN
     );
     
     -- สร้าง indexes สำหรับประสิทธิภาพ
-    CREATE INDEX IX_scan_logs_barcode ON scan_logs (barcode);
-    CREATE INDEX IX_scan_logs_scan_date ON scan_logs (scan_date);
-    CREATE INDEX IX_scan_logs_job_type ON scan_logs (job_type);
-    CREATE INDEX IX_scan_logs_user_id ON scan_logs (user_id);
-    CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
-    CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_barcode')
+        CREATE INDEX IX_scan_logs_barcode ON scan_logs (barcode);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_scan_date')
+        CREATE INDEX IX_scan_logs_scan_date ON scan_logs (scan_date);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_job_type')
+        CREATE INDEX IX_scan_logs_job_type ON scan_logs (job_type);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_user_id')
+        CREATE INDEX IX_scan_logs_user_id ON scan_logs (user_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_job_id')
+        CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_barcode_job_id')
+        CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
     
     PRINT 'Table scan_logs created successfully with indexes.';
 END
@@ -146,8 +154,10 @@ BEGIN
         FOREIGN KEY (job_id) REFERENCES job_types(id);
         
         -- สร้าง indexes สำหรับ job_id
-        CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
-        CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_job_id')
+            CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id);
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_scan_logs_barcode_job_id')
+            CREATE INDEX IX_scan_logs_barcode_job_id ON scan_logs (barcode, job_id);
         
         -- อัปเดตข้อมูลที่มีอยู่ให้ตรงกับ job_id
         UPDATE sl SET job_id = jt.id 
@@ -493,7 +503,7 @@ GO
 -- (2, 'จัดส่งต่างประเทศ', 'จัดส่งสินค้าไปต่างประเทศ');
 
 -- =====================================================
--- สรุปการติดตั้ง
+-- สรุปการติดตั้งทั้งหมด
 -- =====================================================
 
 PRINT '=====================================================';

@@ -141,3 +141,5 @@ config/sql_config.json
 *.log
 temp/
 tmp/
+
+wms_user_setup.sql
