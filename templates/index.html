@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
             background: #ffffff;
             border-radius: 20px;
@@ -55,6 +55,135 @@
 
         .scanner-section {
             display: block;
+        }
+
+        .report-section {
+            display: none;
+        }
+
+        .tab-container {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e8f0f7;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button.active {
+            color: #0c5184;
+            border-bottom-color: #0c5184;
+            background: #ffffff;
+        }
+
+        .tab-button:hover {
+            background: #e8f0f7;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .report-summary {
+            background: #e8f0f7;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0c5184;
+        }
+
+        .report-summary h3 {
+            color: #0c5184;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .report-summary .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+
+        .report-summary .summary-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .report-summary .summary-label {
+            font-weight: 600;
+            color: #0c5184;
+        }
+
+        .report-summary .summary-value {
+            color: #333;
+        }
+
+        .report-details {
+            margin-top: 20px;
+        }
+
+        .report-details h4 {
+            color: #0c5184;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .report-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #0c5184;
+        }
+
+        .report-item .item-barcode {
+            font-weight: 600;
+            font-size: 16px;
+            color: #0c5184;
+            margin-bottom: 5px;
+        }
+
+        .report-item .item-details {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .report-item .item-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .report-item .item-notes {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+            background: #e8f0f7;
+            padding: 5px 8px;
+            border-radius: 5px;
+            border-left: 3px solid #0c5184;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-style: italic;
         }
 
         .form-group {
@@ -269,9 +398,15 @@
         </div>
 
         <div class="content">
+            <!-- Tab Container -->
+            <div class="tab-container">
+                <button class="tab-button active" onclick="switchTab('scanner')">📱 สแกนบาร์โค้ด</button>
+                <button class="tab-button" onclick="switchTab('report')">📊 รายงาน</button>
+            </div>
 
-            <!-- Scanner Section -->
-            <div id="scannerSection" class="scanner-section">
+            <!-- Scanner Tab -->
+            <div id="scannerTab" class="tab-content active">
+                <div id="scannerSection" class="scanner-section">
                 
                 
                 <div class="form-group">
@@ -292,7 +427,7 @@
                     <label for="note">หมายเหตุ:</label>
                     <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;" onkeydown="handleNoteKeydown(event)"></textarea>
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
-                        💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน (กด Enter เพื่อขึ้นบรรทัดใหม่, Ctrl+Enter เพื่อสแกน)
+                        💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน 
                     </small>
                 </div>
 
@@ -300,7 +435,7 @@
                     <label for="barcode">Barcode:</label>
                     <input type="text" id="barcode" placeholder="สแกนหรือพิมพ์บาร์โค้ด" onkeypress="handleBarcodeEnter(event)">
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
-                        💡 พิมพ์บาร์โค้ดแล้วกด Enter เพื่อสแกน (ช่องจะล้างอัตโนมัติหลังสแกน)
+                        💡 พิมพ์บาร์โค้ดแล้วกด Enter เพื่อสแกน
                     </small>
                 </div>
                 
@@ -310,6 +445,45 @@
                 <div class="history-section">
                     <div class="history-title">📋 ประวัติการสแกนล่าสุด</div>
                     <div id="historyList"></div>
+                </div>
+            </div>
+            </div>
+
+            <!-- Report Tab -->
+            <div id="reportTab" class="tab-content">
+                <div class="form-group">
+                    <label for="reportDate">เลือกวันที่:</label>
+                    <input type="date" id="reportDate" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reportJobType">เลือกงานหลัก:</label>
+                    <select id="reportJobType" onchange="loadReportSubJobTypes()">
+                        <option value="">เลือกงานหลัก</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="reportSubJobType">เลือกงานรอง:</label>
+                    <select id="reportSubJobType" disabled>
+                        <option value="">เลือกงานรอง (ไม่บังคับ)</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" onclick="generateReport()">📊 ดูรายงาน</button>
+
+                <div id="reportStatus"></div>
+
+                <!-- Report Summary -->
+                <div id="reportSummary" class="report-summary" style="display: none;">
+                    <h3>📋 สรุปยอด</h3>
+                    <div id="summaryContent"></div>
+                </div>
+
+                <!-- Report Details -->
+                <div id="reportDetails" class="report-details" style="display: none;">
+                    <h4>📝 รายละเอียด</h4>
+                    <div id="detailsContent"></div>
                 </div>
             </div>
         </div>
@@ -514,11 +688,205 @@
             }
         }
 
+        // Switch between tabs
+        function switchTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Show selected tab content
+            if (tabName === 'scanner') {
+                document.getElementById('scannerTab').classList.add('active');
+                document.querySelector('.tab-button:first-child').classList.add('active');
+            } else if (tabName === 'report') {
+                document.getElementById('reportTab').classList.add('active');
+                document.querySelector('.tab-button:last-child').classList.add('active');
+                // Load job types for report if not loaded yet
+                if (document.getElementById('reportJobType').options.length <= 1) {
+                    loadReportJobTypes();
+                }
+            }
+        }
+
+        // Load job types for report
+        async function loadReportJobTypes() {
+            try {
+                const response = await fetch('/api/job_types');
+                const data = await response.json();
+
+                if (data.success) {
+                    const jobTypeSelect = document.getElementById('reportJobType');
+                    jobTypeSelect.innerHTML = '<option value="">เลือกงานหลัก</option>';
+                    
+                    data.data.forEach(jobType => {
+                        const option = document.createElement('option');
+                        option.value = jobType.id;
+                        option.textContent = jobType.name;
+                        jobTypeSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading job types for report:', error);
+            }
+        }
+
+        // Load sub job types for report
+        async function loadReportSubJobTypes() {
+            const jobTypeId = document.getElementById('reportJobType').value;
+            const subJobTypeSelect = document.getElementById('reportSubJobType');
+            
+            if (!jobTypeId) {
+                subJobTypeSelect.disabled = true;
+                subJobTypeSelect.innerHTML = '<option value="">เลือกงานรอง (ไม่บังคับ)</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sub_job_types/${jobTypeId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    subJobTypeSelect.disabled = false;
+                    subJobTypeSelect.innerHTML = '<option value="">เลือกงานรอง (ไม่บังคับ)</option>';
+                    
+                    data.data.forEach(subJobType => {
+                        const option = document.createElement('option');
+                        option.value = subJobType.id;
+                        option.textContent = subJobType.name;
+                        subJobTypeSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading sub job types for report:', error);
+                subJobTypeSelect.disabled = true;
+            }
+        }
+
+        // Generate report
+        async function generateReport() {
+            const reportDate = document.getElementById('reportDate').value;
+            const jobTypeId = document.getElementById('reportJobType').value;
+            const subJobTypeId = document.getElementById('reportSubJobType').value;
+
+            if (!reportDate) {
+                showStatus('reportStatus', 'กรุณาเลือกวันที่', 'error');
+                return;
+            }
+
+            if (!jobTypeId) {
+                showStatus('reportStatus', 'กรุณาเลือกงานหลัก', 'error');
+                return;
+            }
+
+            showStatus('reportStatus', 'กำลังโหลดรายงาน...', 'info');
+
+            try {
+                const response = await fetch('/api/report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        report_date: reportDate,
+                        job_type_id: jobTypeId, 
+                        sub_job_type_id: subJobTypeId || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('reportStatus', 'โหลดรายงานสำเร็จ', 'success');
+                    displayReport(data.summary, data.data);
+                } else {
+                    showStatus('reportStatus', data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('reportStatus', 'เกิดข้อผิดพลาดในการโหลดรายงาน', 'error');
+            }
+        }
+
+        // Display report
+        function displayReport(summary, reportData) {
+            // Display summary
+            const summaryContent = document.getElementById('summaryContent');
+            const generatedAt = new Date(summary.generated_at).toLocaleString('th-TH');
+            
+            summaryContent.innerHTML = `
+                <div class="summary-item">
+                    <span class="summary-label">งานหลัก:</span>
+                    <span class="summary-value">${summary.job_type_name}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">งานรอง:</span>
+                    <span class="summary-value">${summary.sub_job_type_name}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">วันที่:</span>
+                    <span class="summary-value">${new Date(summary.report_date).toLocaleDateString('th-TH')}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">วันที่เวลาที่สรุปยอด:</span>
+                    <span class="summary-value">${generatedAt}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">ยอดรวม:</span>
+                    <span class="summary-value">${summary.total_count}</span>
+                </div>
+            `;
+
+            document.getElementById('reportSummary').style.display = 'block';
+
+            // Display details
+            const detailsContent = document.getElementById('detailsContent');
+            
+            if (reportData.length === 0) {
+                detailsContent.innerHTML = '<div class="no-data">ไม่มีข้อมูลการสแกนในวันที่เลือก</div>';
+            } else {
+                let detailsHtml = '';
+                reportData.forEach(item => {
+                    const scanTime = new Date(item.scan_date).toLocaleString('th-TH');
+                    let notesHtml = '';
+                    
+                    if (item.notes && item.notes.trim()) {
+                        notesHtml = `<div class="item-notes">📝 ${item.notes}</div>`;
+                    }
+                    
+                    detailsHtml += `
+                        <div class="report-item">
+                            <div class="item-barcode">${item.barcode}</div>
+                            <div class="item-details">
+                                ${item.job_type_name} > ${item.sub_job_type_name} | 👤 ${item.user_id}
+                            </div>
+                            <div class="item-time">${scanTime}</div>
+                            ${notesHtml}
+                        </div>
+                    `;
+                });
+                
+                detailsContent.innerHTML = detailsHtml;
+            }
+
+            document.getElementById('reportDetails').style.display = 'block';
+        }
+
         // Auto focus on barcode input when scanner section is shown
         document.addEventListener('DOMContentLoaded', function() {
             // Load job types and history on page load
             loadJobTypes();
             loadHistory();
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('reportDate').value = today;
         });
     </script>
 </body>

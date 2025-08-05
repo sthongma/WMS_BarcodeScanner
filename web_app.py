@@ -639,6 +639,125 @@ def get_status():
     except:
         return jsonify({'success': True, 'connected': False})
 
+@app.route('/api/report', methods=['POST'])
+def generate_report():
+    """API สำหรับสร้างรายงาน"""
+    try:
+        if not db_manager:
+            return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
+        
+        data = request.get_json()
+        report_date = data.get('report_date')
+        job_type_id = data.get('job_type_id')
+        sub_job_type_id = data.get('sub_job_type_id')
+        
+        if not report_date:
+            return jsonify({'success': False, 'message': 'กรุณาเลือกวันที่'})
+        
+        if not job_type_id:
+            return jsonify({'success': False, 'message': 'กรุณาเลือกงานหลัก'})
+        
+        # แปลงวันที่เป็นรูปแบบที่เหมาะสม
+        try:
+            from datetime import datetime
+            report_date_obj = datetime.strptime(report_date, '%Y-%m-%d')
+            start_date = report_date_obj.strftime('%Y-%m-%d 00:00:00')
+            end_date = report_date_obj.strftime('%Y-%m-%d 23:59:59')
+        except:
+            return jsonify({'success': False, 'message': 'รูปแบบวันที่ไม่ถูกต้อง'})
+        
+        # ดึงข้อมูล Job Type และ Sub Job Type
+        job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
+        job_result = db_manager.execute_query(job_type_query, (job_type_id,))
+        if not job_result:
+            return jsonify({'success': False, 'message': 'ไม่พบงานหลักที่เลือก'})
+        
+        job_type_name = job_result[0]['job_name']
+        sub_job_type_name = None
+        
+        if sub_job_type_id:
+            sub_job_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
+            sub_result = db_manager.execute_query(sub_job_query, (sub_job_type_id,))
+            if sub_result:
+                sub_job_type_name = sub_result[0]['sub_job_name']
+            else:
+                return jsonify({'success': False, 'message': 'ไม่พบงานรองที่เลือก'})
+        
+        # สร้าง query สำหรับดึงข้อมูลรายงาน
+        if sub_job_type_id:
+            # มีงานรอง
+            report_query = """
+                SELECT 
+                    sl.barcode,
+                    sl.scan_date,
+                    sl.notes,
+                    sl.user_id,
+                    jt.job_name as job_type_name,
+                    sjt.sub_job_name as sub_job_type_name
+                FROM scan_logs sl
+                LEFT JOIN job_types jt ON sl.job_id = jt.id
+                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                WHERE sl.job_id = ? 
+                AND sl.sub_job_id = ?
+                AND CAST(sl.scan_date AS DATE) = ?
+                ORDER BY sl.scan_date DESC
+            """
+            params = (job_type_id, sub_job_type_id, report_date)
+        else:
+            # ไม่มีงานรอง - แสดงเฉพาะงานหลัก (ไม่กรอง sub_job_id)
+            report_query = """
+                SELECT 
+                    sl.barcode,
+                    sl.scan_date,
+                    sl.notes,
+                    sl.user_id,
+                    jt.job_name as job_type_name,
+                    ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
+                FROM scan_logs sl
+                LEFT JOIN job_types jt ON sl.job_id = jt.id
+                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                WHERE sl.job_id = ? 
+                AND CAST(sl.scan_date AS DATE) = ?
+                ORDER BY sl.scan_date DESC
+            """
+            params = (job_type_id, report_date)
+        
+        results = db_manager.execute_query(report_query, params)
+        
+        # นับจำนวนรวม
+        total_count = len(results) if results else 0
+        
+        # แปลงข้อมูลสำหรับส่งกลับ
+        report_data = []
+        for row in results:
+            report_data.append({
+                'barcode': row['barcode'],
+                'scan_date': row['scan_date'].isoformat(),
+                'notes': row['notes'] or '',
+                'user_id': row['user_id'],
+                'job_type_name': row['job_type_name'],
+                'sub_job_type_name': row['sub_job_type_name']
+            })
+        
+        # สร้างข้อมูลสรุป
+        summary = {
+            'report_date': report_date,
+            'job_type_name': job_type_name,
+            'sub_job_type_name': sub_job_type_name or 'ไม่มี',
+            'total_count': total_count,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'data': report_data
+        })
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการสร้างรายงาน: {str(e)}")
+        return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาดในการสร้างรายงาน: {str(e)}'})
+
 if __name__ == '__main__':
     # สร้างโฟลเดอร์ templates ถ้ายังไม่มี
     os.makedirs('templates', exist_ok=True)
