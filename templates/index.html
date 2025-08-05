@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 50%, #ffffff 100%);
+            background: #ffffff;
             min-height: 100vh;
             padding: 20px;
         }
@@ -28,7 +28,7 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
+            background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -299,8 +299,8 @@
         }
 
         .history-item.new {
-            border-left-color: #be2033;
-            background: #f8d7da;
+            border-left-color: #0c5184;
+            background: #1a6ba8;
         }
 
         .history-barcode {
@@ -334,7 +334,7 @@
 
         .history-user {
             font-size: 12px;
-            color: #be2033;
+            color: #0c5184;
             margin-top: 5px;
             font-weight: 500;
         }
@@ -401,7 +401,7 @@
     <div class="container">
         <div class="header">
             <h1>🏢 WMS EP Asia Group</h1>
-            <p>ระบบสแกนบาร์โค้ดสำหรับ Android</p>
+            <p>ระบบสแกนบาร์โค้ดภายในองค์การ</p>
         </div>
 
         <div class="content">
@@ -414,6 +414,7 @@
             <!-- Scanner Tab -->
             <div id="scannerTab" class="tab-content active">
                 <div id="scannerSection" class="scanner-section">
+                    <div style="margin-bottom: 20px;"></div>
                 
                 
                 <div class="form-group">
@@ -459,6 +460,8 @@
             <!-- Report Tab -->
             <div id="reportTab" class="tab-content">
                 <div class="form-group">
+                    <div style="margin-bottom: 20px;"></div>
+
                     <label for="reportDate">เลือกวันที่:</label>
                     <input type="date" id="reportDate" required>
                 </div>
@@ -796,7 +799,7 @@
 
                 if (data.success) {
                     subJobTypeSelect.disabled = false;
-                    subJobTypeSelect.innerHTML = '<option value="">เลือกงานรอง (ไม่บังคับ)</option>';
+                    subJobTypeSelect.innerHTML = '<option value="">ทั้งหมด</option>';
                     
                     data.data.forEach(subJobType => {
                         const option = document.createElement('option');
