@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 50%, #ffffff 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -21,14 +21,14 @@
         .container {
             max-width: 600px;
             margin: 0 auto;
-            background: white;
+            background: #ffffff;
             border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(12, 81, 132, 0.15);
             overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -46,6 +46,7 @@
 
         .content {
             padding: 30px 20px;
+            background: #ffffff;
         }
 
         .login-section {
@@ -64,22 +65,24 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
+            color: #0c5184;
         }
 
         .form-group input, .form-group select, .form-group textarea {
             width: 100%;
             padding: 15px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid #e8f0f7;
             border-radius: 10px;
             font-size: 16px;
             transition: border-color 0.3s;
             font-family: inherit;
+            background: #ffffff;
         }
 
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #0c5184;
+            box-shadow: 0 0 0 3px rgba(12, 81, 132, 0.1);
         }
 
         .btn {
@@ -95,23 +98,24 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
             color: white;
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 10px 20px rgba(12, 81, 132, 0.3);
         }
 
         .btn-secondary {
             background: #f8f9fa;
-            color: #333;
-            border: 2px solid #e1e5e9;
+            color: #0c5184;
+            border: 2px solid #e8f0f7;
         }
 
         .btn-secondary:hover {
-            background: #e9ecef;
+            background: #e8f0f7;
+            border-color: #0c5184;
         }
 
         .status {
@@ -134,9 +138,9 @@
         }
 
         .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
+            background: #e8f0f7;
+            color: #0c5184;
+            border: 1px solid #d1e7f0;
         }
 
         .history-section {
@@ -147,7 +151,7 @@
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 15px;
-            color: #333;
+            color: #0c5184;
         }
 
         .history-item {
@@ -155,18 +159,18 @@
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 10px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #0c5184;
         }
 
         .history-item.new {
-            border-left-color: #28a745;
-            background: #d4edda;
+            border-left-color: #be2033;
+            background: #f8d7da;
         }
 
         .history-barcode {
             font-weight: 600;
             font-size: 16px;
-            color: #333;
+            color: #0c5184;
         }
 
         .history-details {
@@ -186,15 +190,15 @@
             color: #666;
             margin-top: 5px;
             font-style: italic;
-            background: #f8f9fa;
+            background: #e8f0f7;
             padding: 5px 8px;
             border-radius: 5px;
-            border-left: 3px solid #667eea;
+            border-left: 3px solid #0c5184;
         }
 
         .history-user {
             font-size: 12px;
-            color: #007bff;
+            color: #be2033;
             margin-top: 5px;
             font-weight: 500;
         }
@@ -207,7 +211,7 @@
 
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid #0c5184;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -220,6 +224,40 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* เพิ่มสีแดงสำหรับการแจ้งเตือนและสถานะพิเศษ */
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .text-danger {
+            color: #be2033;
+        }
+
+        .text-primary {
+            color: #0c5184;
+        }
+
+        .text-white {
+            color: #ffffff;
+        }
+
+        /* สีพื้นหลังเพิ่มเติม */
+        .bg-light-blue {
+            background: #e8f0f7;
+        }
+
+        .bg-light-red {
+            background: #f8d7da;
+        }
+
+        .bg-white {
+            background: #ffffff;
+        }
 
     </style>
 </head>
