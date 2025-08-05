@@ -141,9 +141,14 @@ class LoginWindow:
         if not self.config:
             return
         
+        # หา driver ที่เหมาะสม
+        best_driver = self.find_best_driver()
+        if not best_driver:
+            raise Exception("ไม่พบ ODBC Driver สำหรับ SQL Server กรุณาติดตั้ง ODBC Driver 17 หรือ 18")
+        
         if self.config['auth_type'] == "Windows":
             self.connection_string = (
-                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                f"DRIVER={{{best_driver}}};"
                 f"SERVER={self.config['server']};"
                 f"DATABASE={self.config['database']};"
                 f"Trusted_Connection=yes;"
@@ -152,7 +157,7 @@ class LoginWindow:
             self.current_user = os.environ.get('USERNAME', 'WindowsUser')
         else:  # SQL Authentication
             self.connection_string = (
-                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                f"DRIVER={{{best_driver}}};"
                 f"SERVER={self.config['server']};"
                 f"DATABASE={self.config['database']};"
                 f"UID={self.config['username']};"
@@ -160,6 +165,75 @@ class LoginWindow:
                 f"TrustServerCertificate=yes;"
             )
             self.current_user = self.config['username']
+    
+    def find_best_driver(self) -> str:
+        """หา driver ที่เหมาะสมที่สุด"""
+        try:
+            import pyodbc
+            available_drivers = pyodbc.drivers()
+            
+            # เรียงลำดับความสำคัญ
+            recommended_drivers = [
+                "ODBC Driver 17 for SQL Server",
+                "ODBC Driver 18 for SQL Server", 
+                "ODBC Driver 13 for SQL Server",
+                "SQL Server Native Client 11.0",
+                "SQL Server"
+            ]
+            
+            for driver in recommended_drivers:
+                if driver in available_drivers:
+                    return driver
+            
+            # ถ้าไม่มี driver ที่แนะนำ ให้ใช้ driver แรกที่มี
+            sql_drivers = [d for d in available_drivers if 'SQL Server' in d or 'SQL' in d]
+            if sql_drivers:
+                return sql_drivers[0]
+            
+            return ""
+        except Exception as e:
+            print(f"เกิดข้อผิดพลาดในการตรวจสอบ drivers: {e}")
+            return ""
+    
+    def check_drivers(self):
+        """ตรวจสอบ ODBC drivers ที่มีอยู่"""
+        try:
+            import pyodbc
+            available_drivers = pyodbc.drivers()
+            best_driver = self.find_best_driver()
+            
+            info = f"""📋 **ข้อมูล ODBC Drivers**
+
+🔍 **Drivers ที่มีอยู่ทั้งหมด ({len(available_drivers)}):**
+"""
+            
+            for driver in available_drivers:
+                info += f"  • {driver}\n"
+            
+            info += f"\n🎯 **SQL Server Drivers:**\n"
+            recommended_drivers = [
+                "ODBC Driver 17 for SQL Server",
+                "ODBC Driver 18 for SQL Server", 
+                "ODBC Driver 13 for SQL Server",
+                "SQL Server Native Client 11.0",
+                "SQL Server"
+            ]
+            
+            for driver in recommended_drivers:
+                status = "✅ มี" if driver in available_drivers else "❌ ไม่มี"
+                info += f"  • {driver}: {status}\n"
+            
+            info += f"\n🏆 **Driver ที่จะใช้:** {best_driver or 'ไม่พบ'}"
+            
+            if not best_driver:
+                info += "\n\n⚠️ **คำแนะนำ:** กรุณาติดตั้ง ODBC Driver for SQL Server"
+                info += "\n\n📥 **ดาวน์โหลดได้ที่:**"
+                info += "\nhttps://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server"
+            
+            messagebox.showinfo("ตรวจสอบ ODBC Drivers", info)
+            
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการตรวจสอบ drivers: {str(e)}")
     
     def test_connection(self) -> bool:
         """Test database connection"""
@@ -240,6 +314,11 @@ class LoginWindow:
         test_btn = ttk.Button(center_button_frame, text="ทดสอบการเชื่อมต่อ (Test)", 
                              command=self.test_db_connection, width=25)
         test_btn.pack(side=tk.LEFT, padx=10)
+        
+        # Check drivers button
+        drivers_btn = ttk.Button(center_button_frame, text="ตรวจสอบ Drivers", 
+                                command=self.check_drivers, width=20)
+        drivers_btn.pack(side=tk.LEFT, padx=5)
         
         # Login button
         login_btn = ttk.Button(center_button_frame, text="เข้าสู่ระบบ (Login)", 
