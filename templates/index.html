@@ -214,11 +214,11 @@
             box-shadow: 0 0 0 3px rgba(12, 81, 132, 0.1);
         }
 
-        .form-group input:disabled, .form-group textarea:disabled {
+        .form-group input:disabled, .form-group select:disabled, .form-group textarea:disabled {
             background-color: #f8f9fa;
             color: #6c757d;
             cursor: not-allowed;
-            opacity: 0.6;
+            opacity: 0.7;
         }
 
         .btn {
@@ -425,7 +425,7 @@
 
                 <div class="form-group">
                     <label for="subJobType">Sub Job Type:</label>
-                    <select id="subJobType" disabled onchange="checkScanFields()">
+                    <select id="subJobType" disabled onchange="checkSubJobTypeSelection()">
                         <option value="">เลือก Sub Job Type</option>
                     </select>
                 </div>
@@ -521,16 +521,42 @@
             }
         }
 
+        // Check sub job type selection
+        function checkSubJobTypeSelection() {
+            const subJobTypeId = document.getElementById('subJobType').value;
+            const barcodeInput = document.getElementById('barcode');
+            const noteTextarea = document.getElementById('note');
+            
+            if (!subJobTypeId) {
+                // ถ้าไม่เลือก Sub Job Type ให้ปิดช่องบาร์โค้ดและหมายเหตุ
+                barcodeInput.disabled = true;
+                barcodeInput.placeholder = 'กรุณาเลือก Sub Job Type ก่อน';
+                noteTextarea.disabled = true;
+                noteTextarea.placeholder = 'กรุณาเลือก Sub Job Type ก่อน';
+            } else {
+                // ถ้าเลือก Sub Job Type แล้ว ให้เปิดช่องบาร์โค้ดและหมายเหตุ
+                barcodeInput.disabled = false;
+                barcodeInput.placeholder = 'สแกนหรือพิมพ์บาร์โค้ด';
+                noteTextarea.disabled = false;
+                noteTextarea.placeholder = 'พิมพ์หมายเหตุ...';
+            }
+        }
+
         // Load sub job types
         async function loadSubJobTypes() {
             const jobTypeId = document.getElementById('jobType').value;
             const subJobTypeSelect = document.getElementById('subJobType');
+            const barcodeInput = document.getElementById('barcode');
+            const noteTextarea = document.getElementById('note');
             
             if (!jobTypeId) {
-                // ถ้าไม่เลือก Job Type ให้ปิดการใช้งาน Sub Job Type
+                // ถ้าไม่เลือก Job Type ให้ปิดการใช้งาน Sub Job Type และช่องบาร์โค้ด/หมายเหตุ
                 subJobTypeSelect.disabled = true;
                 subJobTypeSelect.innerHTML = '<option value="">เลือก Sub Job Type</option>';
-                checkScanFields();
+                barcodeInput.disabled = true;
+                barcodeInput.placeholder = 'กรุณาเลือก Job Type ก่อน';
+                noteTextarea.disabled = true;
+                noteTextarea.placeholder = 'กรุณาเลือก Job Type ก่อน';
                 return;
             }
 
@@ -548,40 +574,17 @@
                         option.textContent = subJobType.name;
                         subJobTypeSelect.appendChild(option);
                     });
+                    
+                    // ตรวจสอบการเลือก Sub Job Type หลังจากโหลด
+                    checkSubJobTypeSelection();
                 }
             } catch (error) {
                 console.error('Error loading sub job types:', error);
                 subJobTypeSelect.disabled = true;
-            }
-            checkScanFields();
-        }
-
-        // ตรวจสอบและปิด/เปิดช่องสแกนตามการเลือก Job Sub
-        function checkScanFields() {
-            const jobTypeId = document.getElementById('jobType').value;
-            const subJobTypeId = document.getElementById('subJobType').value;
-            const barcodeInput = document.getElementById('barcode');
-            const noteTextarea = document.getElementById('note');
-            
-            // ตรวจสอบว่ามี Job Type และ Sub Job Type หรือไม่
-            const isComplete = jobTypeId && subJobTypeId;
-            
-            if (!isComplete) {
-                // ปิดช่องบาร์โค้ดและหมายเหตุ
                 barcodeInput.disabled = true;
-                barcodeInput.placeholder = 'กรุณาเลือก Job Type และ Sub Job Type ก่อน';
+                barcodeInput.placeholder = 'เกิดข้อผิดพลาดในการโหลด Sub Job Types';
                 noteTextarea.disabled = true;
-                noteTextarea.placeholder = 'กรุณาเลือก Job Type และ Sub Job Type ก่อน';
-                
-                // ล้างค่าในช่อง
-                barcodeInput.value = '';
-                noteTextarea.value = '';
-            } else {
-                // เปิดช่องบาร์โค้ดและหมายเหตุ
-                barcodeInput.disabled = false;
-                barcodeInput.placeholder = 'สแกนหรือพิมพ์บาร์โค้ด';
-                noteTextarea.disabled = false;
-                noteTextarea.placeholder = 'พิมพ์หมายเหตุ...';
+                noteTextarea.placeholder = 'เกิดข้อผิดพลาดในการโหลด Sub Job Types';
             }
         }
 
@@ -926,8 +929,13 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('reportDate').value = today;
             
-            // ตรวจสอบช่องสแกนเมื่อโหลดหน้า
-            checkScanFields();
+            // ปิดช่องบาร์โค้ดและหมายเหตุตั้งแต่เริ่มต้น
+            const barcodeInput = document.getElementById('barcode');
+            const noteTextarea = document.getElementById('note');
+            barcodeInput.disabled = true;
+            barcodeInput.placeholder = 'กรุณาเลือก Job Type ก่อน';
+            noteTextarea.disabled = true;
+            noteTextarea.placeholder = 'กรุณาเลือก Job Type ก่อน';
         });
     </script>
 </body>
