@@ -290,9 +290,9 @@
 
                 <div class="form-group">
                     <label for="note">หมายเหตุ:</label>
-                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;"></textarea>
+                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;" onkeydown="handleNoteKeydown(event)"></textarea>
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
-                        💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน
+                        💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน (กด Enter เพื่อขึ้นบรรทัดใหม่, Ctrl+Enter เพื่อสแกน)
                     </small>
                 </div>
 
@@ -300,7 +300,7 @@
                     <label for="barcode">Barcode:</label>
                     <input type="text" id="barcode" placeholder="สแกนหรือพิมพ์บาร์โค้ด" onkeypress="handleBarcodeEnter(event)">
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
-                        💡 พิมพ์บาร์โค้ดแล้วกด Enter หรือปุ่มขั้นบรรทัดใหม่เพื่อสแกน
+                        💡 พิมพ์บาร์โค้ดแล้วกด Enter เพื่อสแกน (ช่องจะล้างอัตโนมัติหลังสแกน)
                     </small>
                 </div>
                 
@@ -416,6 +416,10 @@
                     document.getElementById('barcode').focus();
                     loadHistory();
                 } else {
+                    // ล้างช่อง barcode ไม่ว่าจะสำเร็จหรือไม่
+                    document.getElementById('barcode').value = '';
+                    document.getElementById('barcode').focus();
+                    
                     if (data.duplicate) {
                         const message = `${data.message}\n\nข้อมูลเดิม:\nเวลา: ${new Date(data.existing_record.scan_date).toLocaleString('th-TH')}\nJob Type: ${data.existing_record.job_type_name}\nSub Job Type: ${data.existing_record.sub_job_type_name}\nผู้สแกน: ${data.existing_record.user_id}`;
                         showStatus('scanStatus', message, 'error');
@@ -475,7 +479,24 @@
         // Handle barcode enter key
         function handleBarcodeEnter(event) {
             if (event.key === 'Enter') {
+                // ถ้ากด Shift+Enter ให้ขึ้นบรรทัดใหม่ (สำหรับช่องหมายเหตุ)
+                if (event.shiftKey) {
+                    return; // ให้ขึ้นบรรทัดใหม่ตามปกติ
+                }
+                event.preventDefault(); // ป้องกันการขึ้นบรรทัดใหม่
                 scanBarcode();
+            }
+        }
+
+        // Handle note textarea keydown
+        function handleNoteKeydown(event) {
+            if (event.key === 'Enter') {
+                if (event.ctrlKey) {
+                    // Ctrl+Enter เพื่อสแกน
+                    event.preventDefault();
+                    scanBarcode();
+                }
+                // Enter ปกติให้ขึ้นบรรทัดใหม่ (ไม่ต้องทำอะไร)
             }
         }
 
