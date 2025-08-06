@@ -215,6 +215,9 @@ class WMSScannerApp:
         
         # Load initial data for scanning tab
         self.root.after(500, self.on_main_job_change)  # Initialize sub job combo
+        
+        # Load initial scanning history
+        self.root.after(1000, self.refresh_scanning_history)  # Load initial history data
     
     def setup_ui(self):
         """Setup the main UI with tabs"""
@@ -721,7 +724,7 @@ class WMSScannerApp:
     def on_tab_changed(self, event):
         """Handle tab change events"""
         selected_tab = event.widget.tab('current')['text']
-        if selected_tab == "สแกน":
+        if selected_tab == "หน้าจอหลัก":
             self.root.after(100, lambda: self.barcode_entry.focus_set())
             # Refresh scanning history when entering scan tab
             self.refresh_scanning_history()
@@ -729,6 +732,8 @@ class WMSScannerApp:
     def refresh_scanning_history(self):
         """Refresh scanning history table with recent data"""
         try:
+            print("Refreshing scanning history...")  # Debug message
+            
             # Get recent scan data (last 50 records) with sub job types
             query = """
                 SELECT TOP 50 
@@ -744,6 +749,8 @@ class WMSScannerApp:
                 ORDER BY sl.scan_date DESC
             """
             results = self.db.execute_query(query)
+            
+            print(f"Found {len(results)} records")  # Debug message
             
             # Clear existing data
             for item in self.scan_history_tree.get_children():
@@ -764,10 +771,13 @@ class WMSScannerApp:
                     notes,
                     row['user_id']
                 ))
+            
+            print("Scanning history refreshed successfully")  # Debug message
                 
         except Exception as e:
             # Don't show error message for history refresh to avoid interrupting scanning
             print(f"Error refreshing scanning history: {str(e)}")
+            print(f"Error details: {type(e).__name__}: {str(e)}")
     
     def refresh_job_types(self):
         """Refresh job types from database"""
@@ -2405,7 +2415,7 @@ def main():
     app = WMSScannerApp(root, connection_info)
     
     # Set initial focus to scanning tab and load initial history
-    root.after(100, lambda: app.notebook.select(3))  # Select scanning tab (index 3)
+    root.after(100, lambda: app.notebook.select(0))  # Select scanning tab (index 0)
     root.after(200, lambda: app.refresh_scanning_history())  # Load initial history data
     
     root.mainloop()
