@@ -300,7 +300,7 @@
 
         .history-item.new {
             border-left-color: #0c5184;
-            background: #1a6ba8;
+            background: #f8f9fa;
         }
 
         .history-barcode {
@@ -398,6 +398,7 @@
     </style>
 </head>
 <body>
+    <audio id="errorSound" src="/static/error.mp3" preload="auto"></audio>
     <div class="container">
         <div class="header">
             <h1>🏢 WMS EP Asia Group</h1>
@@ -724,7 +725,13 @@
         function showStatus(elementId, message, type) {
             const element = document.getElementById(elementId);
             element.innerHTML = `<div class="status ${type}">${message}</div>`;
-            
+            if (type === 'error') {
+                const errorAudio = document.getElementById('errorSound');
+                if (errorAudio) {
+                    errorAudio.currentTime = 0;
+                    errorAudio.play();
+                }
+            }
             if (type === 'success') {
                 setTimeout(() => {
                     element.innerHTML = '';
