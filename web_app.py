@@ -650,6 +650,7 @@ def generate_report():
         report_date = data.get('report_date')
         job_type_id = data.get('job_type_id')
         sub_job_type_id = data.get('sub_job_type_id')
+        note_filter = data.get('note_filter')
         
         if not report_date:
             return jsonify({'success': False, 'message': 'กรุณาเลือกวันที่'})
@@ -700,9 +701,16 @@ def generate_report():
                 WHERE sl.job_id = ? 
                 AND sl.sub_job_id = ?
                 AND CAST(sl.scan_date AS DATE) = ?
-                ORDER BY sl.scan_date DESC
             """
-            params = (job_type_id, sub_job_type_id, report_date)
+            params = [job_type_id, sub_job_type_id, report_date]
+            
+            # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
+            if note_filter and note_filter.strip():
+                report_query += " AND sl.notes LIKE ?"
+                params.append(f"%{note_filter.strip()}%")
+                
+            report_query += " ORDER BY sl.scan_date DESC"
+            params = tuple(params)
         else:
             # ไม่มีงานรอง - แสดงเฉพาะงานหลัก (ไม่กรอง sub_job_id)
             report_query = """
@@ -718,9 +726,16 @@ def generate_report():
                 LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
                 WHERE sl.job_id = ? 
                 AND CAST(sl.scan_date AS DATE) = ?
-                ORDER BY sl.scan_date DESC
             """
-            params = (job_type_id, report_date)
+            params = [job_type_id, report_date]
+            
+            # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
+            if note_filter and note_filter.strip():
+                report_query += " AND sl.notes LIKE ?"
+                params.append(f"%{note_filter.strip()}%")
+                
+            report_query += " ORDER BY sl.scan_date DESC"
+            params = tuple(params)
         
         results = db_manager.execute_query(report_query, params)
         
@@ -744,6 +759,7 @@ def generate_report():
             'report_date': report_date,
             'job_type_name': job_type_name,
             'sub_job_type_name': sub_job_type_name or 'ไม่มี',
+            'note_filter': note_filter.strip() if note_filter and note_filter.strip() else None,
             'total_count': total_count,
             'generated_at': datetime.now().isoformat()
         }
