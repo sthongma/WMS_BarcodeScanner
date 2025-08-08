@@ -605,30 +605,60 @@ class WMSScannerApp:
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
     
     def create_reports_tab(self):
-        """Create reports tab with SP execution"""
+        """Create reports tab with dynamic filtering like Web App"""
         reports_frame = ttk.Frame(self.notebook)
         self.notebook.add(reports_frame, text="รายงาน")
         
-        # SP selection
-        sp_frame = ttk.LabelFrame(reports_frame, text="เลือกรายงาน", padding=10)
-        sp_frame.pack(fill=tk.X, padx=10, pady=5)
+        # Filter selection frame
+        filter_frame = ttk.LabelFrame(reports_frame, text="เลือกเงื่อนไขรายงาน", padding=10)
+        filter_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # SP dropdown
-        sp_select_frame = ttk.Frame(sp_frame)
-        sp_select_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(sp_select_frame, text="Stored Procedure:").pack(side=tk.LEFT)
-        self.sp_combo = ttk.Combobox(sp_select_frame, state="readonly", width=40)
-        self.sp_combo.pack(side=tk.LEFT, padx=10)
+        # Date selection
+        date_frame = ttk.Frame(filter_frame)
+        date_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(date_frame, text="วันที่:").pack(side=tk.LEFT)
+        self.report_date_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
+        report_date_entry = ttk.Entry(date_frame, textvariable=self.report_date_var, width=15)
+        report_date_entry.pack(side=tk.LEFT, padx=10)
+        
+        # Job Type selection
+        job_type_frame = ttk.Frame(filter_frame)
+        job_type_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(job_type_frame, text="งานหลัก:").pack(side=tk.LEFT)
+        self.report_job_type_var = tk.StringVar()
+        self.report_job_type_combo = ttk.Combobox(job_type_frame, textvariable=self.report_job_type_var, 
+                                                  state="readonly", width=30)
+        self.report_job_type_combo.pack(side=tk.LEFT, padx=10)
+        self.report_job_type_combo.bind("<<ComboboxSelected>>", self.on_report_job_type_change)
+        
+        # Sub Job Type selection
+        sub_job_type_frame = ttk.Frame(filter_frame)
+        sub_job_type_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(sub_job_type_frame, text="งานรอง:").pack(side=tk.LEFT)
+        self.report_sub_job_type_var = tk.StringVar()
+        self.report_sub_job_type_combo = ttk.Combobox(sub_job_type_frame, textvariable=self.report_sub_job_type_var, 
+                                                      state="readonly", width=30)
+        self.report_sub_job_type_combo.pack(side=tk.LEFT, padx=10)
+        
+        # Note filter
+        note_filter_frame = ttk.Frame(filter_frame)
+        note_filter_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(note_filter_frame, text="กรองหมายเหตุ:").pack(side=tk.LEFT)
+        self.report_note_filter_var = tk.StringVar()
+        note_filter_entry = ttk.Entry(note_filter_frame, textvariable=self.report_note_filter_var, width=40)
+        note_filter_entry.pack(side=tk.LEFT, padx=10)
         
         # Run buttons
-        ttk.Button(sp_select_frame, text="รันรายงาน", command=self.run_report).pack(side=tk.LEFT, padx=10)
-        ttk.Button(sp_select_frame, text="ส่งออก Excel", command=self.export_report).pack(side=tk.LEFT, padx=5)
+        button_frame = ttk.Frame(filter_frame)
+        button_frame.pack(fill=tk.X, pady=10)
+        ttk.Button(button_frame, text="📊 ดูรายงาน", command=self.run_report).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="ส่งออก Excel", command=self.export_report).pack(side=tk.LEFT, padx=5)
         
         # Results table
         self.create_report_table(reports_frame)
         
-        # Load available SPs
-        self.refresh_sp_list()
+        # Load available job types
+        self.refresh_report_job_types()
     
     def create_report_table(self, parent):
         """Create table for report display"""
@@ -1523,64 +1553,226 @@ class WMSScannerApp:
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถค้นหาข้อมูลได้: {str(e)}")
     
-    def refresh_sp_list(self):
-        """Refresh stored procedure list"""
+    def refresh_report_job_types(self):
+        """Refresh job types for report selection"""
         try:
-            # Get list of stored procedures
-            query = """
-                SELECT name FROM sys.procedures 
-                WHERE type = 'P' AND is_ms_shipped = 0
-                ORDER BY name
-            """
+            # Get job types
+            query = "SELECT id, job_name FROM job_types ORDER BY job_name"
             results = self.db.execute_query(query)
-            sp_names = [row['name'] for row in results]
-            self.sp_combo['values'] = sp_names
+            
+            job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['job_name']}" for row in results]
+            self.report_job_type_combo['values'] = job_types
+            
+            # Store job types data for easier access
+            self.report_job_types_data = {f"{row['id']} - {row['job_name']}": row['id'] for row in results}
+            self.report_job_types_data["ทั้งหมด"] = None
             
         except Exception as e:
-            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการ SP ได้: {str(e)}")
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานหลักได้: {str(e)}")
+    
+    def on_report_job_type_change(self, event=None):
+        """Handle job type change in report"""
+        selected_job_type = self.report_job_type_var.get()
+        job_type_id = self.report_job_types_data.get(selected_job_type)
+        
+        # Clear sub job type selection
+        self.report_sub_job_type_var.set("")
+        self.report_sub_job_type_combo['values'] = []
+        
+        if job_type_id:
+            try:
+                # Get sub job types for selected job type
+                query = """
+                    SELECT id, sub_job_name 
+                    FROM sub_job_types 
+                    WHERE main_job_id = ? AND is_active = 1 
+                    ORDER BY sub_job_name
+                """
+                results = self.db.execute_query(query, (job_type_id,))
+                
+                sub_job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['sub_job_name']}" for row in results]
+                self.report_sub_job_type_combo['values'] = sub_job_types
+                
+                # Store sub job types data
+                self.report_sub_job_types_data = {f"{row['id']} - {row['sub_job_name']}": row['id'] for row in results}
+                self.report_sub_job_types_data["ทั้งหมด"] = None
+                
+            except Exception as e:
+                messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานรองได้: {str(e)}")
+        else:
+            # If "ทั้งหมด" is selected, load all sub job types
+            try:
+                query = """
+                    SELECT id, sub_job_name 
+                    FROM sub_job_types 
+                    WHERE is_active = 1 
+                    ORDER BY sub_job_name
+                """
+                results = self.db.execute_query(query)
+                
+                sub_job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['sub_job_name']}" for row in results]
+                self.report_sub_job_type_combo['values'] = sub_job_types
+                
+                self.report_sub_job_types_data = {f"{row['id']} - {row['sub_job_name']}": row['id'] for row in results}
+                self.report_sub_job_types_data["ทั้งหมด"] = None
+                
+            except Exception as e:
+                self.report_sub_job_types_data = {"ทั้งหมด": None}
     
     def run_report(self):
-        """Execute selected stored procedure"""
-        sp_name = self.sp_combo.get()
+        """Generate report with filters like Web App"""
+        # Get filter values
+        report_date = self.report_date_var.get()
+        selected_job_type = self.report_job_type_var.get()
+        selected_sub_job_type = self.report_sub_job_type_var.get()
+        note_filter = self.report_note_filter_var.get().strip()
         
-        if not sp_name:
-            messagebox.showwarning("คำเตือน", "กรุณาเลือก Stored Procedure")
+        # Validate inputs
+        if not report_date:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกวันที่")
+            return
+        
+        if not selected_job_type:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกงานหลัก")
             return
         
         try:
-            # Execute SP (simple EXEC without parameters for now)
-            results = self.db.execute_sp(sp_name)
+            # Get actual IDs
+            job_type_id = self.report_job_types_data.get(selected_job_type)
+            sub_job_type_id = None
+            if selected_sub_job_type and hasattr(self, 'report_sub_job_types_data'):
+                sub_job_type_id = self.report_sub_job_types_data.get(selected_sub_job_type)
+            
+            # Build query similar to Web App
+            if job_type_id and sub_job_type_id:
+                # Specific job type and sub job type
+                report_query = """
+                    SELECT 
+                        sl.barcode,
+                        sl.scan_date,
+                        sl.notes,
+                        sl.user_id,
+                        jt.job_name as job_type_name,
+                        sjt.sub_job_name as sub_job_type_name
+                    FROM scan_logs sl
+                    LEFT JOIN job_types jt ON sl.job_id = jt.id
+                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                    WHERE sl.job_id = ? 
+                    AND sl.sub_job_id = ?
+                    AND CAST(sl.scan_date AS DATE) = ?
+                """
+                params = [job_type_id, sub_job_type_id, report_date]
+            elif job_type_id:
+                # Specific job type, all sub job types
+                report_query = """
+                    SELECT 
+                        sl.barcode,
+                        sl.scan_date,
+                        sl.notes,
+                        sl.user_id,
+                        jt.job_name as job_type_name,
+                        ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
+                    FROM scan_logs sl
+                    LEFT JOIN job_types jt ON sl.job_id = jt.id
+                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                    WHERE sl.job_id = ? 
+                    AND CAST(sl.scan_date AS DATE) = ?
+                """
+                params = [job_type_id, report_date]
+            else:
+                # All job types
+                report_query = """
+                    SELECT 
+                        sl.barcode,
+                        sl.scan_date,
+                        sl.notes,
+                        sl.user_id,
+                        jt.job_name as job_type_name,
+                        ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
+                    FROM scan_logs sl
+                    LEFT JOIN job_types jt ON sl.job_id = jt.id
+                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                    WHERE CAST(sl.scan_date AS DATE) = ?
+                """
+                params = [report_date]
+            
+            # Add note filter if specified
+            if note_filter:
+                report_query += " AND sl.notes LIKE ?"
+                params.append(f"%{note_filter}%")
+            
+            report_query += " ORDER BY sl.scan_date DESC"
+            
+            # Execute query
+            results = self.db.execute_query(report_query, tuple(params))
             
             # Store data for export
             self.current_report_data = results
+            self.current_report_summary = {
+                'report_date': report_date,
+                'job_type_name': selected_job_type,
+                'sub_job_type_name': selected_sub_job_type or 'ทั้งหมด',
+                'note_filter': note_filter if note_filter else None,
+                'total_count': len(results),
+                'generated_at': datetime.datetime.now().isoformat()
+            }
             
             if not results:
-                messagebox.showinfo("ผลลัพธ์", "ไม่พบข้อมูล")
+                messagebox.showinfo("ผลลัพธ์", "ไม่พบข้อมูลในวันที่ที่เลือก")
+                # Clear table
+                for item in self.report_tree.get_children():
+                    self.report_tree.delete(item)
                 return
             
             # Clear existing data
             for item in self.report_tree.get_children():
                 self.report_tree.delete(item)
             
-            # Setup columns dynamically
-            if results:
-                columns = list(results[0].keys())
-                self.report_tree['columns'] = columns
-                self.report_tree['show'] = 'headings'
-                
-                # Configure column headings and widths
+            # Setup columns
+            columns = ['barcode', 'scan_date', 'job_type_name', 'sub_job_type_name', 'user_id', 'notes']
+            self.report_tree['columns'] = columns
+            self.report_tree['show'] = 'headings'
+            
+            # Configure column headings and widths
+            column_widths = {
+                'barcode': 150,
+                'scan_date': 150,
+                'job_type_name': 120,
+                'sub_job_type_name': 120,
+                'user_id': 100,
+                'notes': 200
+            }
+            
+            column_names = {
+                'barcode': 'บาร์โค้ด',
+                'scan_date': 'วันที่/เวลา',
+                'job_type_name': 'งานหลัก',
+                'sub_job_type_name': 'งานรอง',
+                'user_id': 'ผู้ใช้',
+                'notes': 'หมายเหตุ'
+            }
+            
+            for col in columns:
+                self.report_tree.heading(col, text=column_names.get(col, col))
+                self.report_tree.column(col, width=column_widths.get(col, 120))
+            
+            # Populate data
+            for row in results:
+                values = []
                 for col in columns:
-                    self.report_tree.heading(col, text=col)
-                    self.report_tree.column(col, width=120)
-                
-                # Populate data
-                for row in results:
-                    values = [str(row[col]) if row[col] is not None else "" for col in columns]
-                    self.report_tree.insert('', tk.END, values=values)
+                    value = row.get(col, "")
+                    if col == 'scan_date' and value:
+                        # Format datetime
+                        if isinstance(value, datetime.datetime):
+                            value = value.strftime("%Y-%m-%d %H:%M:%S")
+                    values.append(str(value) if value is not None else "")
+                self.report_tree.insert('', tk.END, values=values)
             
             messagebox.showinfo("สำเร็จ", f"รันรายงานสำเร็จ พบข้อมูล {len(results)} รายการ")
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถรันรายงานได้: {str(e)}")
     
     def show_scan_context_menu(self, event):
@@ -1817,7 +2009,7 @@ class WMSScannerApp:
         barcode_entry.select_range(0, tk.END)
     
     def export_report(self):
-        """Export current report data to Excel"""
+        """Export current report data to Excel with summary"""
         if not self.current_report_data:
             messagebox.showwarning("คำเตือน", "ไม่มีข้อมูลสำหรับส่งออก กรุณารันรายงานก่อน")
             return
@@ -1835,12 +2027,62 @@ class WMSScannerApp:
             )
             
             if filename:
-                # Convert to DataFrame and save
-                df = pd.DataFrame(self.current_report_data)
-                df.to_excel(filename, index=False, engine='openpyxl')
-                messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์สำเร็จ\n{filename}")
+                # Create Excel workbook with multiple sheets
+                with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                    
+                    # Summary sheet
+                    if hasattr(self, 'current_report_summary'):
+                        summary_data = {
+                            'รายการ': [
+                                'วันที่รายงาน',
+                                'งานหลัก', 
+                                'งานรอง',
+                                'กรองหมายเหตุ',
+                                'จำนวนรวม',
+                                'วันที่สร้างรายงาน'
+                            ],
+                            'ค่า': [
+                                self.current_report_summary.get('report_date', ''),
+                                self.current_report_summary.get('job_type_name', ''),
+                                self.current_report_summary.get('sub_job_type_name', ''),
+                                self.current_report_summary.get('note_filter', 'ไม่มี') or 'ไม่มี',
+                                self.current_report_summary.get('total_count', 0),
+                                datetime.datetime.fromisoformat(self.current_report_summary.get('generated_at', '')).strftime('%Y-%m-%d %H:%M:%S') if self.current_report_summary.get('generated_at') else ''
+                            ]
+                        }
+                        summary_df = pd.DataFrame(summary_data)
+                        summary_df.to_excel(writer, sheet_name='สรุป', index=False)
+                    
+                    # Detail data sheet
+                    # Convert data and rename columns to Thai
+                    df = pd.DataFrame(self.current_report_data)
+                    if not df.empty:
+                        # Rename columns to Thai
+                        column_mapping = {
+                            'barcode': 'บาร์โค้ด',
+                            'scan_date': 'วันที่/เวลา',
+                            'job_type_name': 'งานหลัก',
+                            'sub_job_type_name': 'งานรอง',
+                            'user_id': 'ผู้ใช้',
+                            'notes': 'หมายเหตุ'
+                        }
+                        
+                        # Rename only existing columns
+                        df_columns = {col: column_mapping.get(col, col) for col in df.columns if col in column_mapping}
+                        df = df.rename(columns=df_columns)
+                        
+                        # Format datetime columns
+                        for col in df.columns:
+                            if df[col].dtype == 'datetime64[ns]' or 'date' in col.lower():
+                                df[col] = pd.to_datetime(df[col], errors='ignore').dt.strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        df.to_excel(writer, sheet_name='รายละเอียด', index=False)
+                    
+                messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์สำเร็จ\n{filename}\n\nประกอบด้วย:\n- แผ่นสรุป: ข้อมูลสรุปรายงาน\n- แผ่นรายละเอียด: ข้อมูลทั้งหมด")
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถส่งออกไฟล์ได้: {str(e)}")
 
 

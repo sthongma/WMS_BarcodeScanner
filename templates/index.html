@@ -169,14 +169,16 @@
         }
 
         .report-item .item-notes {
-            font-size: 13px;
+            font-size: 11px;
             color: #666;
             margin-top: 5px;
             font-style: italic;
             background: #e8f0f7;
-            padding: 5px 8px;
-            border-radius: 5px;
+            padding: 4px 6px;
+            border-radius: 4px;
             border-left: 3px solid #0c5184;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .no-data {
@@ -322,14 +324,16 @@
         }
 
         .history-note {
-            font-size: 13px;
+            font-size: 11px;
             color: #666;
             margin-top: 5px;
             font-style: italic;
             background: #e8f0f7;
-            padding: 5px 8px;
-            border-radius: 5px;
+            padding: 4px 6px;
+            border-radius: 4px;
             border-left: 3px solid #0c5184;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .history-user {
@@ -479,6 +483,14 @@
                     <select id="reportSubJobType" disabled>
                         <option value="">เลือกงานรอง (ไม่บังคับ)</option>
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="reportNoteFilter">กรองหมายเหตุ:</label>
+                    <input type="text" id="reportNoteFilter" placeholder="พิมพ์หมายเหตุที่ต้องการค้นหา (ไม่บังคับ)">
+                    <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                        💡 ระบบจะค้นหาหมายเหตุที่มีข้อความนี้อยู่ในส่วนใดส่วนหนึ่ง
+                    </small>
                 </div>
 
                 <button class="btn btn-primary" onclick="generateReport()">📊 ดูรายงาน</button>
@@ -826,6 +838,7 @@
             const reportDate = document.getElementById('reportDate').value;
             const jobTypeId = document.getElementById('reportJobType').value;
             const subJobTypeId = document.getElementById('reportSubJobType').value;
+            const noteFilter = document.getElementById('reportNoteFilter').value.trim();
 
             if (!reportDate) {
                 showStatus('reportStatus', 'กรุณาเลือกวันที่', 'error');
@@ -840,16 +853,23 @@
             showStatus('reportStatus', 'กำลังโหลดรายงาน...', 'info');
 
             try {
+                const requestBody = { 
+                    report_date: reportDate,
+                    job_type_id: jobTypeId, 
+                    sub_job_type_id: subJobTypeId || null
+                };
+
+                // เพิ่มฟิลเตอร์หมายเหตุถ้ามีการกรอก
+                if (noteFilter) {
+                    requestBody.note_filter = noteFilter;
+                }
+
                 const response = await fetch('/api/report', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
-                        report_date: reportDate,
-                        job_type_id: jobTypeId, 
-                        sub_job_type_id: subJobTypeId || null
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();
@@ -871,6 +891,16 @@
             const summaryContent = document.getElementById('summaryContent');
             const generatedAt = new Date(summary.generated_at).toLocaleString('th-TH');
             
+            let noteFilterHtml = '';
+            if (summary.note_filter) {
+                noteFilterHtml = `
+                    <div class="summary-item">
+                        <span class="summary-label">กรองหมายเหตุ:</span>
+                        <span class="summary-value">"${summary.note_filter}"</span>
+                    </div>
+                `;
+            }
+
             summaryContent.innerHTML = `
                 <div class="summary-item">
                     <span class="summary-label">งานหลัก:</span>
@@ -880,6 +910,7 @@
                     <span class="summary-label">งานรอง:</span>
                     <span class="summary-value">${summary.sub_job_type_name}</span>
                 </div>
+                ${noteFilterHtml}
                 <div class="summary-item">
                     <span class="summary-label">วันที่:</span>
                     <span class="summary-value">${new Date(summary.report_date).toLocaleDateString('th-TH')}</span>
