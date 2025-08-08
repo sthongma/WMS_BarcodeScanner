@@ -24,12 +24,12 @@ BEGIN
     
     -- เพิ่มข้อมูลตัวอย่างประเภทงาน
     INSERT INTO job_types (job_name) VALUES 
-    ('Release'),
-    ('Inprocess'),
-    ('Outbound'),
-    ('Loading'),
-    ('Return'),
-    ('Repack');
+    ('1-RELEASE'),
+    ('2-INPROCESS'),
+    ('3-OUTBOUND'),
+    ('4-LOADING'),
+    ('5-RETURN'),
+    ('6-REPACK');
 
     PRINT 'Table job_types created successfully with sample data.';
 END
@@ -67,7 +67,7 @@ END
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='job_dependencies' AND xtype='U')
 BEGIN
     CREATE TABLE job_dependencies (
-        id INT IDENTITY(1,1) PRIMARY KEY,
+        id INT IDENTITY(1000,1) PRIMARY KEY,
         job_id INT NOT NULL,
         required_job_id INT NOT NULL,
         
@@ -111,7 +111,7 @@ END
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='scan_logs' AND xtype='U')
 BEGIN
     CREATE TABLE scan_logs (
-        id INT IDENTITY(1,1) PRIMARY KEY,
+        id INT IDENTITY(10000,1) PRIMARY KEY,
         barcode VARCHAR(100) NOT NULL,
         scan_date DATETIME NOT NULL DEFAULT GETDATE(),
         job_type VARCHAR(100) NOT NULL,
@@ -187,7 +187,7 @@ END
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'sub_job_types')
 BEGIN
     CREATE TABLE sub_job_types (
-        id INT IDENTITY(1,1) PRIMARY KEY,
+        id INT IDENTITY(100,1) PRIMARY KEY,
         main_job_id INT NOT NULL,
         sub_job_name NVARCHAR(255) NOT NULL,
         description NVARCHAR(500) NULL,
