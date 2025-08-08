@@ -24,13 +24,13 @@ BEGIN
     
     -- เพิ่มข้อมูลตัวอย่างประเภทงาน
     INSERT INTO job_types (job_name) VALUES 
-    ('1.Release'),
-    ('2.Inprocess'),
-    ('3.Outbound'),
-    ('4.Loading'),
-    ('5.Return'),
-    ('6.Repack');
-    
+    ('Release'),
+    ('Inprocess'),
+    ('Outbound'),
+    ('Loading'),
+    ('Return'),
+    ('Repack');
+
     PRINT 'Table job_types created successfully with sample data.';
 END
 ELSE
@@ -502,6 +502,92 @@ GO
 -- (2, 'จัดส่งต่างประเทศ', 'จัดส่งสินค้าไปต่างประเทศ');
 
 -- =====================================================
+-- ส่วนที่ 6: Identity Management System
+-- =====================================================
+-- Script สำหรับ Reset Identity และแยก ID Range
+-- =====================================================
+
+-- =====================================================
+-- 6.1 Identity Range Configuration
+-- =====================================================
+-- ID Ranges:
+-- job_types: 1-99
+-- sub_job_types: 100-999  
+-- job_dependencies: 1000-9999
+-- scan_logs: 10000+
+
+-- =====================================================
+-- 6.2 Stored Procedure สำหรับ Reset Identity
+-- =====================================================
+
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_ResetAllIdentities')
+    DROP PROCEDURE sp_ResetAllIdentities;
+GO
+
+CREATE PROCEDURE sp_ResetAllIdentities
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    PRINT 'Starting Identity Reset Process...';
+    
+    -- Reset ตารางหลัก
+    DBCC CHECKIDENT ('job_types', RESEED, 0);
+    PRINT '✅ Reset job_types (1-99)';
+    
+    DBCC CHECKIDENT ('sub_job_types', RESEED, 99);
+    PRINT '✅ Reset sub_job_types (100-999)';
+    
+    DBCC CHECKIDENT ('job_dependencies', RESEED, 999);
+    PRINT '✅ Reset job_dependencies (1000-9999)';
+    
+    DBCC CHECKIDENT ('scan_logs', RESEED, 9999);
+    PRINT '✅ Reset scan_logs (10000+)';
+    
+    PRINT 'Identity Reset Process Completed!';
+END
+GO
+
+-- =====================================================
+-- 6.3 Function ตรวจสอบ Identity Current Value
+-- =====================================================
+
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_CheckIdentityValues')
+    DROP PROCEDURE sp_CheckIdentityValues;
+GO
+
+CREATE PROCEDURE sp_CheckIdentityValues
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    PRINT '=====================================================';
+    PRINT 'Current Identity Values:';
+    PRINT '=====================================================';
+    
+    DECLARE @current_value INT;
+    
+    -- job_types
+    SELECT @current_value = IDENT_CURRENT('job_types');
+    PRINT 'job_types: ' + CAST(@current_value AS VARCHAR(10));
+    
+    -- sub_job_types
+    SELECT @current_value = IDENT_CURRENT('sub_job_types');
+    PRINT 'sub_job_types: ' + CAST(@current_value AS VARCHAR(10));
+    
+    -- job_dependencies
+    SELECT @current_value = IDENT_CURRENT('job_dependencies');
+    PRINT 'job_dependencies: ' + CAST(@current_value AS VARCHAR(10));
+    
+    -- scan_logs
+    SELECT @current_value = IDENT_CURRENT('scan_logs');
+    PRINT 'scan_logs: ' + CAST(@current_value AS VARCHAR(10));
+    
+    PRINT '=====================================================';
+END
+GO
+
+-- =====================================================
 -- สรุปการติดตั้งทั้งหมด
 -- =====================================================
 
@@ -522,6 +608,13 @@ PRINT '- sp_GetBarcodeFrequency (ความถี่บาร์โค้ด)'
 PRINT '- sp_GetDependencyCompliance (ตรวจสอบความสอดคล้อง)';
 PRINT '- sp_GetSubJobTypes (จัดการประเภทงานย่อย)';
 PRINT '- sp_GetScanLogsWithSubJobs (รายงานรวมประเภทงานย่อย)';
+PRINT '- sp_ResetAllIdentities (รีเซ็ต Identity)';
+PRINT '- sp_CheckIdentityValues (ตรวจสอบค่า Identity)';
+PRINT '';
+
+PRINT 'Identity Management Commands:';
+PRINT 'To reset all identities, run: EXEC sp_ResetAllIdentities;';
+PRINT 'To check current values, run: EXEC sp_CheckIdentityValues;';
 PRINT '';
 PRINT 'System is ready to use!';
 PRINT '=====================================================';
