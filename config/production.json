@@ -1,0 +1,60 @@
+{
+  "app": {
+    "name": "WMS Barcode Scanner",
+    "version": "1.0.0",
+    "environment": "production",
+    "debug": false,
+    "host": "0.0.0.0",
+    "port": 5000
+  },
+  "database": {
+    "connection_timeout": 30,
+    "command_timeout": 30,
+    "pool_size": 20,
+    "max_overflow": 10,
+    "pool_recycle": 3600
+  },
+  "session": {
+    "timeout_hours": 8,
+    "cookie_secure": false,
+    "cookie_httponly": true,
+    "cookie_samesite": "Lax"
+  },
+  "rate_limiting": {
+    "api_init": {
+      "max_requests": 10,
+      "per_seconds": 60
+    },
+    "api_login": {
+      "max_requests": 5,
+      "per_seconds": 300
+    },
+    "api_scan": {
+      "max_requests": 120,
+      "per_seconds": 60
+    },
+    "api_general": {
+      "max_requests": 30,
+      "per_seconds": 60
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file_path": "logs/web_app.log",
+    "max_file_size": "10MB",
+    "backup_count": 5
+  },
+  "security": {
+    "secret_key": "wms_scanner_production_key_2024_change_this",
+    "password_encryption": true,
+    "https_only": false,
+    "cors_origins": ["*"]
+  },
+  "performance": {
+    "threaded": true,
+    "processes": 1,
+    "max_content_length": "16MB",
+    "send_file_max_age": 43200
+  }
+}

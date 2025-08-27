@@ -143,3 +143,5 @@ temp/
 tmp/
 
 wms_user_setup.sql
+wms_scanner_qr.png
+4.0.0

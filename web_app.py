@@ -10,8 +10,12 @@ import os
 from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
+import logging
+from functools import wraps
+import time
+from collections import defaultdict
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -19,12 +23,33 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.database.database_manager import DatabaseManager
 from src.models.data_models import ScanRecord
 
+# ตั้งค่า logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/web_app.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.secret_key = 'wms_scanner_secret_key_2024'
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),  # Session timeout 8 ชั่วโมง
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=False,  # ใส่ True ถ้าใช้ HTTPS
+    SESSION_COOKIE_SAMESITE='Lax'
+)
 CORS(app)
 
-# Global database manager
-db_manager = None
+# Thread-safe database management
+thread_local = threading.local()
+
+# Rate limiting storage
+request_counts = defaultdict(lambda: defaultdict(int))
+request_times = defaultdict(list)
 
 def load_database_config():
     """โหลดการตั้งค่าฐานข้อมูลจากไฟล์ config"""
@@ -67,9 +92,69 @@ def create_connection_string(config):
         print(f"❌ เกิดข้อผิดพลาดในการสร้าง connection string: {e}")
         return None
 
+def rate_limit(max_requests=60, per_seconds=60):
+    """Rate limiting decorator"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+            current_time = time.time()
+            
+            # ลบ request เก่าที่เกินช่วงเวลา
+            cutoff_time = current_time - per_seconds
+            request_times[client_ip] = [
+                req_time for req_time in request_times[client_ip] 
+                if req_time > cutoff_time
+            ]
+            
+            # ตรวจสอบจำนวน request
+            if len(request_times[client_ip]) >= max_requests:
+                logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+                return jsonify({
+                    'success': False, 
+                    'message': 'Rate limit exceeded. Please try again later.'
+                }), 429
+            
+            # บันทึก request ปัจจุบัน
+            request_times[client_ip].append(current_time)
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def get_db_manager():
+    """ดึง database manager สำหรับ thread ปัจจุบัน"""
+    if not hasattr(thread_local, 'db_manager'):
+        # ดึงข้อมูล config จาก session หรือ config file
+        if 'db_config' in session:
+            config = session['db_config']
+            connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={config['server']};DATABASE={config['database']};UID={config['username']};PWD={config.get('password', '')}"
+            
+            connection_info = {
+                'config': config,
+                'connection_string': connection_string,
+                'current_user': config['username']
+            }
+        else:
+            # ใช้ config จากไฟล์
+            config = load_database_config()
+            if config:
+                connection_string = create_connection_string(config)
+                connection_info = {
+                    'config': config,
+                    'connection_string': connection_string,
+                    'current_user': config.get('username', 'system')
+                }
+            else:
+                return None
+        
+        thread_local.db_manager = DatabaseManager(connection_info)
+        logger.info(f"Created new database manager for thread: {threading.current_thread().name}")
+    
+    return thread_local.db_manager
+
 def initialize_database():
     """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
-    global db_manager
     try:
         config = load_database_config()
         if config:
@@ -84,16 +169,17 @@ def initialize_database():
                     'current_user': config.get('username', 'system')
                 }
                 
-                db_manager = DatabaseManager(connection_info)
-                if db_manager.test_connection():
-                    print("✅ เชื่อมต่อฐานข้อมูลสำเร็จ")
+                # ทดสอบการเชื่อมต่อแบบ thread-safe
+                test_manager = DatabaseManager(connection_info)
+                if test_manager.test_connection():
+                    logger.info("✅ เชื่อมต่อฐานข้อมูลสำเร็จ")
                     
                     # ตรวจสอบและสร้างตารางที่จำเป็น
-                    ensure_tables_exist()
+                    ensure_tables_exist(test_manager)
                     
                     return True
                 else:
-                    print("❌ การทดสอบการเชื่อมต่อล้มเหลว")
+                    logger.error("❌ การทดสอบการเชื่อมต่อล้มเหลว")
                     return False
             else:
                 print("❌ ไม่สามารถสร้าง connection string ได้")
@@ -107,6 +193,10 @@ def initialize_database():
 
 def check_dependencies(barcode, job_type_id):
     """ตรวจสอบ Dependencies ของงาน (เหมือน Desktop App)"""
+    db_manager = get_db_manager()
+    if not db_manager:
+        return {'success': False, 'message': 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้'}
+    
     try:
         # ตรวจสอบว่าตาราง job_dependencies มีอยู่หรือไม่
         try:
@@ -173,14 +263,20 @@ def check_dependencies(barcode, job_type_id):
         print(f"❌ เกิดข้อผิดพลาดในการตรวจสอบ Dependencies: {str(e)}")
         return {'success': False, 'message': f'เกิดข้อผิดพลาดในการตรวจสอบ Dependencies: {str(e)}'}
 
-def ensure_tables_exist():
+def ensure_tables_exist(db_manager=None):
     """ตรวจสอบและสร้างตารางที่จำเป็น"""
+    if not db_manager:
+        db_manager = get_db_manager()
+        if not db_manager:
+            logger.error("ไม่สามารถดึง database manager ได้")
+            return
+    
     try:
         # ตรวจสอบตาราง scan_logs
         try:
             check_query = "SELECT COUNT(*) as count FROM scan_logs"
             db_manager.execute_query(check_query)
-            print("✅ ตาราง scan_logs มีอยู่แล้ว")
+            logger.info("✅ ตาราง scan_logs มีอยู่แล้ว")
         except:
             print("❌ ตาราง scan_logs ไม่มีอยู่ จะสร้างใหม่...")
             create_scan_logs_query = """
@@ -200,7 +296,7 @@ def ensure_tables_exist():
             )
             """
             db_manager.execute_query(create_scan_logs_query)
-            print("✅ สร้างตาราง scan_logs สำเร็จ")
+            logger.info("✅ สร้างตาราง scan_logs สำเร็จ")
             
             # สร้าง indexes
             indexes = [
@@ -218,10 +314,10 @@ def ensure_tables_exist():
                 except:
                     pass  # Index อาจมีอยู่แล้ว
             
-            print("✅ สร้าง indexes สำเร็จ")
+            logger.info("✅ สร้าง indexes สำเร็จ")
             
     except Exception as e:
-        print(f"⚠️ เกิดข้อผิดพลาดในการตรวจสอบตาราง: {e}")
+        logger.error(f"⚠️ เกิดข้อผิดพลาดในการตรวจสอบตาราง: {e}")
 
 @app.route('/')
 def index():
@@ -229,9 +325,11 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/init')
+@rate_limit(max_requests=10, per_seconds=60)  # จำกัด 10 requests ต่อนาที
 def initialize_app():
     """API สำหรับเริ่มต้นแอปพลิเคชัน"""
     try:
+        logger.info("กำลังเริ่มต้นแอปพลิเคชัน...")
         if initialize_database():
             return jsonify({
                 'success': True, 
@@ -245,6 +343,7 @@ def initialize_app():
                 'connected': False
             })
     except Exception as e:
+        logger.error(f"เกิดข้อผิดพลาดในการเริ่มต้นแอป: {str(e)}")
         return jsonify({
             'success': False, 
             'message': f'เกิดข้อผิดพลาด: {str(e)}',
@@ -252,6 +351,7 @@ def initialize_app():
         })
 
 @app.route('/api/login', methods=['POST'])
+@rate_limit(max_requests=5, per_seconds=300)  # จำกัด 5 ครั้งต่อ 5 นาที
 def login():
     """API สำหรับ login"""
     try:
@@ -274,37 +374,40 @@ def login():
         connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}"
         
         # ทดสอบการเชื่อมต่อ
-        global db_manager
-        
-        # สร้าง connection_info สำหรับ DatabaseManager
         connection_info = {
             'config': config,
             'connection_string': connection_string,
             'current_user': username
         }
         
-        db_manager = DatabaseManager(connection_info)
-        if db_manager.test_connection():
-            # บันทึกข้อมูลใน session
+        test_manager = DatabaseManager(connection_info)
+        if test_manager.test_connection():
+            # บันทึกข้อมูลใน session พร้อม password (encrypted ในการใช้งานจริง)
             session['db_config'] = {
                 'server': server,
                 'database': database,
-                'username': username
+                'username': username,
+                'password': password  # ในการใช้งานจริงควร encrypt
             }
+            session.permanent = True
             
+            logger.info(f"User {username} logged in successfully")
             return jsonify({'success': True, 'message': 'เชื่อมต่อฐานข้อมูลสำเร็จ'})
         else:
+            logger.warning(f"Login failed for user {username}")
             return jsonify({'success': False, 'message': 'การทดสอบการเชื่อมต่อล้มเหลว'})
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
 @app.route('/api/job_types')
+@rate_limit(max_requests=30, per_seconds=60)
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
     try:
+        db_manager = get_db_manager()
         if not db_manager:
-            print("❌ ไม่มี db_manager")
+            logger.error("❌ ไม่มี db_manager")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
         print("🔍 กำลังดึงข้อมูล Job Types...")
@@ -367,11 +470,13 @@ def get_job_types():
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
 @app.route('/api/sub_job_types/<int:job_type_id>')
+@rate_limit(max_requests=30, per_seconds=60)
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
     try:
+        db_manager = get_db_manager()
         if not db_manager:
-            print("❌ ไม่มี db_manager")
+            logger.error("❌ ไม่มี db_manager")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
         print(f"🔍 กำลังดึงข้อมูล Sub Job Types สำหรับ Job Type ID: {job_type_id}")
@@ -447,13 +552,15 @@ def get_sub_job_types(job_type_id):
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
 @app.route('/api/scan', methods=['POST'])
+@rate_limit(max_requests=120, per_seconds=60)  # จำกัด 120 scans ต่อนาที (2 scans/วินาที)
 def scan_barcode():
     """API สำหรับสแกนบาร์โค้ด - ทำงานเหมือน Desktop App"""
     try:
-        print(f"🔍 เริ่มต้นการสแกนบาร์โค้ด...")
+        logger.info("🔍 เริ่มต้นการสแกนบาร์โค้ด...")
         
+        db_manager = get_db_manager()
         if not db_manager:
-            print("❌ ไม่มี db_manager")
+            logger.error("❌ ไม่มี db_manager")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
         data = request.get_json()
@@ -585,9 +692,11 @@ def scan_barcode():
         return jsonify({'success': False, 'message': f'ไม่สามารถบันทึกการสแกน: {str(e)}'})
 
 @app.route('/api/history')
+@rate_limit(max_requests=30, per_seconds=60)
 def get_scan_history():
     """API สำหรับดึงประวัติการสแกน - ทำงานเหมือน Desktop App"""
     try:
+        db_manager = get_db_manager()
         if not db_manager:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
@@ -628,11 +737,12 @@ def get_scan_history():
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
 @app.route('/api/status')
+@rate_limit(max_requests=10, per_seconds=60)
 def get_status():
     """API สำหรับตรวจสอบสถานะการเชื่อมต่อ"""
     try:
-        if db_manager:
-            db_manager.test_connection()
+        db_manager = get_db_manager()
+        if db_manager and db_manager.test_connection():
             return jsonify({'success': True, 'connected': True})
         else:
             return jsonify({'success': True, 'connected': False})
@@ -640,9 +750,11 @@ def get_status():
         return jsonify({'success': True, 'connected': False})
 
 @app.route('/api/today_summary')
+@rate_limit(max_requests=30, per_seconds=60)
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
     try:
+        db_manager = get_db_manager()
         if not db_manager:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
@@ -710,9 +822,11 @@ def get_today_summary():
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาดในการดึงสรุปงานวันนี้: {str(e)}'})
 
 @app.route('/api/report', methods=['POST'])
+@rate_limit(max_requests=10, per_seconds=60)
 def generate_report():
     """API สำหรับสร้างรายงาน"""
     try:
+        db_manager = get_db_manager()
         if not db_manager:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
         
@@ -861,4 +975,26 @@ if __name__ == '__main__':
     else:
         print("⚠️ แอปพลิเคชันจะทำงานในโหมด Offline")
     
-    app.run(host='0.0.0.0', port=5000, debug=True) 
+    # สร้างโฟลเดอร์ logs ถ้ายังไม่มี
+    os.makedirs('logs', exist_ok=True)
+    
+    # กำหนด production/development mode
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+    
+    if is_production:
+        logger.info("🏭 Running in PRODUCTION mode")
+        app.run(
+            host='0.0.0.0', 
+            port=int(os.environ.get('PORT', 5000)),
+            debug=False,
+            threaded=True,
+            use_reloader=False
+        )
+    else:
+        logger.info("🧪 Running in DEVELOPMENT mode")
+        app.run(
+            host='0.0.0.0', 
+            port=5000, 
+            debug=False,  # เปลี่ยนจาก True เป็น False เพื่อประสิทธิภาพ
+            threaded=True
+        ) 
