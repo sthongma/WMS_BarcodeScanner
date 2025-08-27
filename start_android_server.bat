@@ -2,67 +2,70 @@
 chcp 65001 >nul
 title WMS Barcode Scanner - Android Server
 
+REM Change directory to batch file location
+cd /d "%~dp0"
+
 echo.
 echo ========================================
-echo    WMS Barcode Scanner สำหรับ Android
+echo    WMS Barcode Scanner for Android
 echo ========================================
 echo.
 
-echo 🔍 กำลังตรวจสอบ Python...
+echo Checking Python...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ ไม่พบ Python กรุณาติดตั้ง Python ก่อน
+    echo ERROR: Python not found. Please install Python first.
     pause
     exit /b 1
 )
 
-echo ✅ พบ Python แล้ว
+echo Python found successfully
 echo.
 
-echo 📦 กำลังติดตั้ง Dependencies...
+echo Installing Dependencies...
 pip install -r requirements.txt
 if errorlevel 1 (
-    echo ⚠️  มีข้อผิดพลาดในการติดตั้ง Dependencies บางตัว
-    echo 💡 ลองติดตั้งทีละตัว...
+    echo WARNING: Some errors occurred while installing Dependencies
+    echo TIP: Try installing them one by one...
     
-    echo 📦 ติดตั้ง Flask...
+    echo Installing Flask...
     pip install flask>=2.3.0 flask-cors>=4.0.0
     if errorlevel 1 (
-        echo ❌ ไม่สามารถติดตั้ง Flask ได้
+        echo ERROR: Cannot install Flask
         pause
         exit /b 1
     )
     
-    echo 📦 ติดตั้ง QR Code...
+    echo Installing QR Code...
     pip install qrcode[pil]>=7.4.0
     if errorlevel 1 (
-        echo ⚠️ ไม่สามารถติดตั้ง QR Code ได้ (ไม่บังคับ)
+        echo WARNING: Cannot install QR Code (optional)
     )
     
-    echo 📦 ติดตั้ง Utilities...
+    echo Installing Utilities...
     pip install typing-extensions>=4.0.0
     if errorlevel 1 (
-        echo ⚠️ ไม่สามารถติดตั้ง Utilities ได้ (ไม่บังคับ)
+        echo WARNING: Cannot install Utilities (optional)
     )
 )
 
-echo ✅ ติดตั้ง Dependencies สำเร็จ
+echo Dependencies installed successfully
 echo.
 
-echo 🌐 กำลังแสดง IP Address ของเครื่อง...
+echo Showing IP Address of this machine...
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do (
     set ip=%%a
     set ip=!ip: =!
-    echo 📱 IP Address: !ip!
-    echo 📱 URL สำหรับ Android: http://!ip!:5000
+    echo IP Address: !ip!
+    echo URL for Android: http://!ip!:5000
 )
 
 echo.
-echo 🚀 กำลังเริ่มต้น Web Server...
-echo 📱 สามารถเข้าถึงได้ที่: http://localhost:5000
-echo 📱 สำหรับ Android: http://[IP_ADDRESS]:5000
+echo Starting Web Server...
+echo Accessible at: http://localhost:5000
+echo For Android: http://[IP_ADDRESS]:5000
 echo.
-echo 💡 กด Ctrl+C เพื่อหยุดการทำงาน
+echo TIP: Press Ctrl+C to stop
 echo.
 
 python web_app.py
