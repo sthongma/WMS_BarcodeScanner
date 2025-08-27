@@ -421,6 +421,7 @@ class WMSScannerApp:
         self.sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=self.current_sub_job_type,
                                          state="readonly", font=("Arial", 12), width=25)
         self.sub_job_combo.pack(side=tk.LEFT, padx=10)
+        self.sub_job_combo.bind('<<ComboboxSelected>>', self.on_sub_job_change)
         
         # Notes
         notes_frame = ttk.Frame(job_frame)
@@ -429,6 +430,10 @@ class WMSScannerApp:
         self.notes_entry = ttk.Entry(notes_frame, textvariable=self.notes_var,
                                     font=("Arial", 12), width=40)
         self.notes_entry.pack(side=tk.LEFT, padx=10)
+        
+        # Bind notes entry events
+        self.notes_entry.bind('<KeyRelease>', self.on_notes_change)
+        self.notes_var.trace('w', self.on_notes_var_change)
         
         # Barcode input
         barcode_frame = ttk.Frame(main_frame)
@@ -440,13 +445,67 @@ class WMSScannerApp:
         self.barcode_entry.pack(side=tk.LEFT, padx=10)
         self.barcode_entry.bind('<Return>', self.process_barcode)
         
-        # Status display
-        status_frame = ttk.LabelFrame(main_frame, text="สถานะ", padding=10)
-        status_frame.pack(fill=tk.X, pady=20)
+        # # Status display
+        # status_frame = ttk.LabelFrame(main_frame, text="สถานะ", padding=10)
+        # status_frame.pack(fill=tk.X, pady=20)
         
-        self.status_label = ttk.Label(status_frame, text="พร้อมสแกน", 
-                                     font=("Arial", 12), foreground="green")
-        self.status_label.pack()
+        # self.status_label = ttk.Label(status_frame, text="พร้อมสแกน", 
+        #                              font=("Arial", 12), foreground="green")
+        # self.status_label.pack()
+        
+        # Today Summary section
+        self.today_summary_frame = ttk.LabelFrame(main_frame, text="📊 สรุปงานวันนี้", padding=15)
+        self.today_summary_frame.pack(fill=tk.X, pady=10)
+        
+        # Summary content frame
+        summary_content_frame = ttk.Frame(self.today_summary_frame)
+        summary_content_frame.pack(fill=tk.X)
+        
+        # Summary labels dictionary for easy updates
+        self.summary_labels = {}
+        
+        # Job Type row
+        job_row = ttk.Frame(summary_content_frame)
+        job_row.pack(fill=tk.X, pady=2)
+        ttk.Label(job_row, text="งานหลัก:", font=("Arial", 10, "bold"), foreground="#0c5184").pack(side=tk.LEFT)
+        self.summary_labels['job_type'] = ttk.Label(job_row, text="ไม่ได้เลือก", font=("Arial", 10))
+        self.summary_labels['job_type'].pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Sub Job Type row
+        sub_job_row = ttk.Frame(summary_content_frame)
+        sub_job_row.pack(fill=tk.X, pady=2)
+        ttk.Label(sub_job_row, text="งานรอง:", font=("Arial", 10, "bold"), foreground="#0c5184").pack(side=tk.LEFT)
+        self.summary_labels['sub_job_type'] = ttk.Label(sub_job_row, text="ไม่ได้เลือก", font=("Arial", 10))
+        self.summary_labels['sub_job_type'].pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Notes Filter row
+        notes_filter_row = ttk.Frame(summary_content_frame)
+        notes_filter_row.pack(fill=tk.X, pady=2)
+        ttk.Label(notes_filter_row, text="กรองหมายเหตุ:", font=("Arial", 10, "bold"), foreground="#0c5184").pack(side=tk.LEFT)
+        self.summary_labels['notes_filter'] = ttk.Label(notes_filter_row, text="ไม่มี", font=("Arial", 10))
+        self.summary_labels['notes_filter'].pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Count row (prominent display)
+        count_row = ttk.Frame(summary_content_frame)
+        count_row.pack(fill=tk.X, pady=(10, 5))
+        ttk.Label(count_row, text="จำนวนที่สแกนวันนี้:", font=("Arial", 12, "bold"), foreground="#0c5184").pack(side=tk.LEFT)
+        
+        # Count frame with background color
+        count_frame = ttk.Frame(count_row)
+        count_frame.pack(side=tk.LEFT, padx=(10, 0))
+        self.summary_labels['count'] = ttk.Label(count_frame, text="0", 
+                                                font=("Arial", 18, "bold"), 
+                                                # foreground="white", 
+                                                # background="#0c5184",
+                                                padding=10)
+        self.summary_labels['count'].pack()
+        
+        # Last update row
+        update_row = ttk.Frame(summary_content_frame)
+        update_row.pack(fill=tk.X, pady=2)
+        ttk.Label(update_row, text="อัปเดทล่าสุด:", font=("Arial", 9), foreground="gray").pack(side=tk.LEFT)
+        self.summary_labels['last_update'] = ttk.Label(update_row, text="ยังไม่มีข้อมูล", font=("Arial", 9), foreground="gray")
+        self.summary_labels['last_update'].pack(side=tk.LEFT, padx=(5, 0))
         
         # History table for scanning tab
         history_scan_frame = ttk.LabelFrame(main_frame, text="ประวัติการสแกนล่าสุด", padding=10)
@@ -1151,10 +1210,46 @@ class WMSScannerApp:
             # Clear current selection
             self.current_sub_job_type.set('')
             
+            # Update today summary
+            self.load_today_summary()
+            
         except Exception as e:
             print(f"Error loading sub job types: {str(e)}")
             self.sub_job_combo['values'] = []
             self.current_sub_job_type.set('')
+            
+            # Clear summary on error
+            self.clear_summary()
+    
+    def on_sub_job_change(self, event=None):
+        """Handle sub job type change"""
+        try:
+            # Update today summary when sub job type changes
+            self.load_today_summary()
+        except Exception as e:
+            print(f"Error in on_sub_job_change: {str(e)}")
+    
+    def on_notes_change(self, event=None):
+        """Handle notes entry change with debouncing"""
+        try:
+            # Cancel previous scheduled update
+            if hasattr(self, '_notes_update_job'):
+                self.root.after_cancel(self._notes_update_job)
+            
+            # Schedule update after 500ms delay (debouncing)
+            self._notes_update_job = self.root.after(500, self.load_today_summary)
+        except Exception as e:
+            print(f"Error in on_notes_change: {str(e)}")
+    
+    def on_notes_var_change(self, *args):
+        """Handle notes variable change"""
+        try:
+            # Check if UI is ready
+            if hasattr(self, 'summary_labels') and self.summary_labels:
+                # Update summary when notes variable changes
+                self.load_today_summary()
+        except Exception as e:
+            print(f"Error in on_notes_var_change: {str(e)}")
     
     def on_job_select(self, event):
         """Handle job selection in listbox"""
@@ -1348,13 +1443,13 @@ class WMSScannerApp:
             scan_id = scan_id_result[0]['scan_id'] if scan_id_result else "N/A"
             
             # Update status
-            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            status_text = f"สแกนสำเร็จ | ID: {scan_id} | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
-            if notes:
-                status_text += f" | หมายเหตุ: {notes}"
-            status_text += f" | เวลา: {current_time}"
+            # current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # status_text = f"สแกนสำเร็จ | ID: {scan_id} | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
+            # if notes:
+            #     status_text += f" | หมายเหตุ: {notes}"
+            # status_text += f" | เวลา: {current_time}"
             
-            self.status_label.config(text=status_text, foreground="green")
+            # self.status_label.config(text=status_text, foreground="green")
             
             # Clear input for next scan
             self.barcode_entry_var.set("")
@@ -1362,6 +1457,9 @@ class WMSScannerApp:
             
             # Refresh scanning history table
             self.refresh_scanning_history()
+            
+            # Update today summary
+            self.load_today_summary()
             
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกข้อมูลได้: {str(e)}")
@@ -2640,6 +2738,120 @@ ID_ประเภทงานย่อย: 10
             
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการนำเข้าข้อมูล: {str(e)}")
+    
+    def load_today_summary(self):
+        """Load today's scan summary data"""
+        try:
+            # Check if UI is ready
+            if not hasattr(self, 'summary_labels') or not self.summary_labels:
+                return
+            job_type_name = self.current_job_type.get()
+            sub_job_type_name = self.current_sub_job_type.get()
+            notes_filter = self.notes_var.get().strip()
+            
+            # If no job type selected, clear summary
+            if not job_type_name:
+                self.clear_summary()
+                return
+            
+            # Get job type ID
+            job_result = self.db.execute_query("SELECT id FROM job_types WHERE job_name = ?", (job_type_name,))
+            if not job_result:
+                self.clear_summary()
+                return
+            
+            job_type_id = job_result[0]['id']
+            sub_job_id = None
+            
+            # Get sub job type ID if selected
+            if sub_job_type_name:
+                sub_result = self.db.execute_query(
+                    "SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ?", 
+                    (sub_job_type_name, job_type_id)
+                )
+                if sub_result:
+                    sub_job_id = sub_result[0]['id']
+            
+            # Build query for today's count
+            if sub_job_id:
+                # With sub job type
+                count_query = """
+                    SELECT COUNT(*) as total_count
+                    FROM scan_logs
+                    WHERE job_id = ? 
+                    AND sub_job_id = ?
+                    AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
+                """
+                params = [job_type_id, sub_job_id]
+            else:
+                # Without sub job type - count all for this job type
+                count_query = """
+                    SELECT COUNT(*) as total_count
+                    FROM scan_logs
+                    WHERE job_id = ? 
+                    AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
+                """
+                params = [job_type_id]
+            
+            # Add notes filter if specified
+            if notes_filter:
+                count_query += " AND notes LIKE ?"
+                params.append(f"%{notes_filter}%")
+            
+            result = self.db.execute_query(count_query, tuple(params))
+            total_count = result[0]['total_count'] if result else 0
+            
+            # Update summary display
+            self.update_summary_display(job_type_name, sub_job_type_name or "ไม่มี", 
+                                      notes_filter or None, total_count)
+            
+        except Exception as e:
+            print(f"Error loading today summary: {str(e)}")
+            self.clear_summary()
+    
+    def update_summary_display(self, job_type, sub_job_type, notes_filter, count):
+        """Update the summary display with new data"""
+        try:
+            # Update job type
+            self.summary_labels['job_type'].config(text=job_type)
+            
+            # Update sub job type
+            self.summary_labels['sub_job_type'].config(text=sub_job_type)
+            
+            # Update notes filter
+            if notes_filter:
+                self.summary_labels['notes_filter'].config(text=f'"{notes_filter}"')
+            else:
+                self.summary_labels['notes_filter'].config(text="ไม่มี")
+            
+            # Update count with prominent display
+            self.summary_labels['count'].config(text=str(count))
+            
+            # Update last update time
+            import datetime
+            now = datetime.datetime.now()
+            self.summary_labels['last_update'].config(text=now.strftime("%d/%m/%Y %H:%M:%S"))
+            
+            # Show the summary frame
+            self.today_summary_frame.pack(fill=tk.X, pady=10)
+            
+        except Exception as e:
+            print(f"Error updating summary display: {str(e)}")
+    
+    def clear_summary(self):
+        """Clear the summary display"""
+        try:
+            self.summary_labels['job_type'].config(text="ไม่ได้เลือก")
+            self.summary_labels['sub_job_type'].config(text="ไม่ได้เลือก")
+            self.summary_labels['notes_filter'].config(text="ไม่มี")
+            self.summary_labels['count'].config(text="0")
+            self.summary_labels['last_update'].config(text="ยังไม่มีข้อมูล")
+            
+            # Hide the summary frame
+            self.today_summary_frame.pack_forget()
+            
+        except Exception as e:
+            print(f"Error clearing summary: {str(e)}")
 
 def main():
     """Main application entry point"""
@@ -2656,9 +2868,10 @@ def main():
     root = tk.Tk()
     app = WMSScannerApp(root, connection_info)
     
-    # Set initial focus to scanning tab and load initial history
+    # Set initial focus to scanning tab and load initial data
     root.after(100, lambda: app.notebook.select(0))  # Select scanning tab (index 0)
     root.after(200, lambda: app.refresh_scanning_history())  # Load initial history data
+    root.after(300, lambda: app.load_today_summary())  # Load initial summary data
     
     root.mainloop()
 
