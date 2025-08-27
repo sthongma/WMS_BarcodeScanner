@@ -70,7 +70,7 @@ def scan_barcode():
 
 
 @scan_bp.route('/api/history')
-@rate_limit(max_requests=30, per_seconds=60)
+@rate_limit(max_requests=100, per_seconds=60)
 def get_scan_history():
     """API สำหรับดึงประวัติการสแกน"""
     try:
@@ -114,7 +114,7 @@ def get_scan_history():
 
 
 @scan_bp.route('/api/today_summary')
-@rate_limit(max_requests=30, per_seconds=60)
+@rate_limit(max_requests=100, per_seconds=60)
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
     try:
@@ -159,7 +159,7 @@ def get_today_summary():
 
 
 @scan_bp.route('/api/scan/<int:record_id>', methods=['PUT'])
-@rate_limit(max_requests=30, per_seconds=60)
+@rate_limit(max_requests=100, per_seconds=60)
 def update_scan_record(record_id):
     """API สำหรับอัปเดตข้อมูลการสแกน"""
     try:
@@ -179,7 +179,7 @@ def update_scan_record(record_id):
 
 
 @scan_bp.route('/api/scan/<int:record_id>', methods=['DELETE'])
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def delete_scan_record(record_id):
     """API สำหรับลบข้อมูลการสแกน"""
     try:

@@ -19,7 +19,7 @@ job_service = JobService()
 
 
 @job_bp.route('/api/job_types')
-@rate_limit(max_requests=30, per_seconds=60)
+@rate_limit(max_requests=100, per_seconds=60)
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
     try:
@@ -68,7 +68,7 @@ def get_job_types():
 
 
 @job_bp.route('/api/sub_job_types/<int:job_type_id>')
-@rate_limit(max_requests=30, per_seconds=60)
+@rate_limit(max_requests=100, per_seconds=60)
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
     try:
@@ -125,7 +125,7 @@ def get_sub_job_types(job_type_id):
 
 
 @job_bp.route('/api/job_types', methods=['POST'])
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def create_job_type():
     """API สำหรับสร้าง Job Type ใหม่"""
     try:
@@ -162,7 +162,7 @@ def create_job_type():
 
 
 @job_bp.route('/api/sub_job_types', methods=['POST'])
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def create_sub_job_type():
     """API สำหรับสร้าง Sub Job Type ใหม่"""
     try:

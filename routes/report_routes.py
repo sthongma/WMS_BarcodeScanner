@@ -19,7 +19,7 @@ report_service = ReportService()
 
 
 @report_bp.route('/api/report', methods=['POST'])
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def generate_report():
     """API สำหรับสร้างรายงาน"""
     try:
@@ -77,7 +77,7 @@ def generate_report():
 
 
 @report_bp.route('/api/report/export', methods=['POST'])
-@rate_limit(max_requests=5, per_seconds=60)
+@rate_limit(max_requests=25, per_seconds=60)
 def export_report():
     """API สำหรับส่งออกรายงาน"""
     try:
@@ -110,7 +110,7 @@ def export_report():
 
 
 @report_bp.route('/api/report/monthly/<int:year>/<int:month>')
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def get_monthly_summary(year, month):
     """API สำหรับดึงสรุปรายเดือน"""
     try:
@@ -134,7 +134,7 @@ def get_monthly_summary(year, month):
 
 
 @report_bp.route('/api/report/user_activity')
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def get_user_activity_report():
     """API สำหรับดึงรายงานกิจกรรมผู้ใช้"""
     try:

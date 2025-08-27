@@ -4,7 +4,9 @@
       "Bash(python:*)",
       "Bash(find:*)",
       "Bash(move web_app.py backup_old_codeweb_app_original.py)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(pip install:*)",
+      "Bash(set PYTHONPATH=C:UsersshinsOneDriveDesktopGitHubWMS_BarcodeScannersrc)"
     ],
     "deny": [],
     "ask": []

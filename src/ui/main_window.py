@@ -17,8 +17,8 @@ from typing import Dict, List, Optional, Any
 
 # Import database manager and login window
 try:
-    from ..database.database_manager import DatabaseManager
-    from .login_window import LoginWindow
+    from database.database_manager import DatabaseManager
+    from ui.login_window import LoginWindow
 except ImportError:
     print("Error: Required modules not found")
     sys.exit(1)

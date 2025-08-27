@@ -75,12 +75,12 @@ class ConfigManager:
     def get_rate_limit_config(self) -> Dict[str, Any]:
         """ดึงการตั้งค่า rate limiting"""
         return {
-            'default': {'max_requests': 60, 'per_seconds': 60},
-            'login': {'max_requests': 5, 'per_seconds': 300},
-            'init': {'max_requests': 10, 'per_seconds': 60},
+            'default': {'max_requests': 200, 'per_seconds': 60},
+            'login': {'max_requests': 20, 'per_seconds': 60},
+            'init': {'max_requests': 50, 'per_seconds': 60},
             'scan': {'max_requests': 120, 'per_seconds': 60},
-            'api': {'max_requests': 30, 'per_seconds': 60},
-            'report': {'max_requests': 10, 'per_seconds': 60}
+            'api': {'max_requests': 100, 'per_seconds': 60},
+            'report': {'max_requests': 50, 'per_seconds': 60}
         }
     
     def save_config(self, config: Dict[str, Any]) -> bool:

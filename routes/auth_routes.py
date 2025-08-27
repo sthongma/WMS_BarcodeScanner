@@ -17,7 +17,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/api/init')
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def initialize_app():
     """API สำหรับเริ่มต้นแอปพลิเคชัน"""
     try:
@@ -64,7 +64,7 @@ def initialize_app():
 
 
 @auth_bp.route('/api/login', methods=['POST'])
-@rate_limit(max_requests=5, per_seconds=300)
+@rate_limit(max_requests=20, per_seconds=60)
 def login():
     """API สำหรับ login"""
     try:
@@ -125,7 +125,7 @@ def login():
 
 
 @auth_bp.route('/api/status')
-@rate_limit(max_requests=10, per_seconds=60)
+@rate_limit(max_requests=50, per_seconds=60)
 def get_status():
     """API สำหรับตรวจสอบสถานะการเชื่อมต่อ"""
     try:
