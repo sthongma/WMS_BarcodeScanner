@@ -281,6 +281,75 @@
             border: 1px solid #d1e7f0;
         }
 
+        .today-summary {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .today-summary-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #0c5184;
+        }
+
+        .today-summary-content {
+            background: linear-gradient(135deg, #e8f0f7 0%, #f1f8ff 100%);
+            padding: 20px;
+            border-radius: 15px;
+            border-left: 5px solid #0c5184;
+            box-shadow: 0 4px 15px rgba(12, 81, 132, 0.1);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(12, 81, 132, 0.1);
+        }
+
+        .summary-row:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-top: 12px;
+            border-top: 2px solid rgba(12, 81, 132, 0.2);
+        }
+
+        .summary-label {
+            font-weight: 600;
+            color: #0c5184;
+            font-size: 14px;
+        }
+
+        .summary-value {
+            color: #333;
+            font-size: 14px;
+        }
+
+        .summary-count {
+            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 18px;
+            box-shadow: 0 3px 10px rgba(12, 81, 132, 0.3);
+        }
+
+        .summary-note {
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            margin-top: 10px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(12, 81, 132, 0.1);
+        }
+
         .history-section {
             margin-top: 30px;
         }
@@ -438,7 +507,7 @@
 
                 <div class="form-group">
                     <label for="note">หมายเหตุ:</label>
-                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;" onkeydown="handleNoteKeydown(event)"></textarea>
+                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;" onkeydown="handleNoteKeydown(event)" oninput="loadTodaySummary()"></textarea>
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
                         💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน 
                     </small>
@@ -453,6 +522,12 @@
                 </div>
                 
                 <div id="scanStatus"></div>
+
+                <!-- Today Summary Section -->
+                <div id="todaySummary" class="today-summary" style="display: none;">
+                    <div class="today-summary-title">📊 สรุปงานวันนี้</div>
+                    <div id="todaySummaryContent" class="today-summary-content"></div>
+                </div>
 
                 <!-- History Section -->
                 <div class="history-section">
@@ -556,6 +631,9 @@
                 noteTextarea.disabled = false;
                 noteTextarea.placeholder = 'พิมพ์หมายเหตุ...';
             }
+            
+            // โหลดสรุปงานวันนี้เมื่อเปลี่ยน Sub Job Type
+            loadTodaySummary();
         }
 
         // Load sub job types
@@ -573,6 +651,8 @@
                 barcodeInput.placeholder = 'กรุณาเลือก Job Type ก่อน';
                 noteTextarea.disabled = true;
                 noteTextarea.placeholder = 'กรุณาเลือก Job Type ก่อน';
+                // โหลดสรุปงานวันนี้เมื่อเปลี่ยน Job Type
+                loadTodaySummary();
                 return;
             }
 
@@ -593,6 +673,9 @@
                     
                     // ตรวจสอบการเลือก Sub Job Type หลังจากโหลด
                     checkSubJobTypeSelection();
+                    
+                    // โหลดสรุปงานวันนี้เมื่อเปลี่ยน Job Type
+                    loadTodaySummary();
                 }
             } catch (error) {
                 console.error('Error loading sub job types:', error);
@@ -601,6 +684,8 @@
                 barcodeInput.placeholder = 'เกิดข้อผิดพลาดในการโหลด Sub Job Types';
                 noteTextarea.disabled = true;
                 noteTextarea.placeholder = 'เกิดข้อผิดพลาดในการโหลด Sub Job Types';
+                // ซ่อนสรุปงานวันนี้เมื่อเกิดข้อผิดพลาด
+                document.getElementById('todaySummary').style.display = 'none';
             }
         }
 
@@ -646,6 +731,8 @@
                     document.getElementById('barcode').value = '';
                     document.getElementById('barcode').focus();
                     loadHistory();
+                    // อัปเดทสรุปงานวันนี้หลังจากสแกนสำเร็จ
+                    loadTodaySummary();
                 } else {
                     // ล้างช่อง barcode ไม่ว่าจะสำเร็จหรือไม่
                     document.getElementById('barcode').value = '';
@@ -660,6 +747,73 @@
                 }
             } catch (error) {
                 showStatus('scanStatus', 'เกิดข้อผิดพลาดในการบันทึก', 'error');
+            }
+        }
+
+        // Load today summary
+        async function loadTodaySummary() {
+            try {
+                const jobTypeId = document.getElementById('jobType').value;
+                const subJobTypeId = document.getElementById('subJobType').value;
+                const noteFilter = document.getElementById('note').value.trim();
+                
+                if (!jobTypeId) {
+                    // ซ่อนส่วนสรุปถ้าไม่ได้เลือก Job Type
+                    document.getElementById('todaySummary').style.display = 'none';
+                    return;
+                }
+                
+                let url = `/api/today_summary?job_type_id=${jobTypeId}`;
+                if (subJobTypeId) {
+                    url += `&sub_job_type_id=${subJobTypeId}`;
+                }
+                if (noteFilter) {
+                    url += `&note_filter=${encodeURIComponent(noteFilter)}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const summaryContent = document.getElementById('todaySummaryContent');
+                    const summaryData = data.data;
+                    
+                    let noteFilterHtml = '';
+                    if (summaryData.note_filter) {
+                        noteFilterHtml = `
+                            <div class="summary-row">
+                                <span class="summary-label">กรองหมายเหตุ:</span>
+                                <span class="summary-value">"${summaryData.note_filter}"</span>
+                            </div>
+                        `;
+                    }
+                    
+                    summaryContent.innerHTML = `
+                        <div class="summary-row">
+                            <span class="summary-label">งานหลัก:</span>
+                            <span class="summary-value">${summaryData.job_type_name}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">งานรอง:</span>
+                            <span class="summary-value">${summaryData.sub_job_type_name}</span>
+                        </div>
+                        ${noteFilterHtml}
+                        <div class="summary-row">
+                            <span class="summary-label">จำนวนที่สแกนวันนี้:</span>
+                            <span class="summary-count">${summaryData.total_count}</span>
+                        </div>
+                        <div class="summary-note">
+                            💡 อัปเดทล่าสุด: ${new Date().toLocaleString('th-TH')}
+                        </div>
+                    `;
+                    
+                    document.getElementById('todaySummary').style.display = 'block';
+                } else {
+                    document.getElementById('todaySummary').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading today summary:', error);
+                document.getElementById('todaySummary').style.display = 'none';
             }
         }
 

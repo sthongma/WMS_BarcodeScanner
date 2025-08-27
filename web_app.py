@@ -639,6 +639,76 @@ def get_status():
     except:
         return jsonify({'success': True, 'connected': False})
 
+@app.route('/api/today_summary')
+def get_today_summary():
+    """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
+    try:
+        if not db_manager:
+            return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
+        
+        job_type_id = request.args.get('job_type_id')
+        sub_job_type_id = request.args.get('sub_job_type_id')
+        note_filter = request.args.get('note_filter')
+        
+        if not job_type_id:
+            return jsonify({'success': True, 'data': {'total_count': 0, 'message': 'กรุณาเลือก Job Type'}})
+        
+        # สร้าง query สำหรับนับจำนวนการสแกนวันนี้
+        if sub_job_type_id and sub_job_type_id != '':
+            # มี Sub Job Type
+            count_query = """
+                SELECT COUNT(*) as total_count
+                FROM scan_logs sl
+                WHERE sl.job_id = ? 
+                AND sl.sub_job_id = ?
+                AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
+            """
+            params = [job_type_id, sub_job_type_id]
+        else:
+            # ไม่มี Sub Job Type - นับเฉพาะงานหลัก
+            count_query = """
+                SELECT COUNT(*) as total_count
+                FROM scan_logs sl
+                WHERE sl.job_id = ? 
+                AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
+            """
+            params = [job_type_id]
+        
+        # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
+        if note_filter and note_filter.strip():
+            count_query += " AND sl.notes LIKE ?"
+            params.append(f"%{note_filter.strip()}%")
+        
+        result = db_manager.execute_query(count_query, tuple(params))
+        total_count = result[0]['total_count'] if result else 0
+        
+        # ดึงข้อมูล Job Type และ Sub Job Type สำหรับแสดงผล
+        job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
+        job_result = db_manager.execute_query(job_type_query, (job_type_id,))
+        job_type_name = job_result[0]['job_name'] if job_result else 'ไม่ทราบ'
+        
+        sub_job_type_name = 'ไม่มี'
+        if sub_job_type_id and sub_job_type_id != '':
+            sub_job_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
+            sub_result = db_manager.execute_query(sub_job_query, (sub_job_type_id,))
+            if sub_result:
+                sub_job_type_name = sub_result[0]['sub_job_name']
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_count': total_count,
+                'job_type_name': job_type_name,
+                'sub_job_type_name': sub_job_type_name,
+                'note_filter': note_filter.strip() if note_filter and note_filter.strip() else None,
+                'date': datetime.now().strftime('%Y-%m-%d')
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการดึงสรุปงานวันนี้: {str(e)}")
+        return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาดในการดึงสรุปงานวันนี้: {str(e)}'})
+
 @app.route('/api/report', methods=['POST'])
 def generate_report():
     """API สำหรับสร้างรายงาน"""
