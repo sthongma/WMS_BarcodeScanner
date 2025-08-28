@@ -6,7 +6,10 @@
       "Bash(move web_app.py backup_old_codeweb_app_original.py)",
       "Bash(timeout:*)",
       "Bash(pip install:*)",
-      "Bash(set PYTHONPATH=C:UsersshinsOneDriveDesktopGitHubWMS_BarcodeScannersrc)"
+      "Bash(set PYTHONPATH=C:UsersshinsOneDriveDesktopGitHubWMS_BarcodeScannersrc)",
+      "Bash(mkdir:*)",
+      "Bash(move README*.md docs/)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

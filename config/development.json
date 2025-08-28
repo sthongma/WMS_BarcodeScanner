@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "WMS Barcode Scanner",
-    "version": "1.0.0",
+    "version": "0.3.2",
     "environment": "development",
     "debug": false,
     "host": "0.0.0.0",

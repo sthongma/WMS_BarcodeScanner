@@ -11,7 +11,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 
-def load_config(config_file='config/production.json'):
+def load_config(config_file='../config/production.json'):
     """โหลดการตั้งค่าจากไฟล์ config"""
     try:
         with open(config_file, 'r', encoding='utf-8') as f:
@@ -63,7 +63,7 @@ def main():
     
     # ตั้งค่า environment variables
     os.environ['FLASK_ENV'] = 'production'
-    os.environ['PYTHONPATH'] = os.path.dirname(os.path.abspath(__file__))
+    os.environ['PYTHONPATH'] = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # ตั้งค่า logging
     setup_logging(config)
@@ -74,6 +74,7 @@ def main():
     
     # Import และรัน app
     try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from web_app import app
         
         app_config = config['app']
