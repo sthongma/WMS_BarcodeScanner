@@ -8,7 +8,7 @@ Handles job types and sub job types endpoints
 import logging
 from flask import Blueprint, jsonify
 from src.services.job_service import JobService
-from middleware.rate_limiter import rate_limit
+from middleware.rate_limiter import auto_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ job_service = JobService()
 
 
 @job_bp.route('/api/job_types')
-@rate_limit(max_requests=100, per_seconds=60)
+@auto_rate_limit
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
     try:
@@ -68,7 +68,7 @@ def get_job_types():
 
 
 @job_bp.route('/api/sub_job_types/<int:job_type_id>')
-@rate_limit(max_requests=100, per_seconds=60)
+@auto_rate_limit
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
     try:
@@ -125,7 +125,7 @@ def get_sub_job_types(job_type_id):
 
 
 @job_bp.route('/api/job_types', methods=['POST'])
-@rate_limit(max_requests=50, per_seconds=60)
+@auto_rate_limit
 def create_job_type():
     """API สำหรับสร้าง Job Type ใหม่"""
     try:
@@ -162,7 +162,7 @@ def create_job_type():
 
 
 @job_bp.route('/api/sub_job_types', methods=['POST'])
-@rate_limit(max_requests=50, per_seconds=60)
+@auto_rate_limit
 def create_sub_job_type():
     """API สำหรับสร้าง Sub Job Type ใหม่"""
     try:

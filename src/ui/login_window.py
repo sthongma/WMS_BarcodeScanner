@@ -29,7 +29,8 @@ class LoginWindow:
         self.center_window()
         
         # Configuration
-        self.config_file = "config/sql_config.json"
+        # Always use project root directory for config file path
+        self.config_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "sql_config.json")
         self.connection_string = ""
         self.current_user = ""
         self.config = None

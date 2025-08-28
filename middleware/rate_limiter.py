@@ -56,6 +56,30 @@ class RateLimiter:
         return decorator
 
 
+# Centralized rate limit configuration
+ENDPOINT_RATE_LIMITS = {
+    # Scan endpoints
+    'scan_barcode': {'max_requests': 120, 'per_seconds': 60},  # 2 scans/second
+    'get_scan_history': {'max_requests': 100, 'per_seconds': 60},
+    'get_today_summary': {'max_requests': 140, 'per_seconds': 60},  # มากกว่า scan เพราะใช้บ่อย
+    'update_scan_record': {'max_requests': 120, 'per_seconds': 60},
+    
+    # Job endpoints
+    'get_job_types': {'max_requests': 100, 'per_seconds': 60},
+    'get_sub_job_types': {'max_requests': 100, 'per_seconds': 60},
+    'create_job_type': {'max_requests': 50, 'per_seconds': 60},
+    'create_sub_job_type': {'max_requests': 50, 'per_seconds': 60},
+    
+    # Report endpoints
+    'generate_report': {'max_requests': 50, 'per_seconds': 60},
+    'export_report': {'max_requests': 25, 'per_seconds': 60},  # ลดลงเพราะ export ใช้ resource มาก
+    'get_monthly_summary': {'max_requests': 50, 'per_seconds': 60},
+    'get_user_activity_report': {'max_requests': 50, 'per_seconds': 60},
+    
+    # Default fallback
+    'default': {'max_requests': 60, 'per_seconds': 60}
+}
+
 # Global rate limiter instance
 rate_limiter = RateLimiter()
 
@@ -63,6 +87,17 @@ rate_limiter = RateLimiter()
 def rate_limit(max_requests: int = 60, per_seconds: int = 60):
     """Rate limiting decorator function"""
     return rate_limiter.limit(max_requests, per_seconds)
+
+
+def auto_rate_limit(func):
+    """Auto rate limit decorator based on function name"""
+    function_name = func.__name__
+    config = ENDPOINT_RATE_LIMITS.get(function_name, ENDPOINT_RATE_LIMITS['default'])
+    
+    return rate_limiter.limit(
+        max_requests=config['max_requests'], 
+        per_seconds=config['per_seconds']
+    )(func)
 
 
 def get_rate_limit_info(client_ip: str = None) -> Dict[str, Any]:

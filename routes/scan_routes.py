@@ -8,7 +8,7 @@ Handles scanning and history endpoints
 import logging
 from flask import Blueprint, request, jsonify
 from src.services.scan_service import ScanService
-from middleware.rate_limiter import rate_limit
+from middleware.rate_limiter import auto_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ scan_service = ScanService()
 
 
 @scan_bp.route('/api/scan', methods=['POST'])
-@rate_limit(max_requests=120, per_seconds=60)  # 2 scans per second
+@auto_rate_limit
 def scan_barcode():
     """API สำหรับสแกนบาร์โค้ด"""
     try:
@@ -70,7 +70,7 @@ def scan_barcode():
 
 
 @scan_bp.route('/api/history')
-@rate_limit(max_requests=100, per_seconds=60)
+@auto_rate_limit
 def get_scan_history():
     """API สำหรับดึงประวัติการสแกน"""
     try:
@@ -114,7 +114,7 @@ def get_scan_history():
 
 
 @scan_bp.route('/api/today_summary')
-@rate_limit(max_requests=100, per_seconds=60)
+@auto_rate_limit
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
     try:
@@ -159,7 +159,7 @@ def get_today_summary():
 
 
 @scan_bp.route('/api/scan/<int:record_id>', methods=['PUT'])
-@rate_limit(max_requests=100, per_seconds=60)
+@auto_rate_limit
 def update_scan_record(record_id):
     """API สำหรับอัปเดตข้อมูลการสแกน"""
     try:
@@ -178,18 +178,3 @@ def update_scan_record(record_id):
         })
 
 
-@scan_bp.route('/api/scan/<int:record_id>', methods=['DELETE'])
-@rate_limit(max_requests=50, per_seconds=60)
-def delete_scan_record(record_id):
-    """API สำหรับลบข้อมูลการสแกน"""
-    try:
-        result = scan_service.delete_scan_record(record_id)
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"Error deleting scan record: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'เกิดข้อผิดพลาด: {str(e)}'
-        })

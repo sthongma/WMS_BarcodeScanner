@@ -11,7 +11,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 
-def load_config(config_file='../config/production.json'):
+def load_config(config_file='config/production.json'):
     """โหลดการตั้งค่าจากไฟล์ config"""
     try:
         with open(config_file, 'r', encoding='utf-8') as f:

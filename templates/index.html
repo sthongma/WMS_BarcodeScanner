@@ -507,7 +507,7 @@
 
                 <div class="form-group">
                     <label for="note">หมายเหตุ:</label>
-                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: vertical;" onkeydown="handleNoteKeydown(event)" oninput="loadTodaySummary()"></textarea>
+                    <textarea id="note" placeholder="พิมพ์หมายเหตุ..." rows="2" style="resize: none;" onkeydown="handleNoteKeydown(event)" oninput="loadTodaySummary()"></textarea>
                     <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
                         💡 หมายเหตุจะถูกประทับเรื่อยๆ ทุกครั้งที่สแกน 
                     </small>
@@ -589,27 +589,52 @@
 
     <script>
         let isConnected = true;
+        
+        // Global cache for job types and sub job types
+        let jobTypesCache = [];
+        let subJobTypesCache = {};
 
-        // Load job types
+        // Load job types with caching
         async function loadJobTypes() {
+            // Use cache if available
+            if (jobTypesCache.length > 0) {
+                populateJobTypeSelect('jobType', jobTypesCache);
+                return jobTypesCache;
+            }
+
             try {
                 const response = await fetch('/api/job_types');
                 const data = await response.json();
 
                 if (data.success) {
-                    const jobTypeSelect = document.getElementById('jobType');
-                    jobTypeSelect.innerHTML = '<option value="">เลือก Job Type</option>';
+                    // Store in cache
+                    jobTypesCache = data.data;
                     
-                    data.data.forEach(jobType => {
-                        const option = document.createElement('option');
-                        option.value = jobType.id;
-                        option.textContent = jobType.name;
-                        jobTypeSelect.appendChild(option);
-                    });
+                    // Populate select elements
+                    populateJobTypeSelect('jobType', jobTypesCache);
                 }
+                return jobTypesCache;
             } catch (error) {
                 console.error('Error loading job types:', error);
+                return [];
             }
+        }
+
+        // Helper function to populate job type select
+        function populateJobTypeSelect(selectId, jobTypes) {
+            const jobTypeSelect = document.getElementById(selectId);
+            if (!jobTypeSelect) return;
+            
+            jobTypeSelect.innerHTML = selectId === 'reportJobType' ? 
+                '<option value="">เลือกงานหลัก</option>' : 
+                '<option value="">เลือก Job Type</option>';
+            
+            jobTypes.forEach(jobType => {
+                const option = document.createElement('option');
+                option.value = jobType.id;
+                option.textContent = jobType.name;
+                jobTypeSelect.appendChild(option);
+            });
         }
 
         // Check sub job type selection
@@ -636,7 +661,7 @@
             loadTodaySummary();
         }
 
-        // Load sub job types
+        // Load sub job types with caching
         async function loadSubJobTypes() {
             const jobTypeId = document.getElementById('jobType').value;
             const subJobTypeSelect = document.getElementById('subJobType');
@@ -656,20 +681,26 @@
                 return;
             }
 
+            // Use cache if available
+            if (subJobTypesCache[jobTypeId]) {
+                populateSubJobTypeSelect('subJobType', subJobTypesCache[jobTypeId]);
+                subJobTypeSelect.disabled = false;
+                checkSubJobTypeSelection();
+                loadTodaySummary();
+                return;
+            }
+
             try {
                 const response = await fetch(`/api/sub_job_types/${jobTypeId}`);
                 const data = await response.json();
 
                 if (data.success) {
-                    subJobTypeSelect.disabled = false;
-                    subJobTypeSelect.innerHTML = '<option value="">เลือก Sub Job Type</option>';
+                    // Store in cache
+                    subJobTypesCache[jobTypeId] = data.data;
                     
-                    data.data.forEach(subJobType => {
-                        const option = document.createElement('option');
-                        option.value = subJobType.id;
-                        option.textContent = subJobType.name;
-                        subJobTypeSelect.appendChild(option);
-                    });
+                    // Populate select
+                    populateSubJobTypeSelect('subJobType', data.data);
+                    subJobTypeSelect.disabled = false;
                     
                     // ตรวจสอบการเลือก Sub Job Type หลังจากโหลด
                     checkSubJobTypeSelection();
@@ -687,6 +718,23 @@
                 // ซ่อนสรุปงานวันนี้เมื่อเกิดข้อผิดพลาด
                 document.getElementById('todaySummary').style.display = 'none';
             }
+        }
+
+        // Helper function to populate sub job type select
+        function populateSubJobTypeSelect(selectId, subJobTypes) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            select.innerHTML = selectId === 'reportSubJobType' ? 
+                '<option value="">ทั้งหมด</option>' : 
+                '<option value="">เลือก Sub Job Type</option>';
+            
+            subJobTypes.forEach(subJobType => {
+                const option = document.createElement('option');
+                option.value = subJobType.id;
+                option.textContent = subJobType.name;
+                select.appendChild(option);
+            });
         }
 
         // Scan barcode - ทำงานเหมือน Desktop App
@@ -926,36 +974,25 @@
             } else if (tabName === 'report') {
                 document.getElementById('reportTab').classList.add('active');
                 document.querySelector('.tab-button:last-child').classList.add('active');
-                // Load job types for report if not loaded yet
-                if (document.getElementById('reportJobType').options.length <= 1) {
-                    loadReportJobTypes();
-                }
+                // Use cached job types for report (should already be loaded)
+                loadReportJobTypes();
             }
         }
 
-        // Load job types for report
+        // Load job types for report using cache
         async function loadReportJobTypes() {
-            try {
-                const response = await fetch('/api/job_types');
-                const data = await response.json();
-
-                if (data.success) {
-                    const jobTypeSelect = document.getElementById('reportJobType');
-                    jobTypeSelect.innerHTML = '<option value="">เลือกงานหลัก</option>';
-                    
-                    data.data.forEach(jobType => {
-                        const option = document.createElement('option');
-                        option.value = jobType.id;
-                        option.textContent = jobType.name;
-                        jobTypeSelect.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading job types for report:', error);
+            // Use cache if available
+            if (jobTypesCache.length > 0) {
+                populateJobTypeSelect('reportJobType', jobTypesCache);
+                return;
             }
+
+            // If cache is empty, load from API and cache it
+            await loadJobTypes();
+            populateJobTypeSelect('reportJobType', jobTypesCache);
         }
 
-        // Load sub job types for report
+        // Load sub job types for report using cache
         async function loadReportSubJobTypes() {
             const jobTypeId = document.getElementById('reportJobType').value;
             const subJobTypeSelect = document.getElementById('reportSubJobType');
@@ -966,20 +1003,24 @@
                 return;
             }
 
+            // Use cache if available
+            if (subJobTypesCache[jobTypeId]) {
+                populateSubJobTypeSelect('reportSubJobType', subJobTypesCache[jobTypeId]);
+                subJobTypeSelect.disabled = false;
+                return;
+            }
+
             try {
                 const response = await fetch(`/api/sub_job_types/${jobTypeId}`);
                 const data = await response.json();
 
                 if (data.success) {
-                    subJobTypeSelect.disabled = false;
-                    subJobTypeSelect.innerHTML = '<option value="">ทั้งหมด</option>';
+                    // Store in cache
+                    subJobTypesCache[jobTypeId] = data.data;
                     
-                    data.data.forEach(subJobType => {
-                        const option = document.createElement('option');
-                        option.value = subJobType.id;
-                        option.textContent = subJobType.name;
-                        subJobTypeSelect.appendChild(option);
-                    });
+                    // Populate select
+                    populateSubJobTypeSelect('reportSubJobType', data.data);
+                    subJobTypeSelect.disabled = false;
                 }
             } catch (error) {
                 console.error('Error loading sub job types for report:', error);
@@ -1114,10 +1155,40 @@
             document.getElementById('reportDetails').style.display = 'block';
         }
 
+        // Pre-load all job types and sub job types for better performance
+        async function preloadAllJobData() {
+            try {
+                console.log('Pre-loading job types...');
+                await loadJobTypes();
+                
+                // Pre-load sub job types for all job types
+                if (jobTypesCache.length > 0) {
+                    console.log(`Pre-loading sub job types for ${jobTypesCache.length} job types...`);
+                    for (const jobType of jobTypesCache) {
+                        try {
+                            const response = await fetch(`/api/sub_job_types/${jobType.id}`);
+                            const data = await response.json();
+                            if (data.success) {
+                                subJobTypesCache[jobType.id] = data.data;
+                                console.log(`Cached sub job types for ${jobType.name}: ${data.data.length} items`);
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to pre-load sub job types for ${jobType.name}:`, error);
+                        }
+                    }
+                }
+                console.log('Pre-loading completed successfully!');
+            } catch (error) {
+                console.error('Error during pre-loading:', error);
+            }
+        }
+
         // Auto focus on barcode input when scanner section is shown
         document.addEventListener('DOMContentLoaded', function() {
-            // Load job types and history on page load
-            loadJobTypes();
+            // Pre-load all job data for instant access
+            preloadAllJobData();
+            
+            // Load history
             loadHistory();
             
             // Set default date to today
