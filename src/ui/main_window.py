@@ -30,8 +30,7 @@ class WMSScannerApp:
     def __init__(self, root, connection_info: Optional[Dict[str, Any]] = None):
         self.root = root
         self.root.title("WMS EP Asia Group Co., Ltd.")
-        self.root.geometry("1200x900")
-        self.root.resizable(False, False)
+        # Window properties are now set in main.py
         
         # Initialize database manager with connection info
         self.db = DatabaseManager(connection_info)
@@ -54,6 +53,11 @@ class WMSScannerApp:
         if not connection_info:
             if not self.db.test_connection():
                 messagebox.showerror("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
+        
+        # Bind keyboard shortcuts
+        self.root.bind('<F11>', self.toggle_fullscreen)
+        self.root.bind('<Alt-Return>', self.toggle_fullscreen)
+        self.root.bind('<Control-m>', self.toggle_maximize)
         
         # Load initial data
         self.refresh_job_types()
@@ -238,13 +242,21 @@ class WMSScannerApp:
         self.current_selected_sub_job_id = None
     
     def create_scanning_tab(self):
-        """Create scanning tab"""
+        """Create scanning tab with left-right split layout"""
         scan_frame = ttk.Frame(self.notebook)
         self.notebook.add(scan_frame, text="หน้าจอหลัก")
         
-        # Main scanning area
-        main_frame = ttk.LabelFrame(scan_frame, text="สแกนบาร์โค้ด", padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Create horizontal split layout using PanedWindow
+        paned_window = ttk.PanedWindow(scan_frame, orient=tk.HORIZONTAL)
+        paned_window.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # LEFT PANEL - Scanning controls and today's summary
+        left_panel = ttk.Frame(paned_window)
+        paned_window.add(left_panel, weight=1)  # 20% of width
+        
+        # Main scanning area (left panel)
+        main_frame = ttk.LabelFrame(left_panel, text="สแกนบาร์โค้ด", padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Job type selection
         job_frame = ttk.Frame(main_frame)
@@ -253,28 +265,28 @@ class WMSScannerApp:
         # Main job type
         main_job_frame = ttk.Frame(job_frame)
         main_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(main_job_frame, text="ประเภทงานหลัก:", font=("Arial", 12), width=15).pack(side=tk.LEFT)
+        ttk.Label(main_job_frame, text="ประเภทงานหลัก:", font=("Arial", 11), width=12).pack(side=tk.LEFT)
         self.job_combo = ttk.Combobox(main_job_frame, textvariable=self.current_job_type,
-                                     state="readonly", font=("Arial", 12), width=25)
-        self.job_combo.pack(side=tk.LEFT, padx=10)
+                                     state="readonly", font=("Arial", 11), width=18)
+        self.job_combo.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
         self.job_combo.bind('<<ComboboxSelected>>', self.on_main_job_change)
         
         # Sub job type
         sub_job_frame = ttk.Frame(job_frame)
         sub_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", font=("Arial", 12), width=15).pack(side=tk.LEFT)
+        ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", font=("Arial", 11), width=12).pack(side=tk.LEFT)
         self.sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=self.current_sub_job_type,
-                                         state="readonly", font=("Arial", 12), width=25)
-        self.sub_job_combo.pack(side=tk.LEFT, padx=10)
+                                         state="readonly", font=("Arial", 11), width=18)
+        self.sub_job_combo.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
         self.sub_job_combo.bind('<<ComboboxSelected>>', self.on_sub_job_change)
         
         # Notes
         notes_frame = ttk.Frame(job_frame)
         notes_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(notes_frame, text="หมายเหตุ:", font=("Arial", 12), width=15).pack(side=tk.LEFT)
+        ttk.Label(notes_frame, text="หมายเหตุ:", font=("Arial", 11), width=12).pack(side=tk.LEFT)
         self.notes_entry = ttk.Entry(notes_frame, textvariable=self.notes_var,
-                                    font=("Arial", 12), width=40)
-        self.notes_entry.pack(side=tk.LEFT, padx=10)
+                                    font=("Arial", 11))
+        self.notes_entry.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
         
         # Bind notes entry events
         self.notes_entry.bind('<KeyRelease>', self.on_notes_change)
@@ -284,22 +296,14 @@ class WMSScannerApp:
         barcode_frame = ttk.Frame(main_frame)
         barcode_frame.pack(fill=tk.X, pady=20)
         
-        ttk.Label(barcode_frame, text="บาร์โค้ด:", font=("Arial", 12)).pack(side=tk.LEFT)
+        ttk.Label(barcode_frame, text="บาร์โค้ด:", font=("Arial", 12, "bold")).pack(side=tk.TOP, anchor=tk.W)
         self.barcode_entry = ttk.Entry(barcode_frame, textvariable=self.barcode_entry_var,
-                                      font=("Arial", 14), width=40)
-        self.barcode_entry.pack(side=tk.LEFT, padx=10)
+                                      font=("Arial", 13))
+        self.barcode_entry.pack(fill=tk.X, pady=5)
         self.barcode_entry.bind('<Return>', self.process_barcode)
         
-        # # Status display
-        # status_frame = ttk.LabelFrame(main_frame, text="สถานะ", padding=10)
-        # status_frame.pack(fill=tk.X, pady=20)
-        
-        # self.status_label = ttk.Label(status_frame, text="พร้อมสแกน", 
-        #                              font=("Arial", 12), foreground="green")
-        # self.status_label.pack()
-        
-        # Today Summary section
-        self.today_summary_frame = ttk.LabelFrame(main_frame, text="📊 สรุปงานวันนี้", padding=15)
+        # Today Summary section (left panel)
+        self.today_summary_frame = ttk.LabelFrame(main_frame, text="📊 สรุปงานวันนี้", padding=10)
         self.today_summary_frame.pack(fill=tk.X, pady=10)
         
         # Summary content frame
@@ -333,16 +337,16 @@ class WMSScannerApp:
         # Count row (prominent display)
         count_row = ttk.Frame(summary_content_frame)
         count_row.pack(fill=tk.X, pady=(10, 5))
-        ttk.Label(count_row, text="จำนวนที่สแกนวันนี้:", font=("Arial", 12, "bold"), foreground="#0c5184").pack(side=tk.LEFT)
+        ttk.Label(count_row, text="จำนวนที่สแกนวันนี้:", font=("Arial", 11, "bold"), foreground="#0c5184").pack(anchor=tk.W)
         
         # Count frame with background color
         count_frame = ttk.Frame(count_row)
-        count_frame.pack(side=tk.LEFT, padx=(10, 0))
+        count_frame.pack(pady=5)
         self.summary_labels['count'] = ttk.Label(count_frame, text="0", 
-                                                font=("Arial", 18, "bold"), 
-                                                # foreground="white", 
-                                                # background="#0c5184",
-                                                padding=10)
+                                                font=("Arial", 24, "bold"), 
+                                                foreground="#0c5184",
+                                                # background="#f0f8ff",
+                                                padding=5)
         self.summary_labels['count'].pack()
         
         # Last update row
@@ -352,9 +356,13 @@ class WMSScannerApp:
         self.summary_labels['last_update'] = ttk.Label(update_row, text="ยังไม่มีข้อมูล", font=("Arial", 9), foreground="gray")
         self.summary_labels['last_update'].pack(side=tk.LEFT, padx=(5, 0))
         
-        # History table for scanning tab
-        history_scan_frame = ttk.LabelFrame(main_frame, text="ประวัติการสแกนล่าสุด", padding=10)
-        history_scan_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        # RIGHT PANEL - Recent scan history
+        right_panel = ttk.Frame(paned_window)
+        paned_window.add(right_panel, weight=4)  # 80% of width
+        
+        # History table for scanning tab (right panel)
+        history_scan_frame = ttk.LabelFrame(right_panel, text="ประวัติการสแกนล่าสุด", padding=10)
+        history_scan_frame.pack(fill=tk.BOTH, expand=True)
         
         # Create history table for scanning tab
         self.create_scanning_history_table(history_scan_frame)
@@ -592,15 +600,22 @@ class WMSScannerApp:
         
         # Treeview for table display
         columns = ('ID', 'บาร์โค้ด', 'วันที่/เวลา', 'ประเภทงานหลัก', 'ประเภทงานย่อย', 'หมายเหตุ', 'ผู้ใช้')
-        self.scan_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=10)
+        self.scan_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=15)
         
-        # Define headings
+        # Define headings with optimized widths for 80% right panel
+        column_widths = {
+            'ID': 80,
+            'บาร์โค้ด': 150,
+            'วันที่/เวลา': 180,
+            'ประเภทงานหลัก': 150,
+            'ประเภทงานย่อย': 150,
+            'หมายเหตุ': 200,
+            'ผู้ใช้': 120
+        }
+        
         for col in columns:
             self.scan_history_tree.heading(col, text=col)
-            if col == 'หมายเหตุ':
-                self.scan_history_tree.column(col, width=200)
-            else:
-                self.scan_history_tree.column(col, width=120)
+            self.scan_history_tree.column(col, width=column_widths.get(col, 100), minwidth=50)
         
         # Scrollbars
         v_scrollbar_scan = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.scan_history_tree.yview)
@@ -2697,6 +2712,39 @@ ID_ประเภทงานย่อย: 10
             
         except Exception as e:
             print(f"Error clearing summary: {str(e)}")
+    
+    def toggle_fullscreen(self, event=None):
+        """สลับโหมดเต็มจอ"""
+        try:
+            current_state = self.root.attributes('-fullscreen')
+            self.root.attributes('-fullscreen', not current_state)
+            
+            if not current_state:
+                # เข้าสู่โหมดเต็มจอ - ซ่อน title bar
+                self.root.overrideredirect(True)
+            else:
+                # ออกจากโหมดเต็มจอ - แสดง title bar
+                self.root.overrideredirect(False)
+                
+        except Exception as e:
+            # ถ้าไม่รองรับ fullscreen ให้ใช้ zoomed แทน
+            try:
+                if self.root.state() == 'zoomed':
+                    self.root.state('normal')
+                else:
+                    self.root.state('zoomed')
+            except Exception:
+                print(f"ไม่สามารถเปลี่ยนโหมดเต็มจอได้: {e}")
+    
+    def toggle_maximize(self, event=None):
+        """สลับโหมด maximize"""
+        try:
+            if self.root.state() == 'zoomed':
+                self.root.state('normal')
+            else:
+                self.root.state('zoomed')
+        except Exception as e:
+            print(f"ไม่สามารถ maximize/restore ได้: {e}")
 
 def main():
     """Main application entry point"""

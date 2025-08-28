@@ -74,7 +74,18 @@ def main():
             # สร้าง root window ใหม่สำหรับ main application
             main_root = tk.Tk()
             main_root.title("WMS Barcode Scanner")
-            main_root.geometry("1200x800")
+            
+            # ตั้งค่าขนาดเริ่มต้นและเปิดใช้การปรับขนาด
+            main_root.geometry("1400x900")
+            main_root.resizable(True, True)
+            main_root.minsize(1200, 800)
+            
+            # เริ่มต้นแบบ maximized (Windows)
+            try:
+                main_root.state('zoomed')
+            except:
+                # สำหรับระบบที่ไม่รองรับ 'zoomed'
+                main_root.attributes('-zoomed', True)
             
             # ตั้งค่า icon สำหรับแอพ
             set_app_icon(main_root)
