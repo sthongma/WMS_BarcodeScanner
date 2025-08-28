@@ -67,8 +67,8 @@ class ConfigManager:
             'version': '1.0.0',
             'debug': os.environ.get('FLASK_ENV') != 'production',
             'host': '0.0.0.0',
-            'port': int(os.environ.get('PORT', 5000)),
-            'secret_key': 'wms_scanner_secret_key_2024',
+            'port': int(os.environ.get('PORT', 5003)),
+            'secret_key': os.environ.get('SECRET_KEY', 'wms_scanner_secret_key_2024'),
             'session_timeout_hours': 8
         }
     

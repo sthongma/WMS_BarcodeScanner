@@ -131,8 +131,8 @@ def initialize_app():
         
         logger = logging.getLogger(__name__)
         logger.info("START: เริ่มต้น WMS Barcode Scanner Web Application")
-        logger.info("URL: สามารถเข้าถึงได้ที่ http://localhost:5000")
-        logger.info("MOBILE: สำหรับ Android http://[IP_ADDRESS]:5000")
+        logger.info("URL: สามารถเข้าถึงได้ที่ http://localhost:5003")
+        logger.info("MOBILE: สำหรับ Android http://[IP_ADDRESS]:5003")
         logger.info("TIP: ใช้ IP Address ของเครื่องนี้แทน [IP_ADDRESS]")
         
         # เริ่มต้นการเชื่อมต่อฐานข้อมูล
