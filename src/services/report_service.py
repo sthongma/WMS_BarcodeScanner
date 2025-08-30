@@ -8,7 +8,7 @@ Handles report generation and data processing
 from typing import Dict, Any, Optional, List
 from datetime import datetime, date
 import pandas as pd
-from ..database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 
 
 class ReportService:

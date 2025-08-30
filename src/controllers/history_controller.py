@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import datetime
 from typing import Dict, Any, Optional, List
-from ..database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 
 
 class HistoryController:

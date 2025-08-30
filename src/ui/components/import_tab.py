@@ -9,8 +9,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from typing import Dict, Any, Callable, List
 import pandas as pd
-from ..utils.file_utils import select_file, read_excel_file, create_template_excel
-from ..utils.validation_utils import validate_import_data
+from utils.file_utils import select_file, read_excel_file, create_template_excel
+from utils.validation_utils import validate_import_data
 
 
 class ImportTab:

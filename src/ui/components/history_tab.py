@@ -307,7 +307,7 @@ class HistoryTab:
             )
             
             if file_path:
-                from ..utils.file_utils import export_to_excel
+                from utils.file_utils import export_to_excel
                 if export_to_excel(data, file_path, "ประวัติการสแกน"):
                     messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์เรียบร้อยแล้วที่: {file_path}")
                 else:

@@ -11,7 +11,7 @@ import datetime
 import pandas as pd
 import os
 from typing import Dict, Any, Optional, List
-from ..database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 
 
 class ReportController:
