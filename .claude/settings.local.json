@@ -10,7 +10,9 @@
       "Bash(mkdir:*)",
       "Bash(move README*.md docs/)",
       "Bash(mv:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(move backup_old_code archive/old_backups/)",
+      "Bash(move database/ิbackup_old_code_sql archive/old_backups/)"
     ],
     "deny": [],
     "ask": []
