@@ -876,8 +876,8 @@
                 const subJobTypeId = document.getElementById('subJobType').value;
                 const noteFilter = document.getElementById('note').value.trim();
                 
-                // Build URL with filters
-                let url = '/api/history?limit=50';
+                // Build URL with filters (default to today only)
+                let url = '/api/history?limit=50&today_only=true';
                 
                 if (jobTypeId) {
                     url += `&job_id=${jobTypeId}`;

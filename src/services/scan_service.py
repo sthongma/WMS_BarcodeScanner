@@ -157,7 +157,8 @@ class ScanService:
     
     def get_scan_history(self, limit: int = 50, date_filter: str = None, 
                         job_id: int = None, sub_job_id: int = None, 
-                        barcode_filter: str = None, notes_filter: str = None) -> List[Dict[str, Any]]:
+                        barcode_filter: str = None, notes_filter: str = None,
+                        today_only: bool = True) -> List[Dict[str, Any]]:
         """ดึงประวัติการสแกน"""
         try:
             query = """
@@ -181,7 +182,11 @@ class ScanService:
             
             params = [limit]
             
-            # Add date filter
+            # Add today filter if enabled (default behavior)
+            if today_only:
+                query += " AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)"
+            
+            # Add specific date filter (overrides today_only if provided)
             if date_filter:
                 query += " AND CAST(sl.scan_date AS DATE) = ?"
                 params.append(date_filter)

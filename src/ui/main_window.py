@@ -706,6 +706,9 @@ class WMSScannerApp:
             conditions = []
             params = []
             
+            # Always filter by today's date only
+            conditions.append("CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)")
+            
             # Filter by job type if selected
             if job_type_name:
                 # Get job type ID

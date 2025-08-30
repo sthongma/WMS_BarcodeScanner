@@ -81,6 +81,7 @@ def get_scan_history():
         sub_job_id = request.args.get('sub_job_id')
         barcode_filter = request.args.get('barcode')
         notes_filter = request.args.get('notes_filter')
+        today_only = request.args.get('today_only', 'true').lower() == 'true'  # Default to true
         
         # Convert IDs to int if provided
         if job_id:
@@ -102,7 +103,8 @@ def get_scan_history():
             job_id=job_id,
             sub_job_id=sub_job_id,
             barcode_filter=barcode_filter,
-            notes_filter=notes_filter
+            notes_filter=notes_filter,
+            today_only=today_only
         )
         
         # Convert datetime objects to strings for JSON serialization
