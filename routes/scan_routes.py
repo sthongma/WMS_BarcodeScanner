@@ -8,14 +8,16 @@ Handles scanning and history endpoints
 import logging
 from flask import Blueprint, request, jsonify
 from src.services.scan_service import ScanService
+from src.services.audit_service import AuditService
 from middleware.rate_limiter import auto_rate_limit
 
 logger = logging.getLogger(__name__)
 
 scan_bp = Blueprint('scan', __name__)
 
-# Initialize scan service
+# Initialize services
 scan_service = ScanService()
+audit_service = AuditService()
 
 
 @scan_bp.route('/api/scan', methods=['POST'])
@@ -187,6 +189,75 @@ def update_scan_record(record_id):
         return jsonify({
             'success': False,
             'message': f'เกิดข้อผิดพลาด: {str(e)}'
+        })
+
+
+@scan_bp.route('/api/audit_history')
+@auto_rate_limit
+def get_audit_history():
+    """API สำหรับดึงประวัติการเปลี่ยนแปลงข้อมูลการสแกน"""
+    try:
+        # Get query parameters
+        scan_record_id = request.args.get('scan_record_id')
+        limit = int(request.args.get('limit', 50))
+        action_type = request.args.get('action_type')
+        changed_by = request.args.get('changed_by')
+        date_filter = request.args.get('date')
+        
+        # Convert scan_record_id to int if provided
+        if scan_record_id:
+            try:
+                scan_record_id = int(scan_record_id)
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'message': 'scan_record_id ต้องเป็นตัวเลข'
+                })
+        
+        # Get audit history using AuditService
+        audit_history = audit_service.get_scan_audit_history(
+            scan_record_id=scan_record_id,
+            limit=limit,
+            action_type=action_type,
+            changed_by=changed_by,
+            date_filter=date_filter
+        )
+        
+        # Convert datetime objects to strings for JSON serialization
+        for record in audit_history:
+            if hasattr(record['change_date'], 'isoformat'):
+                record['change_date'] = record['change_date'].isoformat()
+        
+        return jsonify({
+            'success': True,
+            'data': audit_history
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting audit history: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'เกิดข้อผิดพลาด: {str(e)}'
+        })
+
+
+@scan_bp.route('/api/audit_summary')
+@auto_rate_limit
+def get_audit_summary():
+    """API สำหรับดึงสรุปการเปลี่ยนแปลงของวันนี้"""
+    try:
+        date_filter = request.args.get('date')  # Optional date filter
+        
+        # Get summary using AuditService
+        result = audit_service.get_scan_changes_summary(date_filter=date_filter)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error getting audit summary: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'เกิดข้อผิดพลาดในการดึงสรุป: {str(e)}'
         })
 
 

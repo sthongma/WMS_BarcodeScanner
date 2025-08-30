@@ -6,7 +6,7 @@ Handles job types and sub job types business logic
 """
 
 from typing import Dict, Any, Optional, List
-from ..database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 
 
 class JobService:

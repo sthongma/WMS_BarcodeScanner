@@ -9,7 +9,8 @@
       "Bash(set PYTHONPATH=C:UsersshinsOneDriveDesktopGitHubWMS_BarcodeScannersrc)",
       "Bash(mkdir:*)",
       "Bash(move README*.md docs/)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

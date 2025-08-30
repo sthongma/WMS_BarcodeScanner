@@ -7,8 +7,9 @@ Handles scanning business logic and data processing
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime, date
-from ..database.database_manager import DatabaseManager
-from .job_service import JobService
+from database.database_manager import DatabaseManager
+from services.job_service import JobService
+from services.audit_service import AuditService
 
 
 class ScanService:
@@ -17,6 +18,7 @@ class ScanService:
     def __init__(self):
         self.db = DatabaseManager.get_instance()
         self.job_service = JobService()
+        self.audit_service = AuditService()
     
     def process_scan(self, barcode: str, job_id: int, sub_job_id: Optional[int] = None, 
                     notes: str = None, user_id: str = None) -> Dict[str, Any]:
@@ -294,15 +296,106 @@ class ScanService:
                 'message': f'เกิดข้อผิดพลาดในการดึงสรุป: {str(e)}'
             }
     
-    def update_scan_record(self, record_id: int, notes: str = None) -> Dict[str, Any]:
+    def update_scan_record(self, record_id: int, notes: str = None, barcode: str = None, 
+                          job_id: int = None, sub_job_id: int = None, user_id: str = None) -> Dict[str, Any]:
         """อัปเดตข้อมูลการสแกน"""
         try:
-            clean_notes = notes.strip() if notes else None
+            # Get old values before update for audit log
+            old_query = """
+                SELECT sl.*, jt.job_name, sjt.sub_job_name
+                FROM scan_logs sl
+                LEFT JOIN job_types jt ON sl.job_id = jt.id
+                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                WHERE sl.id = ?
+            """
+            old_data = self.db.execute_query(old_query, (record_id,))
             
-            query = "UPDATE scan_logs SET notes = ? WHERE id = ?"
-            rows_affected = self.db.execute_non_query(query, (clean_notes, record_id))
+            if not old_data:
+                return {
+                    'success': False,
+                    'message': 'ไม่พบข้อมูลที่ต้องการอัปเดต'
+                }
+            
+            old_record = old_data[0]
+            
+            # Create old values dict for audit
+            old_values = {
+                'id': old_record['id'],
+                'barcode': old_record['barcode'],
+                'scan_date': old_record['scan_date'].isoformat() if old_record['scan_date'] else None,
+                'job_type': old_record.get('job_name') or old_record['job_type'],
+                'sub_job_type': old_record.get('sub_job_name') or 'ไม่มี',
+                'notes': old_record['notes'] or '',
+                'user_id': old_record['user_id']
+            }
+            
+            # Build update query and params based on what needs to be updated
+            update_fields = []
+            params = []
+            
+            if barcode is not None:
+                update_fields.append("barcode = ?")
+                params.append(barcode.strip())
+            
+            if job_id is not None:
+                # Get job type name
+                job_name = self.get_job_type_name(job_id)
+                if job_name:
+                    update_fields.append("job_type = ?")
+                    update_fields.append("job_id = ?")
+                    params.extend([job_name, job_id])
+            
+            if sub_job_id is not None:
+                update_fields.append("sub_job_id = ?")
+                params.append(sub_job_id)
+            
+            if notes is not None:
+                clean_notes = notes.strip() if notes else None
+                update_fields.append("notes = ?")
+                params.append(clean_notes)
+            
+            if not update_fields:
+                return {
+                    'success': False,
+                    'message': 'ไม่มีข้อมูลที่ต้องการอัปเดต'
+                }
+            
+            # Update the record
+            query = f"UPDATE scan_logs SET {', '.join(update_fields)} WHERE id = ?"
+            params.append(record_id)
+            rows_affected = self.db.execute_non_query(query, tuple(params))
             
             if rows_affected > 0:
+                # Create new values dict for audit
+                new_values = old_values.copy()
+                
+                # Update new values with changes
+                if barcode is not None:
+                    new_values['barcode'] = barcode.strip()
+                if job_id is not None and job_name:
+                    new_values['job_type'] = job_name
+                if sub_job_id is not None:
+                    # Get sub job type name if provided
+                    if sub_job_id:
+                        sub_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
+                        sub_result = self.db.execute_query(sub_query, (sub_job_id,))
+                        new_values['sub_job_type'] = sub_result[0]['sub_job_name'] if sub_result else 'ไม่มี'
+                    else:
+                        new_values['sub_job_type'] = 'ไม่มี'
+                if notes is not None:
+                    new_values['notes'] = clean_notes or ''
+                
+                # Log the audit change
+                audit_user = user_id or self.db.current_user or 'system'
+                self.audit_service.log_scan_change(
+                    scan_record_id=record_id,
+                    action_type='UPDATE',
+                    old_values=old_values,
+                    new_values=new_values,
+                    changed_by=audit_user,
+                    notes='แก้ไขหมายเหตุ'
+                )
+                
                 return {
                     'success': True,
                     'message': 'อัปเดตข้อมูลสำเร็จ'
@@ -319,13 +412,54 @@ class ScanService:
                 'message': f'เกิดข้อผิดพลาดในการอัปเดต: {str(e)}'
             }
     
-    def delete_scan_record(self, record_id: int) -> Dict[str, Any]:
+    def delete_scan_record(self, record_id: int, user_id: str = None) -> Dict[str, Any]:
         """ลบข้อมูลการสแกน"""
         try:
+            # Get record data before deletion for audit log
+            old_query = """
+                SELECT sl.*, jt.job_name, sjt.sub_job_name
+                FROM scan_logs sl
+                LEFT JOIN job_types jt ON sl.job_id = jt.id
+                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                WHERE sl.id = ?
+            """
+            old_data = self.db.execute_query(old_query, (record_id,))
+            
+            if not old_data:
+                return {
+                    'success': False,
+                    'message': 'ไม่พบข้อมูลที่ต้องการลบ'
+                }
+            
+            old_record = old_data[0]
+            
+            # Create old values dict for audit
+            old_values = {
+                'id': old_record['id'],
+                'barcode': old_record['barcode'],
+                'scan_date': old_record['scan_date'].isoformat() if old_record['scan_date'] else None,
+                'job_type': old_record.get('job_name') or old_record['job_type'],
+                'sub_job_type': old_record.get('sub_job_name') or 'ไม่มี',
+                'notes': old_record['notes'] or '',
+                'user_id': old_record['user_id']
+            }
+            
+            # Delete the record
             query = "DELETE FROM scan_logs WHERE id = ?"
             rows_affected = self.db.execute_non_query(query, (record_id,))
             
             if rows_affected > 0:
+                # Log the audit change
+                audit_user = user_id or self.db.current_user or 'system'
+                self.audit_service.log_scan_change(
+                    scan_record_id=record_id,
+                    action_type='DELETE',
+                    old_values=old_values,
+                    new_values=None,
+                    changed_by=audit_user,
+                    notes='ลบข้อมูลการสแกน'
+                )
+                
                 return {
                     'success': True,
                     'message': 'ลบข้อมูลสำเร็จ'

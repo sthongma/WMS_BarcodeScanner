@@ -1833,12 +1833,18 @@ class WMSScannerApp:
         if messagebox.askyesno("ยืนยัน", 
                               f"ต้องการลบข้อมูลการสแกนหรือไม่?\n\nID: {record_id}\nบาร์โค้ด: {barcode}\nประเภทงาน: {job_type}"):
             try:
-                # Delete from database
-                self.db.execute_non_query("DELETE FROM scan_logs WHERE id = ?", (record_id,))
-                messagebox.showinfo("สำเร็จ", "ลบข้อมูลเรียบร้อยแล้ว")
+                # Use ScanService to delete (includes audit logging)
+                from services.scan_service import ScanService
+                scan_service = ScanService()
                 
-                # Refresh the history table
-                self.refresh_scanning_history()
+                result = scan_service.delete_scan_record(int(record_id), user_id=self.db.current_user)
+                
+                if result['success']:
+                    messagebox.showinfo("สำเร็จ", result['message'])
+                    # Refresh the history table
+                    self.refresh_scanning_history()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result['message'])
                 
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบข้อมูลได้: {str(e)}")
@@ -2000,17 +2006,26 @@ class WMSScannerApp:
                 
                 new_sub_job_id = sub_job_result[0]['id']
                 
-                # Update database
-                self.db.execute_non_query(
-                    "UPDATE scan_logs SET barcode = ?, job_type = ?, job_id = ?, sub_job_id = ?, notes = ? WHERE id = ?",
-                    (new_barcode, new_main_job, new_main_job_id, new_sub_job_id, new_notes, record_id)
+                # Use ScanService to update (includes audit logging)
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    barcode=new_barcode,
+                    job_id=new_main_job_id,
+                    sub_job_id=new_sub_job_id,
+                    notes=new_notes,
+                    user_id=self.db.current_user
                 )
                 
-                messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
-                dialog.destroy()
-                
-                # Refresh the history table
-                self.refresh_scanning_history()
+                if result['success']:
+                    messagebox.showinfo("สำเร็จ", result['message'])
+                    dialog.destroy()
+                    # Refresh the history table
+                    self.refresh_scanning_history()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result['message'])
                 
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
