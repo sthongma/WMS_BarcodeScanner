@@ -156,7 +156,8 @@ class ScanService:
             return None
     
     def get_scan_history(self, limit: int = 50, date_filter: str = None, 
-                        job_id: int = None, barcode_filter: str = None) -> List[Dict[str, Any]]:
+                        job_id: int = None, sub_job_id: int = None, 
+                        barcode_filter: str = None, notes_filter: str = None) -> List[Dict[str, Any]]:
         """ดึงประวัติการสแกน"""
         try:
             query = """
@@ -190,10 +191,20 @@ class ScanService:
                 query += " AND sl.job_id = ?"
                 params.append(job_id)
             
+            # Add sub job filter
+            if sub_job_id:
+                query += " AND sl.sub_job_id = ?"
+                params.append(sub_job_id)
+            
             # Add barcode filter
             if barcode_filter:
                 query += " AND sl.barcode LIKE ?"
                 params.append(f"%{barcode_filter}%")
+            
+            # Add notes filter
+            if notes_filter:
+                query += " AND sl.notes LIKE ?"
+                params.append(f"%{notes_filter}%")
             
             query += " ORDER BY sl.scan_date DESC"
             

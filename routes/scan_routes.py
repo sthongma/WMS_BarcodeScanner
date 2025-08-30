@@ -78,21 +78,31 @@ def get_scan_history():
         limit = int(request.args.get('limit', 50))
         date_filter = request.args.get('date')
         job_id = request.args.get('job_id')
+        sub_job_id = request.args.get('sub_job_id')
         barcode_filter = request.args.get('barcode')
+        notes_filter = request.args.get('notes_filter')
         
-        # Convert job_id to int if provided
+        # Convert IDs to int if provided
         if job_id:
             try:
                 job_id = int(job_id)
             except ValueError:
                 job_id = None
         
+        if sub_job_id:
+            try:
+                sub_job_id = int(sub_job_id)
+            except ValueError:
+                sub_job_id = None
+        
         # Get history using ScanService
         history = scan_service.get_scan_history(
             limit=limit,
             date_filter=date_filter,
             job_id=job_id,
-            barcode_filter=barcode_filter
+            sub_job_id=sub_job_id,
+            barcode_filter=barcode_filter,
+            notes_filter=notes_filter
         )
         
         # Convert datetime objects to strings for JSON serialization
