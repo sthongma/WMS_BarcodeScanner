@@ -679,11 +679,16 @@ class WMSScannerApp:
             self.refresh_scanning_history()
     
     def refresh_scanning_history(self):
-        """Refresh scanning history table with recent data"""
+        """Refresh scanning history table with recent data filtered by user selections"""
         try:
             print("Refreshing scanning history...")  # Debug message
             
-            # Get recent scan data (last 50 records) with sub job types
+            # Get current user selections for filtering
+            job_type_name = self.current_job_type.get()
+            sub_job_type_name = self.current_sub_job_type.get()
+            notes_filter = self.notes_var.get().strip()
+            
+            # Base query with joins
             query = """
                 SELECT TOP 50 
                     sl.id, 
@@ -695,9 +700,45 @@ class WMSScannerApp:
                     sl.user_id 
                 FROM scan_logs sl
                 LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                ORDER BY sl.scan_date DESC
             """
-            results = self.db.execute_query(query)
+            
+            # Build WHERE conditions based on user selections
+            conditions = []
+            params = []
+            
+            # Filter by job type if selected
+            if job_type_name:
+                # Get job type ID
+                job_result = self.db.execute_query("SELECT id FROM job_types WHERE job_name = ?", (job_type_name,))
+                if job_result:
+                    job_type_id = job_result[0]['id']
+                    conditions.append("sl.job_id = ?")
+                    params.append(job_type_id)
+                    
+                    # Filter by sub job type if selected
+                    if sub_job_type_name:
+                        sub_result = self.db.execute_query(
+                            "SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ?", 
+                            (sub_job_type_name, job_type_id)
+                        )
+                        if sub_result:
+                            sub_job_id = sub_result[0]['id']
+                            conditions.append("sl.sub_job_id = ?")
+                            params.append(sub_job_id)
+            
+            # Filter by notes if provided
+            if notes_filter:
+                conditions.append("sl.notes LIKE ?")
+                params.append(f"%{notes_filter}%")
+            
+            # Add WHERE clause if there are conditions
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            
+            # Add ORDER BY clause
+            query += " ORDER BY sl.scan_date DESC"
+            
+            results = self.db.execute_query(query, tuple(params))
             
             print(f"Found {len(results)} records")  # Debug message
             
@@ -1073,6 +1114,9 @@ class WMSScannerApp:
             # Update today summary
             self.load_today_summary()
             
+            # Refresh scanning history with new filter
+            self.refresh_scanning_history()
+            
         except Exception as e:
             print(f"Error loading sub job types: {str(e)}")
             self.sub_job_combo['values'] = []
@@ -1080,12 +1124,17 @@ class WMSScannerApp:
             
             # Clear summary on error
             self.clear_summary()
+            # Refresh history to show unfiltered results
+            self.refresh_scanning_history()
     
     def on_sub_job_change(self, event=None):
         """Handle sub job type change"""
         try:
             # Update today summary when sub job type changes
             self.load_today_summary()
+            
+            # Refresh scanning history with new filter
+            self.refresh_scanning_history()
         except Exception as e:
             print(f"Error in on_sub_job_change: {str(e)}")
     
@@ -1097,7 +1146,11 @@ class WMSScannerApp:
                 self.root.after_cancel(self._notes_update_job)
             
             # Schedule update after 500ms delay (debouncing)
-            self._notes_update_job = self.root.after(500, self.load_today_summary)
+            def update_all():
+                self.load_today_summary()
+                self.refresh_scanning_history()
+            
+            self._notes_update_job = self.root.after(500, update_all)
         except Exception as e:
             print(f"Error in on_notes_change: {str(e)}")
     
@@ -1108,6 +1161,9 @@ class WMSScannerApp:
             if hasattr(self, 'summary_labels') and self.summary_labels:
                 # Update summary when notes variable changes
                 self.load_today_summary()
+                
+                # Refresh scanning history with new filter
+                self.refresh_scanning_history()
         except Exception as e:
             print(f"Error in on_notes_var_change: {str(e)}")
     
