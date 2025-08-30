@@ -6,10 +6,14 @@ WMS Barcode Scanner Web Application - Refactored Version
 """
 
 import os
+import sys
 import logging
 from datetime import timedelta
 from flask import Flask, render_template, session
 from flask_cors import CORS
+
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 
 # Import configuration and middleware
 from config_utils.config_manager import config_manager
