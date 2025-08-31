@@ -469,21 +469,6 @@
             background: #ffffff;
         }
 
-        .logout-btn {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 8px 15px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s;
-        }
 
         .logout-btn:hover {
             background: rgba(255, 255, 255, 0.3);
@@ -491,18 +476,34 @@
             transform: translateY(-1px);
         }
 
-        .user-info {
+        .header-right {
             position: absolute;
             top: 15px;
-            left: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
             color: rgba(255, 255, 255, 0.9);
             font-size: 12px;
             font-weight: 500;
             background: rgba(255, 255, 255, 0.1);
             padding: 8px 12px;
-            border-radius: 15px;
+            border-radius: 10px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .user-info {
+            margin-right: 15px;
+        }
+
+        .logout-btn {
+            background: none;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s;
         }
 
     </style>
@@ -511,10 +512,12 @@
     <audio id="errorSound" src="/static/error_3.mp3" preload="auto"></audio>
     <div class="container">
         <div class="header">
-            <div class="user-info" id="userInfo"></div>
+            <div class="header-right">
+                <div class="user-info" id="userInfo"></div>
+                <button class="logout-btn" onclick="logoutUser()">ออกจากระบบ</button>
+            </div>
             <h1>🏢 WMS EP Asia Group</h1>
             <p>ระบบสแกนบาร์โค้ดภายในองค์การ</p>
-            <button class="logout-btn" onclick="logoutUser()">ออกจากระบบ</button>
         </div>
 
         <div class="content">
