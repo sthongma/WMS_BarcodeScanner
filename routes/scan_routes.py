@@ -6,11 +6,11 @@ Handles scanning and history endpoints
 """
 
 import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from src.services.scan_service import ScanService
 from src.services.audit_service import AuditService
 from middleware.rate_limiter import auto_rate_limit
-from middleware.auth_middleware import require_auth
+from middleware.auth_middleware import require_auth, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +50,17 @@ def scan_barcode():
                 'message': 'กรุณาเลือก Job Type'
             })
         
+        # Get current user from session
+        current_user = get_current_user()
+        user_id = current_user['username'] if current_user else 'unknown'
+        
         # Process scan using ScanService
         result = scan_service.process_scan(
             barcode=barcode,
             job_id=job_type_id,
             sub_job_id=sub_job_type_id,
-            notes=note
+            notes=note,
+            user_id=user_id
         )
         
         if result['success']:
@@ -185,7 +190,11 @@ def update_scan_record(record_id):
         data = request.get_json()
         notes = data.get('notes', '').strip()
         
-        result = scan_service.update_scan_record(record_id, notes)
+        # Get current user from session
+        current_user = get_current_user()
+        user_id = current_user['username'] if current_user else 'unknown'
+        
+        result = scan_service.update_scan_record(record_id, notes, user_id=user_id)
         
         return jsonify(result)
         
