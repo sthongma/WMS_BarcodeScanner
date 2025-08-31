@@ -30,8 +30,9 @@
         .header {
             background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
             color: white;
-            padding: 30px 20px;
+            padding: 60px 20px 30px 20px;
             text-align: center;
+            position: relative;
         }
 
         .header h1 {
@@ -472,27 +473,36 @@
             position: absolute;
             top: 15px;
             right: 20px;
-            background: #be2033;
+            background: rgba(255, 255, 255, 0.2);
             color: white;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
             padding: 8px 15px;
-            border-radius: 5px;
+            border-radius: 20px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
         }
 
         .logout-btn:hover {
-            background: #a01c2a;
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
         }
 
         .user-info {
             position: absolute;
             top: 15px;
             left: 20px;
-            color: #0c5184;
-            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
             font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
     </style>
@@ -500,7 +510,7 @@
 <body>
     <audio id="errorSound" src="/static/error_3.mp3" preload="auto"></audio>
     <div class="container">
-        <div class="header" style="position: relative;">
+        <div class="header">
             <div class="user-info" id="userInfo"></div>
             <h1>🏢 WMS EP Asia Group</h1>
             <p>ระบบสแกนบาร์โค้ดภายในองค์การ</p>

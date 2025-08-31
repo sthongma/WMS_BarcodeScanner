@@ -31,10 +31,8 @@ def get_db_manager(context: str = None):
             if context:
                 logger.debug(f"📡 get_db_manager called from: {context}")
             
-            # ใช้ Singleton DatabaseManager
-            db_manager = DatabaseManager.get_instance(connection_info)
-            if hasattr(db_manager, 'update_connection_from_info'):
-                db_manager.update_connection_from_info(connection_info, context)
+            # ใช้ Singleton DatabaseManager พร้อม context
+            db_manager = DatabaseManager.get_instance(connection_info, context)
             return db_manager
         else:
             # ไม่มี session = ต้อง login ก่อน

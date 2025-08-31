@@ -37,9 +37,6 @@ class DatabaseManager:
     def __init__(self, connection_info: Optional[Dict[str, Any]] = None):
         # Prevent re-initialization if already initialized
         if hasattr(self, '_initialized') and self._initialized:
-            # If connection_info is provided, update the connection
-            if connection_info:
-                self.update_connection_from_info(connection_info, "get_instance")
             return
             
         self.config = None
@@ -274,9 +271,16 @@ class DatabaseManager:
             logger.debug(f"Database error: {message}")
     
     @classmethod
-    def get_instance(cls, connection_info: Optional[Dict[str, Any]] = None):
+    def get_instance(cls, connection_info: Optional[Dict[str, Any]] = None, context: str = None):
         """รับ instance ของ DatabaseManager (สำหรับความชัดเจน)"""
-        return cls(connection_info)
+        # Create or get existing instance
+        if not hasattr(cls, '_instance') or cls._instance is None:
+            cls._instance = cls(connection_info)
+        else:
+            # If connection_info is provided and instance exists, update it
+            if connection_info:
+                cls._instance.update_connection_from_info(connection_info, context)
+        return cls._instance
     
     @classmethod
     def reset_instance(cls):
