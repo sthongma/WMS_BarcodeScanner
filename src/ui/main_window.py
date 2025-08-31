@@ -1910,6 +1910,11 @@ class WMSScannerApp:
         main_frame = ttk.Frame(dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Information label
+        info_label = ttk.Label(main_frame, text="หมายเหตุ: สามารถแก้ไขได้เฉพาะบาร์โค้ดและหมายเหตุเท่านั้น", 
+                              foreground="red", font=("Arial", 9, "italic"))
+        info_label.pack(pady=(0, 10))
+        
         # ID (readonly)
         id_frame = ttk.Frame(main_frame)
         id_frame.pack(fill=tk.X, pady=5)
@@ -1938,21 +1943,23 @@ class WMSScannerApp:
         date_entry.insert(0, current_values[2])
         date_entry.config(state="readonly")
         
-        # Main job type
+        # Main job type (disabled - cannot edit)
         main_job_frame = ttk.Frame(main_frame)
         main_job_frame.pack(fill=tk.X, pady=5)
         ttk.Label(main_job_frame, text="ประเภทงานหลัก:", width=15).pack(side=tk.LEFT)
         main_job_var = tk.StringVar()
-        main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="readonly", width=25)
+        main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="disabled", width=25)
         main_job_combo.pack(side=tk.LEFT, padx=10)
+        ttk.Label(main_job_frame, text="(ไม่สามารถแก้ไขได้)", foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=5)
         
-        # Sub job type
+        # Sub job type (disabled - cannot edit)
         sub_job_frame = ttk.Frame(main_frame)
         sub_job_frame.pack(fill=tk.X, pady=5)
         ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", width=15).pack(side=tk.LEFT)
         sub_job_var = tk.StringVar()
-        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=25)
+        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="disabled", width=25)
         sub_job_combo.pack(side=tk.LEFT, padx=10)
+        ttk.Label(sub_job_frame, text="(ไม่สามารถแก้ไขได้)", foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=5)
         
         # Notes
         notes_frame = ttk.Frame(main_frame)
@@ -2019,59 +2026,21 @@ class WMSScannerApp:
         
         def save_changes():
             new_barcode = barcode_entry.get().strip()
-            new_main_job = main_job_var.get()
-            new_sub_job = sub_job_var.get()
             new_notes = notes_entry.get().strip()
             
             if not new_barcode:
                 messagebox.showwarning("คำเตือน", "กรุณาใส่บาร์โค้ด")
                 return
             
-            if not new_main_job:
-                messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลัก")
-                return
-            
-            if not new_sub_job:
-                messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อย")
-                return
-            
             try:
-                # Get job IDs
-                new_main_job_id = self.job_types_data.get(new_main_job, 0)
+                # อัปเดตเฉพาะ barcode และ notes เท่านั้น (ไม่แก้ไข job types)
+                query = "UPDATE scan_records SET barcode = ?, notes = ? WHERE id = ?"
+                self.db.execute_non_query(query, (new_barcode, new_notes, record_id))
                 
-                # Get sub job ID
-                sub_job_query = """
-                    SELECT id FROM sub_job_types 
-                    WHERE main_job_id = ? AND sub_job_name = ? AND is_active = 1
-                """
-                sub_job_result = self.db.execute_query(sub_job_query, (new_main_job_id, new_sub_job))
-                
-                if not sub_job_result:
-                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
-                    return
-                
-                new_sub_job_id = sub_job_result[0]['id']
-                
-                # Use ScanService to update (includes audit logging)
-                from services.scan_service import ScanService
-                scan_service = ScanService()
-                
-                result = scan_service.update_scan_record(
-                    record_id=int(record_id),
-                    barcode=new_barcode,
-                    job_id=new_main_job_id,
-                    sub_job_id=new_sub_job_id,
-                    notes=new_notes,
-                    user_id=self.db.current_user
-                )
-                
-                if result['success']:
-                    messagebox.showinfo("สำเร็จ", result['message'])
-                    dialog.destroy()
-                    # Refresh the history table
-                    self.refresh_scanning_history()
-                else:
-                    messagebox.showerror("ข้อผิดพลาด", result['message'])
+                messagebox.showinfo("สำเร็จ", "แก้ไขข้อมูลเรียบร้อยแล้ว")
+                dialog.destroy()
+                # Refresh the history table
+                self.refresh_scanning_history()
                 
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
