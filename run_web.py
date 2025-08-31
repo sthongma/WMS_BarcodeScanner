@@ -12,6 +12,7 @@ import logging
 from datetime import timedelta
 from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
+from flask_session import Session
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
@@ -28,6 +29,7 @@ from routes.report_routes import report_bp
 
 # Import web services
 from web.database_service import initialize_database
+from src.session.redis_session import configure_flask_redis_sessions, get_redis_session_manager
 
 
 def create_app():
@@ -48,6 +50,18 @@ def create_app():
     
     # Enable CORS
     CORS(app)
+    
+    # Use default Flask sessions for initial testing
+    logger = logging.getLogger(__name__)
+    logger.info("📁 Using default Flask sessions for Phase 1 testing")
+    
+    # TODO: Re-enable Redis sessions after resolving Flask-Session compatibility
+    # redis_url = app_config.get('redis_url', 'redis://localhost:6379/0')
+    # try:
+    #     if not configure_flask_redis_sessions(app, redis_url):
+    #         logger.info("📁 Using default Flask sessions as fallback")
+    # except Exception as e:
+    #     logger.warning(f"⚠️ Session configuration failed: {e}, using default Flask sessions")
     
     # Configure logging
     setup_logging(app_config['debug'])

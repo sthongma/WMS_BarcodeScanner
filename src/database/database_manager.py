@@ -11,6 +11,7 @@ import json
 import os
 import threading
 from typing import Dict, List, Optional, Any, Tuple
+from .connection_pool import ConnectionPool
 
 # Use appropriate message box based on environment
 try:
@@ -42,6 +43,7 @@ class DatabaseManager:
         self.config = None
         self.connection_string = ""
         self.current_user = ""
+        self._connection_pool = None
         self._initialized = False
         
         if connection_info:
@@ -49,10 +51,12 @@ class DatabaseManager:
             self.config = connection_info['config']
             self.connection_string = connection_info['connection_string']
             self.current_user = connection_info['current_user']
+            self._initialize_connection_pool()
         else:
             # Fallback to loading from file
             self.load_config()
             self.update_connection_string()
+            self._initialize_connection_pool()
         
         self._initialized = True
     
@@ -65,6 +69,10 @@ class DatabaseManager:
             self.config = connection_info['config']
             self.connection_string = connection_info['connection_string'] 
             self.current_user = new_user
+            
+            # Reinitialize connection pool if connection string changed
+            if user_changed or not self._connection_pool:
+                self._initialize_connection_pool()
             
             # Log พร้อมข้อมูล context
             import logging
@@ -80,6 +88,29 @@ class DatabaseManager:
             logger = logging.getLogger(__name__)
             context_msg = f" [Context: {context}]" if context else ""
             logger.error(f"Failed to update connection: {str(e)}{context_msg}")
+    
+    def _initialize_connection_pool(self):
+        """Initialize database connection pool"""
+        try:
+            if self._connection_pool:
+                self._connection_pool.close_all()
+            
+            self._connection_pool = ConnectionPool(
+                connection_string=self.connection_string,
+                min_connections=5,
+                max_connections=20,
+                max_idle_time=300  # 5 minutes
+            )
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"📊 Connection pool initialized for user: {self.current_user}")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to initialize connection pool: {e}")
+            self._connection_pool = None
     
     def load_config(self) -> bool:
         """โหลดการตั้งค่าจากไฟล์"""
@@ -162,19 +193,37 @@ class DatabaseManager:
     def execute_query(self, query: str, params: Tuple = ()) -> List[Dict]:
         """ดำเนินการ query และส่งคืนผลลัพธ์เป็น list ของ dictionary"""
         try:
-            with pyodbc.connect(self.connection_string) as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, params)
-                
-                # รับชื่อคอลัมน์
-                columns = [column[0] for column in cursor.description]
-                
-                # แปลงผลลัพธ์เป็น list ของ dictionary
-                results = []
-                for row in cursor.fetchall():
-                    results.append(dict(zip(columns, row)))
-                
-                return results
+            if self._connection_pool:
+                # Use connection pool
+                with self._connection_pool.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
+                    
+                    # รับชื่อคอลัมน์
+                    columns = [column[0] for column in cursor.description]
+                    
+                    # แปลงผลลัพธ์เป็น list ของ dictionary
+                    results = []
+                    for row in cursor.fetchall():
+                        results.append(dict(zip(columns, row)))
+                    
+                    cursor.close()
+                    return results
+            else:
+                # Fallback to direct connection
+                with pyodbc.connect(self.connection_string) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
+                    
+                    # รับชื่อคอลัมน์
+                    columns = [column[0] for column in cursor.description]
+                    
+                    # แปลงผลลัพธ์เป็น list ของ dictionary
+                    results = []
+                    for row in cursor.fetchall():
+                        results.append(dict(zip(columns, row)))
+                    
+                    return results
         except Exception as e:
             self._show_error(f"เกิดข้อผิดพลาดในการดำเนินการ query: {str(e)}")
             return []
@@ -182,11 +231,22 @@ class DatabaseManager:
     def execute_non_query(self, query: str, params: Tuple = ()) -> int:
         """ดำเนินการ query ที่ไม่ส่งคืนผลลัพธ์ (INSERT, UPDATE, DELETE)"""
         try:
-            with pyodbc.connect(self.connection_string) as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, params)
-                conn.commit()
-                return cursor.rowcount
+            if self._connection_pool:
+                # Use connection pool
+                with self._connection_pool.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
+                    conn.commit()
+                    rowcount = cursor.rowcount
+                    cursor.close()
+                    return rowcount
+            else:
+                # Fallback to direct connection
+                with pyodbc.connect(self.connection_string) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
+                    conn.commit()
+                    return cursor.rowcount
         except Exception as e:
             self._show_error(f"เกิดข้อผิดพลาดในการดำเนินการ query: {str(e)}")
             raise Exception(f"Database execution error: {str(e)}")
@@ -246,6 +306,29 @@ class DatabaseManager:
         except Exception as e:
             self._show_error(f"เกิดข้อผิดพลาดในการรีเซ็ตการตั้งค่า: {str(e)}")
             return False
+    
+    def get_connection_pool_stats(self) -> Dict[str, Any]:
+        """Get connection pool statistics"""
+        if self._connection_pool:
+            return self._connection_pool.get_stats()
+        else:
+            return {
+                'status': 'No connection pool',
+                'total_connections': 0,
+                'available_connections': 0,
+                'max_connections': 0,
+                'min_connections': 0
+            }
+    
+    def close_connection_pool(self):
+        """Close connection pool"""
+        if self._connection_pool:
+            self._connection_pool.close_all()
+            self._connection_pool = None
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("📊 Connection pool closed")
     
     def get_connection_info(self) -> Dict[str, Any]:
         """รับข้อมูลการเชื่อมต่อปัจจุบัน"""

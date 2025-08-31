@@ -69,7 +69,8 @@ class ConfigManager:
             'host': '0.0.0.0',
             'port': int(os.environ.get('PORT', 5003)),
             'secret_key': os.environ.get('SECRET_KEY', 'wms_scanner_secret_key_2024'),
-            'session_timeout_hours': 8
+            'session_timeout_hours': 8,
+            'redis_url': os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
         }
     
     def get_rate_limit_config(self) -> Dict[str, Any]:

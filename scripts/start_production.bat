@@ -1,41 +1,53 @@
 @echo off
-echo Starting WMS Barcode Scanner in Production Mode...
-echo.
+REM WMS Barcode Scanner - Production Startup Script
+REM Phase 1 Production-Ready Configuration
 
-REM Change to script directory
-cd /d "%~dp0"
+echo ========================================
+echo  WMS Barcode Scanner - Production Mode
+echo ========================================
+
+REM Change to project root directory
+cd /d "%~dp0\.."
+
+REM Create logs directory
+if not exist logs mkdir logs
 
 REM Set environment variables
 set FLASK_ENV=production
-set PYTHONPATH=%CD%
+set WMS_ENV=production
+set PYTHONPATH=%CD%\src
 
-REM Create logs directory if it doesn't exist
-if not exist "logs" mkdir logs
-
-REM Check if Python is installed
-python --version >nul 2>&1
+echo [1/3] Installing dependencies...
+pip install -r requirements.txt
 if errorlevel 1 (
-    echo ERROR: Python is not installed or not in PATH
+    echo ERROR: Failed to install dependencies
     pause
     exit /b 1
 )
 
-REM Check if required packages are installed
-python -c "import flask, pyodbc" >nul 2>&1
+echo [2/3] Starting Redis server (if not running)...
+REM Check if Redis is running on default port
+netstat -an | find "6379" >nul
 if errorlevel 1 (
-    echo ERROR: Required packages not installed. Please run: pip install flask pyodbc flask-cors
-    pause
-    exit /b 1
+    echo Starting Redis server...
+    start "Redis Server" redis-server
+    timeout /t 3
+) else (
+    echo Redis server already running
 )
 
-echo Starting server...
-echo You can access the application at:
-echo - Local: http://localhost:5000
-echo - Network: http://[YOUR_IP]:5000
+echo [3/3] Starting WMS application in Production Mode...
+echo.
+echo Server will be available at:
+echo   http://localhost:5003
+echo   http://[YOUR_IP]:5003
 echo.
 echo Press Ctrl+C to stop the server
 echo.
 
-python run_production.py
+REM Start with Flask in production mode (Gunicorn not supported on Windows)
+python run_web.py
 
+echo.
+echo Server stopped.
 pause

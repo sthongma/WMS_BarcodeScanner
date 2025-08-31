@@ -12,7 +12,21 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(move backup_old_code archive/old_backups/)",
-      "Bash(move database/ิbackup_old_code_sql archive/old_backups/)"
+      "Bash(move database/ิbackup_old_code_sql archive/old_backups/)",
+      "Bash(scriptsstart_production.bat)",
+      "Bash(.scriptsstart_production.bat)",
+      "Bash(set FLASK_ENV=production)",
+      "Bash(set WMS_ENV=production)",
+      "Bash(set PYTHONPATH=\"%cd%\\src\")",
+      "Bash(gunicorn:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd /C \"C:\\Users\\shins\\OneDrive\\Desktop\\GitHub\\WMS_BarcodeScanner\\start_production_test.bat\")",
+      "Bash(curl:*)",
+      "Bash(del start_production_test.bat)",
+      "Bash(del scriptsrun_wms_scanner.bat)",
+      "Bash(del scriptsstart_android_server.bat)",
+      "Bash(del scriptsstart_wms_scanner.bat)",
+      "Bash(cmd /C \"C:\\Users\\shins\\OneDrive\\Desktop\\GitHub\\WMS_BarcodeScanner\\scripts\\start_production.bat\")"
     ],
     "deny": [],
     "ask": []

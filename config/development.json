@@ -18,7 +18,8 @@
     "timeout_hours": 4,
     "cookie_secure": false,
     "cookie_httponly": true,
-    "cookie_samesite": "Lax"
+    "cookie_samesite": "Lax",
+    "redis_url": "redis://localhost:6379/0"
   },
   "rate_limiting": {
     "api_init": {
