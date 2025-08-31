@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Any
 try:
     from database.database_manager import DatabaseManager
     from ui.login_window import LoginWindow
+    from utils.tab_config_loader import TabConfigLoader
 except ImportError:
     print("Error: Required modules not found")
     sys.exit(1)
@@ -34,6 +35,9 @@ class WMSScannerApp:
         
         # Initialize database manager with connection info
         self.db = DatabaseManager(connection_info)
+        
+        # Initialize tab config loader
+        self.tab_config = TabConfigLoader()
         
         # Session variables
         self.current_job_type = tk.StringVar()
@@ -74,20 +78,32 @@ class WMSScannerApp:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create tabs (ไม่รวม database settings tab)
-        self.create_scanning_tab()
-        self.create_history_tab()        
-        self.create_reports_tab()
-        self.create_import_tab()
-        self.create_settings_tab()
-        self.create_sub_job_settings_tab()
+        # Create tabs based on JSON configuration
+        if self.tab_config.is_tab_enabled('tabs_scan'):
+            self.create_scanning_tab()
+            
+        if self.tab_config.is_tab_enabled('tabs_history'):
+            self.create_history_tab()
+            
+        if self.tab_config.is_tab_enabled('tabs_reports'):
+            self.create_reports_tab()
+            
+        if self.tab_config.is_tab_enabled('tabs_import'):
+            self.create_import_tab()
+            
+        if self.tab_config.is_tab_enabled('tabs_settings'):
+            self.create_settings_tab()
+            
+        if self.tab_config.is_tab_enabled('tabs_sub_job_settings'):
+            self.create_sub_job_settings_tab()
     
 
 
     def create_settings_tab(self):
         """Create settings tab for job type management"""
         settings_frame = ttk.Frame(self.notebook)
-        self.notebook.add(settings_frame, text="จัดการประเภทงานหลัก")
+        tab_name = self.tab_config.get_tab_name('tabs_settings')
+        self.notebook.add(settings_frame, text=tab_name)
 
         # Job Types Management
         job_frame = ttk.LabelFrame(settings_frame, text="จัดการประเภทงาน", padding=10)
@@ -156,7 +172,8 @@ class WMSScannerApp:
     def create_sub_job_settings_tab(self):
         """Create sub job types management tab"""
         sub_job_frame = ttk.Frame(self.notebook)
-        self.notebook.add(sub_job_frame, text="จัดการประเภทงานย่อย")
+        tab_name = self.tab_config.get_tab_name('tabs_sub_job_settings')
+        self.notebook.add(sub_job_frame, text=tab_name)
         
         # Main container
         main_container = ttk.Frame(sub_job_frame)
@@ -244,7 +261,8 @@ class WMSScannerApp:
     def create_scanning_tab(self):
         """Create scanning tab with left-right split layout"""
         scan_frame = ttk.Frame(self.notebook)
-        self.notebook.add(scan_frame, text="หน้าจอหลัก")
+        tab_name = self.tab_config.get_tab_name('tabs_scan')
+        self.notebook.add(scan_frame, text=tab_name)
         
         # Create horizontal split layout using PanedWindow
         paned_window = ttk.PanedWindow(scan_frame, orient=tk.HORIZONTAL)
@@ -373,7 +391,8 @@ class WMSScannerApp:
     def create_import_tab(self):
         """Create import data tab"""
         import_frame = ttk.Frame(self.notebook)
-        self.notebook.add(import_frame, text="นำเข้าข้อมูล")
+        tab_name = self.tab_config.get_tab_name('tabs_import')
+        self.notebook.add(import_frame, text=tab_name)
         
         # Main container
         main_container = ttk.Frame(import_frame)
@@ -455,7 +474,8 @@ class WMSScannerApp:
     def create_history_tab(self):
         """Create history viewing tab"""
         history_frame = ttk.Frame(self.notebook)
-        self.notebook.add(history_frame, text="ประวัติ")
+        tab_name = self.tab_config.get_tab_name('tabs_history')
+        self.notebook.add(history_frame, text=tab_name)
         
         # Search controls
         search_frame = ttk.LabelFrame(history_frame, text="ค้นหา", padding=10)
@@ -519,7 +539,8 @@ class WMSScannerApp:
     def create_reports_tab(self):
         """Create reports tab with dynamic filtering like Web App"""
         reports_frame = ttk.Frame(self.notebook)
-        self.notebook.add(reports_frame, text="รายงาน")
+        tab_name = self.tab_config.get_tab_name('tabs_reports')
+        self.notebook.add(reports_frame, text=tab_name)
         
         # Filter selection frame
         filter_frame = ttk.LabelFrame(reports_frame, text="เลือกเงื่อนไขรายงาน", padding=10)
@@ -785,11 +806,12 @@ class WMSScannerApp:
             self.job_combo['values'] = job_names
             self.search_job_combo['values'] = [''] + job_names  # Include empty option for search
             
-            # Update settings listbox
-            self.job_listbox.delete(0, tk.END)
-            for result in results:
-                display_text = f"{result['job_name']} (ID: {result['id']})"
-                self.job_listbox.insert(tk.END, display_text)
+            # Update settings listbox if it exists
+            if hasattr(self, 'job_listbox'):
+                self.job_listbox.delete(0, tk.END)
+                for result in results:
+                    display_text = f"{result['job_name']} (ID: {result['id']})"
+                    self.job_listbox.insert(tk.END, display_text)
             
             # Refresh dependencies display
             self.refresh_dependencies_display()
@@ -804,6 +826,10 @@ class WMSScannerApp:
     def refresh_main_job_list_for_sub(self):
         """Refresh main job list in sub job management tab"""
         try:
+            # Check if main_job_listbox exists before using it
+            if not hasattr(self, 'main_job_listbox'):
+                return
+                
             # Clear existing items
             self.main_job_listbox.delete(0, tk.END)
             
@@ -1172,6 +1198,10 @@ class WMSScannerApp:
     
     def on_job_select(self, event):
         """Handle job selection in listbox"""
+        # Check if job_listbox exists
+        if not hasattr(self, 'job_listbox'):
+            return
+            
         selection = self.job_listbox.curselection()
         if not selection:
             return
@@ -1182,14 +1212,22 @@ class WMSScannerApp:
         job_id = self.job_types_data.get(job_name)
         
         self.current_selected_job = job_id
-        self.selected_job_label.config(text=f"ตั้งค่า Dependencies สำหรับ: {job_name}")
-        self.save_dependencies_btn.config(state=tk.NORMAL)
+        
+        # Update UI elements if they exist
+        if hasattr(self, 'selected_job_label'):
+            self.selected_job_label.config(text=f"ตั้งค่า Dependencies สำหรับ: {job_name}")
+        if hasattr(self, 'save_dependencies_btn'):
+            self.save_dependencies_btn.config(state=tk.NORMAL)
         
         # Refresh dependencies checkboxes
         self.refresh_dependencies_display()
     
     def refresh_dependencies_display(self):
         """Refresh dependencies checkboxes"""
+        # Check if dependencies_frame exists
+        if not hasattr(self, 'dependencies_frame'):
+            return
+            
         # Clear existing checkboxes
         for widget in self.dependencies_frame.winfo_children():
             widget.destroy()
@@ -1268,6 +1306,11 @@ class WMSScannerApp:
     
     def delete_job_type(self):
         """Delete selected job type"""
+        # Check if job_listbox exists
+        if not hasattr(self, 'job_listbox'):
+            messagebox.showwarning("คำเตือน", "ฟีเจอร์นี้ต้องการแท็บการตั้งค่า")
+            return
+            
         selection = self.job_listbox.curselection()
         if not selection:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานที่จะลบ")
@@ -1289,8 +1332,11 @@ class WMSScannerApp:
                 self.refresh_job_types()
                 # Reset selection
                 self.current_selected_job = None
-                self.selected_job_label.config(text="เลือกประเภทงานเพื่อตั้งค่า Dependencies")
-                self.save_dependencies_btn.config(state=tk.DISABLED)
+                # Reset UI elements if they exist
+                if hasattr(self, 'selected_job_label'):
+                    self.selected_job_label.config(text="เลือกประเภทงานเพื่อตั้งค่า Dependencies")
+                if hasattr(self, 'save_dependencies_btn'):
+                    self.save_dependencies_btn.config(state=tk.DISABLED)
                 messagebox.showinfo("สำเร็จ", f"ลบประเภทงาน '{job_name}' แล้ว")
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบประเภทงานได้: {str(e)}")

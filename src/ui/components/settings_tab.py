@@ -56,6 +56,7 @@ class SettingsTab:
         job_button_frame = ttk.Frame(job_frame)
         job_button_frame.pack(pady=10)
         
+        # ปุ่มเพิ่ม แก้ไข และลบ Job Type 
         ttk.Button(job_button_frame, text="เพิ่ม Job Type", command=self.add_job_type).pack(side=tk.LEFT, padx=5)
         ttk.Button(job_button_frame, text="แก้ไข", command=self.edit_job_type).pack(side=tk.LEFT, padx=5)
         ttk.Button(job_button_frame, text="ลบ", command=self.delete_job_type).pack(side=tk.LEFT, padx=5)
