@@ -13,7 +13,7 @@ from config_utils.config_manager import config_manager
 logger = logging.getLogger(__name__)
 
 
-def get_db_manager():
+def get_db_manager(context: str = None):
     """ดึง database manager (Singleton) สำหรับ web application"""
     try:
         # ใช้ข้อมูลจาก session เท่านั้น (ไม่ fallback ไป config file)
@@ -27,8 +27,15 @@ def get_db_manager():
                 'current_user': config['username']
             }
             
+            # Log การเรียกใช้ get_db_manager พร้อม context
+            if context:
+                logger.debug(f"📡 get_db_manager called from: {context}")
+            
             # ใช้ Singleton DatabaseManager
-            return DatabaseManager.get_instance(connection_info)
+            db_manager = DatabaseManager.get_instance(connection_info)
+            if hasattr(db_manager, 'update_connection_from_info'):
+                db_manager.update_connection_from_info(connection_info, context)
+            return db_manager
         else:
             # ไม่มี session = ต้อง login ก่อน
             return None

@@ -84,6 +84,8 @@ def scan_barcode():
 def get_scan_history():
     """API สำหรับดึงประวัติการสแกน"""
     try:
+        logger.info("📊 [API: /api/scan_history] ผู้ใช้ดึงประวัติการสแกน")
+        
         # Get query parameters
         limit = int(request.args.get('limit', 50))
         date_filter = request.args.get('date')
@@ -105,6 +107,10 @@ def get_scan_history():
                 sub_job_id = int(sub_job_id)
             except ValueError:
                 sub_job_id = None
+        
+        # Get database manager with context
+        from web.database_service import get_db_manager
+        db_manager = get_db_manager("API: /api/scan_history")
         
         # Get history using ScanService
         history = scan_service.get_scan_history(
@@ -141,6 +147,8 @@ def get_scan_history():
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
     try:
+        logger.info("📈 [API: /api/today_summary] ผู้ใช้ดึงสรุปงานวันนี้")
+        
         job_type_id = request.args.get('job_type_id')
         sub_job_type_id = request.args.get('sub_job_type_id')
         note_filter = request.args.get('note_filter')
@@ -163,6 +171,10 @@ def get_today_summary():
                 'success': False, 
                 'message': 'ID ไม่ถูกต้อง'
             })
+        
+        # Get database manager with context
+        from web.database_service import get_db_manager
+        db_manager = get_db_manager("API: /api/today_summary")
         
         # Get summary using ScanService
         result = scan_service.get_today_summary(

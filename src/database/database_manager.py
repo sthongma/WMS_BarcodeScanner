@@ -39,7 +39,7 @@ class DatabaseManager:
         if hasattr(self, '_initialized') and self._initialized:
             # If connection_info is provided, update the connection
             if connection_info:
-                self.update_connection_from_info(connection_info)
+                self.update_connection_from_info(connection_info, "get_instance")
             return
             
         self.config = None
@@ -59,19 +59,30 @@ class DatabaseManager:
         
         self._initialized = True
     
-    def update_connection_from_info(self, connection_info: Dict[str, Any]):
+    def update_connection_from_info(self, connection_info: Dict[str, Any], context: str = None):
         """อัพเดท connection จาก connection info ใหม่"""
         try:
+            new_user = connection_info['current_user']
+            user_changed = getattr(self, 'current_user', None) != new_user
+            
             self.config = connection_info['config']
             self.connection_string = connection_info['connection_string'] 
-            self.current_user = connection_info['current_user']
+            self.current_user = new_user
+            
+            # Log พร้อมข้อมูล context
             import logging
             logger = logging.getLogger(__name__)
-            logger.info(f"Updated connection for user: {self.current_user}")
+            context_msg = f" [Context: {context}]" if context else ""
+            
+            if user_changed:
+                logger.info(f"🔄 Updated connection for user: {self.current_user}{context_msg}")
+            else:
+                logger.debug(f"♻️ Connection reused for user: {self.current_user}{context_msg}")
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Failed to update connection: {str(e)}")
+            context_msg = f" [Context: {context}]" if context else ""
+            logger.error(f"Failed to update connection: {str(e)}{context_msg}")
     
     def load_config(self) -> bool:
         """โหลดการตั้งค่าจากไฟล์"""

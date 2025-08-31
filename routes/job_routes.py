@@ -25,7 +25,11 @@ job_service = JobService()
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
     try:
-        logger.info("🔍 กำลังดึงข้อมูล Job Types...")
+        logger.info("🔍 [API: /api/job_types] ผู้ใช้ดึงรายการ Job Types")
+        
+        # Get database manager with context
+        from web.database_service import get_db_manager
+        db_manager = get_db_manager("API: /api/job_types")
         
         # Use JobService to get job types
         job_types = job_service.get_all_job_types()
@@ -75,7 +79,11 @@ def get_job_types():
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
     try:
-        logger.info(f"🔍 กำลังดึงข้อมูล Sub Job Types สำหรับ Job Type ID: {job_type_id}")
+        logger.info(f"🔍 [API: /api/sub_job_types/{job_type_id}] ผู้ใช้ดึง Sub Job Types สำหรับ Job Type ID: {job_type_id}")
+        
+        # Get database manager with context
+        from web.database_service import get_db_manager
+        db_manager = get_db_manager(f"API: /api/sub_job_types/{job_type_id}")
         
         # Use JobService to get sub job types
         sub_job_types = job_service.get_sub_job_types(job_type_id)
