@@ -1950,7 +1950,6 @@ class WMSScannerApp:
         main_job_var = tk.StringVar()
         main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="disabled", width=25)
         main_job_combo.pack(side=tk.LEFT, padx=10)
-        ttk.Label(main_job_frame, text="(ไม่สามารถแก้ไขได้)", foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=5)
         
         # Sub job type (disabled - cannot edit)
         sub_job_frame = ttk.Frame(main_frame)
@@ -1959,7 +1958,6 @@ class WMSScannerApp:
         sub_job_var = tk.StringVar()
         sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="disabled", width=25)
         sub_job_combo.pack(side=tk.LEFT, padx=10)
-        ttk.Label(sub_job_frame, text="(ไม่สามารถแก้ไขได้)", foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=5)
         
         # Notes
         notes_frame = ttk.Frame(main_frame)
