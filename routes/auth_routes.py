@@ -201,7 +201,13 @@ def get_status():
 def logout():
     """API สำหรับ logout"""
     try:
+        # Clear session
         session.clear()
+        
+        # Reset DatabaseManager instance to allow new login
+        from src.database.database_manager import DatabaseManager
+        DatabaseManager.reset_instance()
+        
         return jsonify({
             'success': True,
             'message': 'ออกจากระบบสำเร็จ'

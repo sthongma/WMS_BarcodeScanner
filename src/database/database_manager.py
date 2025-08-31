@@ -37,6 +37,9 @@ class DatabaseManager:
     def __init__(self, connection_info: Optional[Dict[str, Any]] = None):
         # Prevent re-initialization if already initialized
         if hasattr(self, '_initialized') and self._initialized:
+            # If connection_info is provided, update the connection
+            if connection_info:
+                self.update_connection_from_info(connection_info)
             return
             
         self.config = None
@@ -55,6 +58,20 @@ class DatabaseManager:
             self.update_connection_string()
         
         self._initialized = True
+    
+    def update_connection_from_info(self, connection_info: Dict[str, Any]):
+        """อัพเดท connection จาก connection info ใหม่"""
+        try:
+            self.config = connection_info['config']
+            self.connection_string = connection_info['connection_string'] 
+            self.current_user = connection_info['current_user']
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Updated connection for user: {self.current_user}")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to update connection: {str(e)}")
     
     def load_config(self) -> bool:
         """โหลดการตั้งค่าจากไฟล์"""
@@ -248,4 +265,10 @@ class DatabaseManager:
     @classmethod
     def get_instance(cls, connection_info: Optional[Dict[str, Any]] = None):
         """รับ instance ของ DatabaseManager (สำหรับความชัดเจน)"""
-        return cls(connection_info) 
+        return cls(connection_info)
+    
+    @classmethod
+    def reset_instance(cls):
+        """รีเซ็ต instance (สำหรับการ logout)"""
+        with cls._lock:
+            cls._instance = None 

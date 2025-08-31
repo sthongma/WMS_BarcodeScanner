@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def get_db_manager():
     """ดึง database manager (Singleton) สำหรับ web application"""
     try:
-        # ดึงข้อมูล config จาก session หรือ config file
+        # ใช้ข้อมูลจาก session เท่านั้น (ไม่ fallback ไป config file)
         if 'db_config' in session:
             config = session['db_config']
             connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={config['server']};DATABASE={config['database']};UID={config['username']};PWD={config.get('password', '')}"
@@ -26,16 +26,12 @@ def get_db_manager():
                 'connection_string': connection_string,
                 'current_user': config['username']
             }
+            
+            # ใช้ Singleton DatabaseManager
+            return DatabaseManager.get_instance(connection_info)
         else:
-            # ใช้ config จากไฟล์
-            config = config_manager.load_database_config()
-            if config:
-                connection_info = config_manager.create_connection_info(config)
-            else:
-                return None
-        
-        # ใช้ Singleton DatabaseManager
-        return DatabaseManager.get_instance(connection_info)
+            # ไม่มี session = ต้อง login ก่อน
+            return None
         
     except Exception as e:
         logger.error(f"Error getting database manager: {str(e)}")
