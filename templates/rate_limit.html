@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⏰ ใช้งานเร็วเกินไป - WMS Barcode Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #be2033;
+            font-size: 28px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .message {
+            color: #666;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .countdown {
+            background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 20px rgba(12, 81, 132, 0.3);
+        }
+
+        .tips {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            border-left: 5px solid #0c5184;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .tips h3 {
+            color: #0c5184;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .tips ul {
+            color: #666;
+            padding-left: 20px;
+        }
+
+        .tips li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .retry-btn {
+            background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .retry-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(12, 81, 132, 0.3);
+        }
+
+        .retry-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .footer {
+            color: #999;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⏰</div>
+        <h1>คุณใช้งานเร็วเกินไป</h1>
+        
+        <div class="message">
+            เพื่อป้องกันระบบและให้บริการที่ดีสำหรับทุกคน<br>
+            กรุณารอสักครู่ก่อนเข้าใช้งานอีกครั้ง
+        </div>
+
+        <div class="countdown" id="countdown">
+            กำลังนับถอยหลัง...
+        </div>
+
+        <div class="tips">
+            <h3>💡 เคล็ดลับการใช้งาน</h3>
+            <ul>
+                <li>ไม่ควรรีเฟรชหน้าเว็บบ่อยเกินไป</li>
+                <li>ใช้งานด้วยความสงบ ระบบจะทำงานได้ดีกว่า</li>
+                <li>ถ้าเกิดปัญหา ให้รอสักครู่แล้วลองใหม่</li>
+                <li>หากยังมีปัญหา โปรดติดต่อผู้ดูแลระบบ</li>
+            </ul>
+        </div>
+
+        <button class="retry-btn" id="retryBtn" onclick="retryAccess()" disabled>
+            ⏳ รอสักครู่...
+        </button>
+
+        <div class="footer">
+            🏢 WMS EP Asia Group - ระบบสแกนบาร์โค้ดภายในองค์การ
+        </div>
+    </div>
+
+    <script>
+        // ดึงค่า retry_after จาก URL parameters หรือใช้ค่าเริ่มต้น
+        const urlParams = new URLSearchParams(window.location.search);
+        let countdown = parseInt(urlParams.get('retry_after')) || 60;
+
+        const countdownEl = document.getElementById('countdown');
+        const retryBtn = document.getElementById('retryBtn');
+
+        function updateCountdown() {
+            if (countdown > 0) {
+                countdownEl.innerHTML = `รอ ${countdown} วินาที`;
+                countdown--;
+            } else {
+                countdownEl.innerHTML = '✅ พร้อมใช้งานแล้ว!';
+                countdownEl.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                
+                retryBtn.textContent = '🔄 กลับไปหน้าหลัก';
+                retryBtn.disabled = false;
+                clearInterval(countdownInterval);
+            }
+        }
+
+        function retryAccess() {
+            if (countdown <= 0) {
+                window.location.href = '/';
+            }
+        }
+
+        // เริ่ม countdown
+        updateCountdown();
+        const countdownInterval = setInterval(updateCountdown, 1000);
+
+        // Auto redirect เมื่อเวลาหมด
+        setTimeout(() => {
+            if (countdown <= 0) {
+                window.location.href = '/';
+            }
+        }, (parseInt(urlParams.get('retry_after')) || 60) * 1000 + 1000);
+    </script>
+</body>
+</html>

@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src
 
 # Import configuration and middleware
 from config_utils.config_manager import config_manager
-from middleware.rate_limiter import clear_expired_requests
+from middleware.rate_limiter import clear_expired_requests, rate_limit
 
 # Import route blueprints
 from routes.auth_routes import auth_bp
@@ -102,6 +102,7 @@ def register_main_routes(app: Flask):
     """Register main application routes"""
     
     @app.route('/')
+    @rate_limit(max_requests=100, per_seconds=60, show_page=True)  # จำกัด 100 ครั้งต่อนาที
     def index():
         """หน้าแรกของแอปพลิเคชัน"""
         return render_template('index.html')

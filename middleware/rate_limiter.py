@@ -9,7 +9,7 @@ import time
 import logging
 from collections import defaultdict
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, render_template, redirect, url_for
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class RateLimiter:
     def __init__(self):
         self.request_times = defaultdict(list)
     
-    def limit(self, max_requests: int = 60, per_seconds: int = 60):
+    def limit(self, max_requests: int = 60, per_seconds: int = 60, show_page: bool = False):
         """Rate limiting decorator"""
         def decorator(f):
             @wraps(f)
@@ -42,10 +42,30 @@ class RateLimiter:
                 
                 # ตรวจสอบจำนวน request
                 if len(self.request_times[client_ip]) >= max_requests:
+                    # คำนวณเวลาที่ต้องรอ
+                    oldest_request = min(self.request_times[client_ip])
+                    wait_time = int(per_seconds - (current_time - oldest_request))
+                    
                     logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+                    
+                    # ถ้าเป็น page request ให้แสดงหน้า rate limit
+                    if show_page:
+                        return render_template('rate_limit.html', 
+                                             retry_after=wait_time,
+                                             limit=max_requests,
+                                             period=per_seconds), 429
+                    
+                    # ถ้าเป็น API request ให้ return JSON
                     return jsonify({
                         'success': False, 
-                        'message': 'Rate limit exceeded. Please try again later.'
+                        'error': 'RATE_LIMIT_EXCEEDED',
+                        'message': f'คุณใช้งานเร็วเกินไป กรุณารอ {wait_time} วินาที',
+                        'details': {
+                            'limit': max_requests,
+                            'period': per_seconds,
+                            'retry_after': wait_time,
+                            'current_requests': len(self.request_times[client_ip])
+                        }
                     }), 429
                 
                 # บันทึก request ปัจจุบัน
@@ -84,9 +104,9 @@ ENDPOINT_RATE_LIMITS = {
 rate_limiter = RateLimiter()
 
 
-def rate_limit(max_requests: int = 60, per_seconds: int = 60):
+def rate_limit(max_requests: int = 60, per_seconds: int = 60, show_page: bool = False):
     """Rate limiting decorator function"""
-    return rate_limiter.limit(max_requests, per_seconds)
+    return rate_limiter.limit(max_requests, per_seconds, show_page)
 
 
 def auto_rate_limit(func):

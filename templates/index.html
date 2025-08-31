@@ -471,7 +471,7 @@
     </style>
 </head>
 <body>
-    <audio id="errorSound" src="/static/error_2.mp3" preload="auto"></audio>
+    <audio id="errorSound" src="/static/error_3.mp3" preload="auto"></audio>
     <div class="container">
         <div class="header">
             <h1>🏢 WMS EP Asia Group</h1>
@@ -763,7 +763,7 @@
             showStatus('scanStatus', 'กำลังบันทึก...', 'info');
 
             try {
-                const response = await fetch('/api/scan', {
+                const result = await fetchWithRateLimit('/api/scan', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -776,7 +776,12 @@
                     })
                 });
 
-                const data = await response.json();
+                if (result.isRateLimit) {
+                    handleRateLimitError(result.data, 'scanStatus');
+                    return;
+                }
+
+                const { response, data } = result;
 
                 if (data.success) {
                     showStatus('scanStatus', data.message, 'success');
@@ -973,6 +978,39 @@
 
 
 
+        // Handle rate limit error with countdown
+        function handleRateLimitError(data, elementId) {
+            const retryAfter = data.details?.retry_after || 60;
+            showStatus(elementId, `⏰ ${data.message}\n\n💡 เคล็ดลับ: รอสักครู่แล้วลองใหม่`, 'error');
+            
+            // แสดง countdown
+            let countdown = retryAfter;
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    showStatus(elementId, `⏰ คุณใช้งานเร็วเกินไป กรุณารอ ${countdown} วินาที\n\n💡 เคล็ดลับ: ใช้งานช้าลงเพื่อป้องกันข้อผิดพลาด`, 'error');
+                } else {
+                    clearInterval(countdownInterval);
+                    showStatus(elementId, '✅ พร้อมใช้งานแล้ว คุณสามารถใช้งานได้', 'info');
+                    setTimeout(() => {
+                        document.getElementById(elementId).innerHTML = '';
+                    }, 3000);
+                }
+            }, 1000);
+        }
+
+        // Enhanced fetch with rate limit handling
+        async function fetchWithRateLimit(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            
+            if (response.status === 429) {
+                return { isRateLimit: true, data };
+            }
+            
+            return { isRateLimit: false, response, data };
+        }
+
         // Show status message
         function showStatus(elementId, message, type) {
             const element = document.getElementById(elementId);
@@ -1097,7 +1135,7 @@
                     requestBody.note_filter = noteFilter;
                 }
 
-                const response = await fetch('/api/report', {
+                const result = await fetchWithRateLimit('/api/report', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1105,7 +1143,12 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                const data = await response.json();
+                if (result.isRateLimit) {
+                    handleRateLimitError(result.data, 'reportStatus');
+                    return;
+                }
+
+                const { data } = result;
 
                 if (data.success) {
                     showStatus('reportStatus', 'โหลดรายงานสำเร็จ', 'success');
