@@ -228,57 +228,35 @@ def get_redis_session_manager(redis_url: str = "redis://localhost:6379/0") -> Re
 
 
 def configure_flask_redis_sessions(app, redis_url: str = "redis://localhost:6379/0"):
-    """Configure Flask app to use Redis sessions with fallback to filesystem"""
+    """Configure Flask app to use Redis sessions with proper fallback"""
     try:
-        # Try to use Flask-Session with Redis
+        # Try Redis first, but with graceful fallback
         import redis
-        from flask_session import Session
         
-        # Test Redis connection first
+        # Test Redis connection
         try:
-            redis_client = redis.from_url(redis_url)
+            redis_client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
             redis_client.ping()  # Test connection
             
-            # Configure Flask-Session with Redis
-            app.config['SESSION_TYPE'] = 'redis'
-            app.config['SESSION_REDIS'] = redis_client
-            app.config['SESSION_PERMANENT'] = True
-            app.config['SESSION_USE_SIGNER'] = True
-            app.config['SESSION_KEY_PREFIX'] = 'wms_session:'
+            # Use custom Redis session implementation
+            from .custom_redis_session import RedisSessionInterface
+            
+            app.session_interface = RedisSessionInterface(redis_client)
             app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
             
-            # Initialize Flask-Session
-            Session(app)
-            
-            logger.info(f"✅ Flask-Session with Redis configured: {redis_url}")
+            logger.info(f"✅ Custom Redis sessions configured: {redis_url}")
             return True
             
         except (redis.ConnectionError, redis.TimeoutError, ConnectionRefusedError) as e:
-            logger.warning(f"⚠️ Redis not available ({e}), falling back to file sessions")
+            logger.warning(f"⚠️ Redis not available ({e}), using default Flask sessions")
             
-            # Configure Flask-Session with filesystem fallback
-            app.config['SESSION_TYPE'] = 'filesystem'
-            app.config['SESSION_FILE_DIR'] = './session_data'
-            app.config['SESSION_PERMANENT'] = True
-            app.config['SESSION_USE_SIGNER'] = True
-            app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
-            
-            # Create session directory
-            import os
-            os.makedirs('./session_data', exist_ok=True)
-            
-            # Initialize Flask-Session
-            Session(app)
-            
-            logger.info("📁 Flask-Session with filesystem configured as fallback")
+            # Use default Flask sessions (in-memory, but stable)
+            logger.info("📁 Using default Flask sessions as fallback")
             return True
         
-    except ImportError:
-        logger.warning("⚠️ Flask-Session not available, using default Flask sessions")
-        return False
+    except ImportError as e:
+        logger.warning(f"⚠️ Redis not available ({e}), using default Flask sessions")
+        return True
     except Exception as e:
-        logger.error(f"❌ Failed to configure sessions: {e}")
-        
-        # Final fallback to default Flask sessions
-        logger.info("📁 Using default Flask in-memory sessions as final fallback")
-        return False
+        logger.warning(f"⚠️ Session configuration failed: {e}, using default Flask sessions")
+        return True

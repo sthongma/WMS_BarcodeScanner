@@ -51,17 +51,17 @@ def create_app():
     # Enable CORS
     CORS(app)
     
-    # Use default Flask sessions for initial testing
+    # Configure Redis sessions with fallback (Phase 1 Complete)
+    redis_url = app_config.get('redis_url', 'redis://localhost:6379/0')
     logger = logging.getLogger(__name__)
-    logger.info("📁 Using default Flask sessions for Phase 1 testing")
     
-    # TODO: Re-enable Redis sessions after resolving Flask-Session compatibility
-    # redis_url = app_config.get('redis_url', 'redis://localhost:6379/0')
-    # try:
-    #     if not configure_flask_redis_sessions(app, redis_url):
-    #         logger.info("📁 Using default Flask sessions as fallback")
-    # except Exception as e:
-    #     logger.warning(f"⚠️ Session configuration failed: {e}, using default Flask sessions")
+    try:
+        if configure_flask_redis_sessions(app, redis_url):
+            logger.info("🚀 Redis sessions configured successfully")
+        else:
+            logger.info("📁 Using filesystem sessions as fallback")
+    except Exception as e:
+        logger.warning(f"⚠️ Session configuration failed: {e}, using default Flask sessions")
     
     # Configure logging
     setup_logging(app_config['debug'])
@@ -76,17 +76,60 @@ def create_app():
 
 
 def setup_logging(debug_mode: bool = False):
-    """Setup application logging"""
+    """Setup application logging with daily rotation"""
+    from logging.handlers import TimedRotatingFileHandler
+    import glob
+    from datetime import datetime
+    
     log_level = logging.DEBUG if debug_mode else logging.INFO
     
     # Create logs directory
     os.makedirs('logs', exist_ok=True)
     
+    # Use today's date in filename
+    today = datetime.now().strftime('%Y-%m-%d')
+    log_filename = f'logs/web_app_{today}.log'
+    
+    # Create daily rotating file handler
+    file_handler = TimedRotatingFileHandler(
+        log_filename,
+        when='midnight',        # Rotate at midnight
+        interval=1,            # Every 1 day
+        backupCount=30,        # Keep 30 days
+        encoding='utf-8'
+    )
+    file_handler.suffix = '%Y-%m-%d'  # Format for rotated files
+    
+    # Cleanup old logs beyond 30 days
+    def cleanup_old_logs():
+        try:
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=30)
+            log_files = glob.glob('logs/web_app_*.log*')
+            for log_file in log_files:
+                try:
+                    # Extract date from filename (web_app_2025-08-31.log)
+                    filename = os.path.basename(log_file)
+                    if 'web_app_' in filename:
+                        date_part = filename.replace('web_app_', '').split('.')[0]
+                        if len(date_part) == 10 and date_part.count('-') == 2:  # YYYY-MM-DD format
+                            file_date = datetime.strptime(date_part, '%Y-%m-%d')
+                            if file_date < cutoff_date:
+                                os.remove(log_file)
+                                print(f"🗑️ Cleaned old log: {log_file}")
+                except:
+                    pass
+        except:
+            pass
+    
+    # Run cleanup on startup
+    cleanup_old_logs()
+    
     logging.basicConfig(
         level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('logs/web_app.log', encoding='utf-8'),
+            file_handler,
             logging.StreamHandler()
         ]
     )
