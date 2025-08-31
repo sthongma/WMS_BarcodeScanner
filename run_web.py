@@ -10,7 +10,7 @@ import os
 import sys
 import logging
 from datetime import timedelta
-from flask import Flask, render_template, session
+from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
 
 # Add src directory to Python path
@@ -105,7 +105,19 @@ def register_main_routes(app: Flask):
     @rate_limit(max_requests=100, per_seconds=60, show_page=True)  # จำกัด 100 ครั้งต่อนาที
     def index():
         """หน้าแรกของแอปพลิเคชัน"""
+        # Check if user is authenticated
+        if 'db_config' not in session:
+            return redirect('/login')
         return render_template('index.html')
+    
+    @app.route('/login')
+    @rate_limit(max_requests=100, per_seconds=60, show_page=True)
+    def login_page():
+        """หน้าล็อกอิน"""
+        # If already logged in, redirect to main app
+        if 'db_config' in session:
+            return redirect('/')
+        return render_template('login.html')
     
     @app.route('/health')
     def health_check():
@@ -143,12 +155,9 @@ def initialize_app():
         logger.info("MOBILE: สำหรับ Android http://[IP_ADDRESS]:5003")
         logger.info("TIP: ใช้ IP Address ของเครื่องนี้แทน [IP_ADDRESS]")
         
-        # เริ่มต้นการเชื่อมต่อฐานข้อมูล
-        logger.info("DB: กำลังเชื่อมต่อฐานข้อมูล...")
-        if initialize_database():
-            logger.info("OK: พร้อมใช้งาน - ฐานข้อมูลเชื่อมต่อสำเร็จ")
-        else:
-            logger.warning("WARNING: แอปพลิเคชันจะทำงานในโหมด Offline")
+        # ไม่เชื่อมต่อฐานข้อมูลอัตโนมัติ - บังคับให้ login ก่อน
+        logger.info("AUTH: แอปพลิเคชันพร้อมใช้งาน - ต้อง Login ก่อนใช้งาน")
+        logger.info("LOGIN: ไปที่ http://localhost:5003/login เพื่อเข้าสู่ระบบ")
         
         return True
         

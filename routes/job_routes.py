@@ -9,6 +9,7 @@ import logging
 from flask import Blueprint, jsonify
 from src.services.job_service import JobService
 from middleware.rate_limiter import auto_rate_limit
+from middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ job_service = JobService()
 
 
 @job_bp.route('/api/job_types')
+@require_auth
 @auto_rate_limit
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
@@ -68,6 +70,7 @@ def get_job_types():
 
 
 @job_bp.route('/api/sub_job_types/<int:job_type_id>')
+@require_auth
 @auto_rate_limit
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
@@ -125,6 +128,7 @@ def get_sub_job_types(job_type_id):
 
 
 @job_bp.route('/api/job_types', methods=['POST'])
+@require_auth
 @auto_rate_limit
 def create_job_type():
     """API สำหรับสร้าง Job Type ใหม่"""
@@ -162,6 +166,7 @@ def create_job_type():
 
 
 @job_bp.route('/api/sub_job_types', methods=['POST'])
+@require_auth
 @auto_rate_limit
 def create_sub_job_type():
     """API สำหรับสร้าง Sub Job Type ใหม่"""

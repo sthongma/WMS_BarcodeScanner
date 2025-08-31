@@ -123,10 +123,15 @@ class DatabaseManager:
             with pyodbc.connect(self.connection_string, timeout=5) as conn:
                 return True
         except Exception as e:
-            if messagebox:
+            # สำหรับ web app ไม่แสดง popup เพราะจะแสดงบน server
+            # แค่ log error และ return False เพื่อให้ caller จัดการ
+            if messagebox and hasattr(self, '_show_gui_errors'):
+                # แสดง messagebox เฉพาะเมื่อเป็น desktop app
                 messagebox.showerror("Error", f"ไม่สามารถเชื่อมต่อฐานข้อมูลได้: {str(e)}")
-            else:
-                print(f"Database connection error: {str(e)}")
+            # Log error สำหรับ debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Database connection failed: {str(e)}")
             return False
     
     def execute_query(self, query: str, params: Tuple = ()) -> List[Dict]:
@@ -231,10 +236,14 @@ class DatabaseManager:
     
     def _show_error(self, message: str):
         """แสดง error message ตาม environment"""
-        if messagebox:
+        if messagebox and hasattr(self, '_show_gui_errors'):
+            # แสดง messagebox เฉพาะเมื่อเป็น desktop app
             messagebox.showerror("Error", message)
         else:
-            print(f"Error: {message}")
+            # สำหรับ web app แค่ log error
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Database error: {message}")
     
     @classmethod
     def get_instance(cls, connection_info: Optional[Dict[str, Any]] = None):

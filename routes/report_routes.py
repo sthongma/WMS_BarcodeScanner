@@ -9,6 +9,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from src.services.report_service import ReportService
 from middleware.rate_limiter import auto_rate_limit
+from middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ report_service = ReportService()
 
 
 @report_bp.route('/api/report', methods=['POST'])
+@require_auth
 @auto_rate_limit
 def generate_report():
     """API สำหรับสร้างรายงาน"""

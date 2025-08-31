@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS Barcode Scanner - เข้าสู่ระบบ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .login-header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .login-header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .login-body {
+            padding: 40px 30px;
+        }
+
+        .login-title {
+            text-align: center;
+            color: #0c5184;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #0c5184;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .form-group input:focus {
+            border-color: #0c5184;
+            outline: none;
+            background: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(12, 81, 132, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #be2033 0%, #0c5184 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(12, 81, 132, 0.3);
+        }
+
+        .login-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .login-status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .login-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .login-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .login-status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive design */
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 10px;
+            }
+            
+            .login-header {
+                padding: 30px 20px;
+            }
+            
+            .login-body {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🏢 WMS EP Asia Group</h1>
+            <p>ระบบสแกนบาร์โค้ดภายในองค์การ</p>
+        </div>
+        
+        <div class="login-body">
+            <div class="login-title">เข้าสู่ระบบ</div>
+            <div class="login-subtitle">กรุณาใส่ Username และ Password สำหรับ SQL Server</div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">👤 Username:</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="ชื่อผู้ใช้ SQL Server" 
+                           autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">🔐 Password:</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="รหัสผ่าน" 
+                           autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="login-btn" id="loginBtn">
+                    เข้าสู่ระบบ
+                </button>
+            </form>
+            
+            <div id="loginStatus"></div>
+            
+            <div class="login-footer">
+                Version 2.0 - WMS Barcode Scanner
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced fetch with rate limit handling
+        async function fetchWithRateLimit(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            
+            if (response.status === 429) {
+                return { isRateLimit: true, data };
+            }
+            
+            return { isRateLimit: false, response, data };
+        }
+
+        function handleRateLimitError(data, statusElementId) {
+            const message = data.message || 'คำขอเกินขีดจำกัด กรุณารอสักครู่';
+            const retryAfter = data.retry_after || 60;
+            showLoginStatus(`⚠️ ${message} (รอ ${retryAfter} วินาที)`, 'error');
+        }
+
+        function showLoginStatus(message, type) {
+            const statusDiv = document.getElementById('loginStatus');
+            statusDiv.innerHTML = `<div class="login-status ${type}">${message}</div>`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            }
+        }
+
+        async function login(event) {
+            event.preventDefault();
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const form = document.getElementById('loginForm');
+            const formData = new FormData(form);
+            
+            // Get form values
+            const username = formData.get('username').trim();
+            const password = formData.get('password');
+            
+            // Validate input
+            if (!username || !password) {
+                showLoginStatus('❌ กรุณากรอก Username และ Password', 'error');
+                return;
+            }
+            
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner"></span>กำลังเชื่อมต่อ...';
+            showLoginStatus('🔄 กำลังทดสอบการเชื่อมต่อฐานข้อมูล...', 'info');
+            
+            try {
+                const result = await fetchWithRateLimit('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                if (result.isRateLimit) {
+                    handleRateLimitError(result.data, 'loginStatus');
+                    return;
+                }
+
+                const { data } = result;
+
+                if (data.success) {
+                    showLoginStatus('✅ เข้าสู่ระบบสำเร็จ! กำลังนำไปสู่หน้าหลัก...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    showLoginStatus(`❌ ${data.message || 'การเข้าสู่ระบบล้มเหลว'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showLoginStatus('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่', 'error');
+            } finally {
+                // Reset button state
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'เข้าสู่ระบบ';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('loginForm').addEventListener('submit', login);
+
+        // Auto focus on username input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const usernameInput = document.getElementById('username');
+            if (usernameInput) {
+                usernameInput.focus();
+            }
+        });
+
+        // Enter key handling for better UX
+        document.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                login(event);
+            }
+        });
+    </script>
+</body>
+</html>

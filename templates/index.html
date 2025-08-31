@@ -468,14 +468,43 @@
             background: #ffffff;
         }
 
+        .logout-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: #be2033;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .logout-btn:hover {
+            background: #a01c2a;
+        }
+
+        .user-info {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            color: #0c5184;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
     </style>
 </head>
 <body>
     <audio id="errorSound" src="/static/error_3.mp3" preload="auto"></audio>
     <div class="container">
-        <div class="header">
+        <div class="header" style="position: relative;">
+            <div class="user-info" id="userInfo"></div>
             <h1>🏢 WMS EP Asia Group</h1>
             <p>ระบบสแกนบาร์โค้ดภายในองค์การ</p>
+            <button class="logout-btn" onclick="logoutUser()">ออกจากระบบ</button>
         </div>
 
         <div class="content">
@@ -1264,8 +1293,51 @@
             }
         }
 
-        // Auto focus on barcode input when scanner section is shown
+        // Auth Functions
+        async function checkAuthStatus() {
+            try {
+                const result = await fetchWithRateLimit('/api/check-auth');
+                const { data } = result;
+                
+                if (!data.authenticated) {
+                    // Redirect to login page
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                // Show user info if available
+                if (data.username) {
+                    document.getElementById('userInfo').textContent = `👤 ${data.username}`;
+                }
+                
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+                window.location.href = '/login';
+            }
+        }
+
+        async function logoutUser() {
+            if (!confirm('คุณต้องการออกจากระบบหรือไม่?')) {
+                return;
+            }
+            
+            try {
+                await fetchWithRateLimit('/api/logout', {
+                    method: 'POST'
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+
+        // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication first
+            checkAuthStatus();
+            
             // Pre-load all job data for instant access
             preloadAllJobData();
             
@@ -1285,5 +1357,7 @@
             noteTextarea.placeholder = 'กรุณาเลือก Job Type ก่อน';
         });
     </script>
+        </div> <!-- Close content -->
+    </div> <!-- Close container -->
 </body>
 </html> 

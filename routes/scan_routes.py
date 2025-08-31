@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify
 from src.services.scan_service import ScanService
 from src.services.audit_service import AuditService
 from middleware.rate_limiter import auto_rate_limit
+from middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ audit_service = AuditService()
 
 
 @scan_bp.route('/api/scan', methods=['POST'])
+@require_auth
 @auto_rate_limit
 def scan_barcode():
     """API สำหรับสแกนบาร์โค้ด"""
@@ -72,6 +74,7 @@ def scan_barcode():
 
 
 @scan_bp.route('/api/history')
+@require_auth
 @auto_rate_limit
 def get_scan_history():
     """API สำหรับดึงประวัติการสแกน"""
@@ -128,6 +131,7 @@ def get_scan_history():
 
 
 @scan_bp.route('/api/today_summary')
+@require_auth
 @auto_rate_limit
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
@@ -173,6 +177,7 @@ def get_today_summary():
 
 
 @scan_bp.route('/api/scan/<int:record_id>', methods=['PUT'])
+@require_auth
 @auto_rate_limit
 def update_scan_record(record_id):
     """API สำหรับอัปเดตข้อมูลการสแกน"""
@@ -193,6 +198,7 @@ def update_scan_record(record_id):
 
 
 @scan_bp.route('/api/audit_history')
+@require_auth
 @auto_rate_limit
 def get_audit_history():
     """API สำหรับดึงประวัติการเปลี่ยนแปลงข้อมูลการสแกน"""
@@ -242,6 +248,7 @@ def get_audit_history():
 
 
 @scan_bp.route('/api/audit_summary')
+@require_auth
 @auto_rate_limit
 def get_audit_summary():
     """API สำหรับดึงสรุปการเปลี่ยนแปลงของวันนี้"""

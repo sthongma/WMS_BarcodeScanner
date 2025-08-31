@@ -43,35 +43,10 @@ def get_db_manager():
 
 
 def initialize_database():
-    """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
-    try:
-        config = config_manager.load_database_config()
-        if config:
-            connection_info = config_manager.create_connection_info(config)
-            if connection_info['connection_string']:
-                logger.info(f"CONNECT: กำลังเชื่อมต่อ: {config['server']}/{config['database']}")
-                
-                # ทดสอบการเชื่อมต่อแบบ thread-safe
-                test_manager = DatabaseManager.get_instance(connection_info)
-                if test_manager.test_connection():
-                    logger.info("OK: เชื่อมต่อฐานข้อมูลสำเร็จ")
-                    
-                    # ตรวจสอบและสร้างตารางที่จำเป็น
-                    ensure_tables_exist(test_manager)
-                    
-                    return True
-                else:
-                    logger.error("ERROR: การทดสอบการเชื่อมต่อล้มเหลว")
-                    return False
-            else:
-                logger.error("ERROR: ไม่สามารถสร้าง connection string ได้")
-                return False
-        else:
-            logger.error("ERROR: ไม่สามารถโหลดการตั้งค่าฐานข้อมูลได้")
-            return False
-    except Exception as e:
-        logger.error(f"ERROR: เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: {e}")
-        return False
+    """เริ่มต้นการเชื่อมต่อฐานข้อมูล - ไม่ทำอะไร เพราะต้อง login ก่อน"""
+    # ไม่โหลด config อัตโนมัติ - ให้ผู้ใช้ login ก่อน
+    logger.info("INIT: ไม่เชื่อมต่อฐานข้อมูลอัตโนมัติ - รอการ login")
+    return True
 
 
 def ensure_tables_exist(db_manager=None):
