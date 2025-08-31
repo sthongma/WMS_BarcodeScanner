@@ -36,7 +36,7 @@ def initialize_app():
         connection_info = config_manager.create_connection_info(config)
         
         # Test connection
-        db_manager = DatabaseManager.get_instance(connection_info)
+        db_manager = DatabaseManager.get_instance(connection_info, "API: /api/test_connection")
         if db_manager.test_connection():
             # Ensure required tables exist
             from web.database_service import ensure_tables_exist
@@ -101,7 +101,7 @@ def login():
         
         # ทดสอบการเชื่อมต่อ
         try:
-            db_manager = DatabaseManager.get_instance(connection_info)
+            db_manager = DatabaseManager.get_instance(connection_info, "API: /api/login")
             if db_manager.test_connection():
                 # ตรวจสอบและสร้างตารางที่จำเป็นหลังจาก login สำเร็จ
                 try:
@@ -158,7 +158,7 @@ def check_auth():
             
             # Verify database connection is still valid
             from web.database_service import get_db_manager
-            db_manager = get_db_manager()
+            db_manager = get_db_manager("API: /api/logout session check")
             
             if db_manager and db_manager.test_connection():
                 return jsonify({
@@ -188,7 +188,7 @@ def get_status():
     try:
         from web.database_service import get_db_manager
         
-        db_manager = get_db_manager()
+        db_manager = get_db_manager("API: /api/connection_status")
         if db_manager and db_manager.test_connection():
             return jsonify({'success': True, 'connected': True})
         else:

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 report_bp = Blueprint('report', __name__)
 
 # Initialize report service
-report_service = ReportService()
+report_service = ReportService("Route: report_routes global")
 
 
 @report_bp.route('/api/report', methods=['POST'])

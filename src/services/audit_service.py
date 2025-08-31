@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 class AuditService:
     """บริการจัดการ Audit Logs สำหรับการติดตามการเปลี่ยนแปลงข้อมูล"""
     
-    def __init__(self):
-        self.db = DatabaseManager.get_instance()
+    def __init__(self, context: str = "Service: AuditService"):
+        self.db = DatabaseManager.get_instance(None, context)
     
     def log_scan_change(self, scan_record_id: int, action_type: str, 
                        old_values: Dict[str, Any] = None, 

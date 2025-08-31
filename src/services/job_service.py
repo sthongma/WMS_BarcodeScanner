@@ -12,8 +12,8 @@ from database.database_manager import DatabaseManager
 class JobService:
     """บริการจัดการประเภทงาน"""
     
-    def __init__(self):
-        self.db = DatabaseManager.get_instance()
+    def __init__(self, context: str = "Service: JobService"):
+        self.db = DatabaseManager.get_instance(None, context)
     
     def get_all_job_types(self) -> List[Dict[str, Any]]:
         """ดึงประเภทงานทั้งหมด"""

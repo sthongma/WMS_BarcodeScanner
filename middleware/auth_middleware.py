@@ -36,7 +36,7 @@ def require_auth(f):
         # Verify session is still valid by checking database connection
         try:
             from web.database_service import get_db_manager
-            db_manager = get_db_manager()
+            db_manager = get_db_manager("Middleware: auth_middleware")
             
             if not db_manager or not db_manager.test_connection():
                 logger.warning(f"Database connection failed for session user")

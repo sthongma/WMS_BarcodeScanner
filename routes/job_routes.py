@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 job_bp = Blueprint('job', __name__)
 
 # Initialize job service
-job_service = JobService()
+job_service = JobService("Route: job_routes global")
 
 
 @job_bp.route('/api/job_types')

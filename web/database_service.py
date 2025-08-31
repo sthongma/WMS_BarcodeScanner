@@ -53,7 +53,7 @@ def initialize_database():
 def ensure_tables_exist(db_manager=None):
     """ตรวจสอบและสร้างตารางที่จำเป็น"""
     if not db_manager:
-        db_manager = get_db_manager()
+        db_manager = get_db_manager("Internal: ensure_tables_exist")
         if not db_manager:
             logger.error("ไม่สามารถดึง database manager ได้")
             return False
@@ -123,7 +123,7 @@ def ensure_tables_exist(db_manager=None):
 def get_connection_status():
     """ตรวจสอบสถานะการเชื่อมต่อ"""
     try:
-        db_manager = get_db_manager()
+        db_manager = get_db_manager("Internal: get_connection_status")
         if db_manager and db_manager.test_connection():
             return {'connected': True, 'message': 'เชื่อมต่อฐานข้อมูลสำเร็จ'}
         else:

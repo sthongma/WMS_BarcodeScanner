@@ -15,10 +15,10 @@ from services.audit_service import AuditService
 class ScanService:
     """บริการจัดการการสแกน"""
     
-    def __init__(self):
-        self.db = DatabaseManager.get_instance()
-        self.job_service = JobService()
-        self.audit_service = AuditService()
+    def __init__(self, context: str = "Service: ScanService"):
+        self.db = DatabaseManager.get_instance(None, context)
+        self.job_service = JobService("Service: JobService (via ScanService)")
+        self.audit_service = AuditService("Service: AuditService (via ScanService)")
     
     def process_scan(self, barcode: str, job_id: int, sub_job_id: Optional[int] = None, 
                     notes: str = None, user_id: str = None) -> Dict[str, Any]:

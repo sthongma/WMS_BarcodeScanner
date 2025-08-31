@@ -14,8 +14,8 @@ from database.database_manager import DatabaseManager
 class ReportService:
     """บริการจัดการรายงาน"""
     
-    def __init__(self):
-        self.db = DatabaseManager.get_instance()
+    def __init__(self, context: str = "Service: ReportService"):
+        self.db = DatabaseManager.get_instance(None, context)
     
     def generate_report(self, report_date: str, job_id: int, sub_job_id: Optional[int] = None,
                        note_filter: str = None) -> Dict[str, Any]:

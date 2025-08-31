@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 scan_bp = Blueprint('scan', __name__)
 
-# Initialize services
-scan_service = ScanService()
-audit_service = AuditService()
+# Initialize services with context
+scan_service = ScanService("Route: scan_routes global")
+audit_service = AuditService("Route: scan_routes global")
 
 
 @scan_bp.route('/api/scan', methods=['POST'])
