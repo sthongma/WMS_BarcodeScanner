@@ -2110,6 +2110,36 @@ class WMSScannerApp:
                         
                         df.to_excel(writer, sheet_name='รายละเอียด', index=False)
                     
+                    # Set column widths for all sheets
+                    for sheet_name in writer.sheets:
+                        worksheet = writer.sheets[sheet_name]
+                        
+                        if sheet_name == 'รายละเอียด':
+                            # Set specific widths for data sheet
+                            column_widths = {
+                                'A': 25,  # บาร์โค้ด
+                                'B': 30,  # วันที่/เวลา
+                                'C': 25,  # งานหลัก
+                                'D': 25,  # งานรอง
+                                'E': 20,  # ผู้ใช้
+                                'F': 50   # หมายเหตุ
+                            }
+                            for col, width in column_widths.items():
+                                worksheet.column_dimensions[col].width = width
+                        else:
+                            # Auto-adjust for summary sheet
+                            for column in worksheet.columns:
+                                max_length = 0
+                                column_letter = column[0].column_letter
+                                for cell in column:
+                                    try:
+                                        if len(str(cell.value)) > max_length:
+                                            max_length = len(str(cell.value))
+                                    except:
+                                        pass
+                                adjusted_width = max(max_length + 5, 20)
+                                worksheet.column_dimensions[column_letter].width = adjusted_width
+                    
                 messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์สำเร็จ\n{filename}\n\nประกอบด้วย:\n- แผ่นสรุป: ข้อมูลสรุปรายงาน\n- แผ่นรายละเอียด: ข้อมูลทั้งหมด")
                 
         except Exception as e:
