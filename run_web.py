@@ -12,6 +12,7 @@ import logging
 from datetime import timedelta
 from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
+from dotenv import load_dotenv
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
@@ -169,6 +170,9 @@ def initialize_app():
 
 def main():
     """Main application entry point"""
+    # Load environment variables from .env file
+    load_dotenv()
+    
     # Create Flask application
     app = create_app()
     
