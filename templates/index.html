@@ -1324,7 +1324,19 @@
                 detailsContent.innerHTML = '<div class="no-data">ไม่มีข้อมูลการสแกนในวันที่เลือก</div>';
             } else {
                 let detailsHtml = '';
-                reportData.forEach(item => {
+                
+                // เรียงข้อมูลจากล่าสุดมาก่อน แล้วเอาแค่ 100 รายการ
+                const sortedData = reportData.sort((a, b) => new Date(b.scan_date) - new Date(a.scan_date));
+                const limitedData = sortedData.slice(0, 100);
+                
+                // เพิ่มข้อความแจ้งเตือนหากมีข้อมูลเกิน 100 รายการ
+                if (reportData.length > 100) {
+                    detailsHtml += `<div style="text-align:center; padding:15px; background:#fff3cd; color:#856404; border-radius:5px; margin:10px 0; border-left:4px solid #ffc107;">
+                        📊 แสดงเฉพาะ 100 รายการล่าสุด (จากทั้งหมด ${reportData.length} รายการ)
+                    </div>`;
+                }
+                
+                limitedData.forEach(item => {
                     const scanTime = new Date(item.scan_date).toLocaleString('th-TH');
                     let notesHtml = '';
                     
