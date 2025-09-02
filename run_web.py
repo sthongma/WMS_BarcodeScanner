@@ -63,32 +63,9 @@ def create_app():
 
 
 def setup_logging(debug_mode: bool = False):
-    """Setup application logging"""
-    log_level = logging.DEBUG if debug_mode else logging.INFO
-    
-    # Create logs directory
-    os.makedirs('logs', exist_ok=True)
-    
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('logs/web_app.log', encoding='utf-8'),
-            logging.StreamHandler()
-        ]
-    )
-    
-    # Configure console handler encoding for Windows
-    if sys.platform == 'win32':
-        for handler in logging.root.handlers:
-            if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stderr:
-                try:
-                    handler.stream.reconfigure(encoding='utf-8')
-                except:
-                    pass
-    
-    # Set specific logger levels
-    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    """Setup application logging with daily rotation"""
+    from src.utils.log_manager import setup_daily_rotating_logging
+    setup_daily_rotating_logging(debug_mode, 'logs')
 
 
 def register_blueprints(app: Flask):
@@ -132,6 +109,29 @@ def register_main_routes(app: Flask):
             'database': db_status,
             'version': '2.0.0'
         }
+    
+    @app.route('/api/logs/status')
+    @rate_limit(max_requests=10, per_seconds=60)
+    def log_status():
+        """ดูสถานะของระบบ log"""
+        from src.utils.log_manager import get_log_status
+        return get_log_status()
+    
+    @app.route('/api/logs/cleanup')
+    @rate_limit(max_requests=1, per_seconds=300)  # จำกัด 1 ครั้งต่อ 5 นาที
+    def force_log_cleanup():
+        """บังคับลบไฟล์ log เก่า"""
+        from src.utils.log_manager import log_manager
+        log_manager.cleanup_old_logs()
+        return {'success': True, 'message': 'Log cleanup completed'}
+    
+    @app.route('/api/logs/rotate')
+    @rate_limit(max_requests=1, per_seconds=300)  # จำกัด 1 ครั้งต่อ 5 นาที
+    def force_log_rotation():
+        """บังคับหมุนเวียน log ทันที"""
+        from src.utils.log_manager import force_log_rotation
+        force_log_rotation()
+        return {'success': True, 'message': 'Log rotation completed'}
     
     @app.before_request
     def cleanup_background_tasks():
