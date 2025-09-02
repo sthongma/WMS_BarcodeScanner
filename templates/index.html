@@ -264,23 +264,74 @@
             font-weight: 600;
         }
 
+        /* Status container แบบคงที่ */
+        .status-container {
+            min-height: 80px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .status-container .status {
+            margin: 0;
+            width: 100%;
+            animation: fadeIn 0.3s ease-in;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* เพิ่มเอฟเฟกต์พิเศษสำหรับสถานะ */
         .status.success {
-            background: #d4edda;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             color: #155724;
             border: 1px solid #c3e6cb;
+            box-shadow: 0 2px 8px rgba(21, 87, 36, 0.1);
         }
 
         .status.error {
-            background: #f8d7da;
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
             color: #721c24;
             border: 1px solid #f5c6cb;
+            box-shadow: 0 2px 8px rgba(114, 28, 36, 0.1);
         }
 
         .status.info {
-            background: #e8f0f7;
+            background: linear-gradient(135deg, #e8f0f7 0%, #d1e7f0 100%);
             color: #0c5184;
             border: 1px solid #d1e7f0;
+            box-shadow: 0 2px 8px rgba(12, 81, 132, 0.1);
         }
+
+        /* เพิ่มเอฟเฟกต์ pulse สำหรับสถานะใหม่ */
+        .status.new-scan {
+            animation: pulse 0.6s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        /* เพิ่มเอฟเฟกต์ shimmer สำหรับสถานะที่กำลังประมวลผล */
+        .status.processing {
+            background: linear-gradient(90deg, #f8f9fa 25%, #e8f0f7 50%, #f8f9fa 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+
 
         .today-summary {
             margin-top: 20px;
@@ -510,6 +561,8 @@
 </head>
 <body>
     <audio id="errorSound" src="/static/error_4.mp3" preload="auto"></audio>
+    <audio id="errorSound2" src="/static/error_2.mp3" preload="auto"></audio>
+    <audio id="errorSound3" src="/static/error_3.mp3" preload="auto"></audio>
     <div class="container">
         <div class="header">
             <div class="header-right">
@@ -563,7 +616,9 @@
                     </small>
                 </div>
                 
-                <div id="scanStatus"></div>
+                <div class="status-container">
+                    <div id="scanStatus"></div>
+                </div>
 
                 <!-- Today Summary Section -->
                 <div id="todaySummary" class="today-summary" style="display: none;">
@@ -635,6 +690,71 @@
         // Global cache for job types and sub job types
         let jobTypesCache = [];
         let subJobTypesCache = {};
+        
+        // Audio management system
+        let audioManager = {
+            currentAudio: null,
+            audioQueue: [],
+            isPlaying: false,
+            
+            playErrorSound: function() {
+                // Stop any currently playing audio
+                if (this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+                
+                // Select random error sound
+                const errorSounds = ['errorSound', 'errorSound2', 'errorSound3'];
+                const randomSound = errorSounds[Math.floor(Math.random() * errorSounds.length)];
+                this.currentAudio = document.getElementById(randomSound);
+                
+                if (this.currentAudio) {
+                    this.currentAudio.currentTime = 0;
+                    this.currentAudio.play().catch(e => {
+                        console.warn('Audio play failed:', e);
+                    });
+                }
+            }
+        };
+        
+        // Status persistence system
+        let statusManager = {
+            lastScanResult: null,
+            
+            saveScanResult: function(barcode, result, message, type) {
+                this.lastScanResult = {
+                    barcode: barcode,
+                    result: result,
+                    message: message,
+                    type: type,
+                    timestamp: new Date()
+                };
+            },
+            
+            getLastScanDisplay: function() {
+                if (!this.lastScanResult) {
+                    return null;
+                }
+                
+                const statusIcon = this.lastScanResult.type === 'success' ? '✅' : '❌';
+                const statusColor = this.lastScanResult.type === 'success' ? '#155724' : '#721c24';
+                const statusBg = this.lastScanResult.type === 'success' ? '#d4edda' : '#f8d7da';
+                const statusBorder = this.lastScanResult.type === 'success' ? '#c3e6cb' : '#f5c6cb';
+                
+                return {
+                    html: `<div class="status ${this.lastScanResult.type}" style="background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBorder};">
+                        <div>
+                            <strong>${statusIcon} ${this.lastScanResult.barcode}</strong><br>
+                            <small>${this.lastScanResult.message}</small>
+                        </div>
+                    </div>`,
+                    type: this.lastScanResult.type
+                };
+            },
+            
+
+        };
 
         // Load job types with caching
         async function loadJobTypes() {
@@ -797,8 +917,6 @@
             }
 
             // Sub Job Type เป็นตัวเลือก (ไม่บังคับ) เหมือน Desktop App
-
-            showStatus('scanStatus', 'กำลังบันทึก...', 'info');
 
             try {
                 const result = await fetchWithRateLimit('/api/scan', {
@@ -1125,23 +1243,67 @@
             return fetchWithDeduplication(url, options);
         }
 
-        // Show status message
-        function showStatus(elementId, message, type) {
+        // Show status message with fixed height container
+        function showStatus(elementId, message, type, options = {}) {
             const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="status ${type}">${message}</div>`;
-            if (type === 'error') {
-                const errorAudio = document.getElementById('errorSound');
-                if (errorAudio) {
-                    errorAudio.currentTime = 0;
-                    errorAudio.play();
+            const { showAnimation = true, isNewScan = false } = options;
+            
+            // สำหรับ scanStatus ใช้ status bar แบบคงที่
+            if (elementId === 'scanStatus') {
+                let statusClass = type;
+                if (isNewScan) {
+                    statusClass += ' new-scan';
+                }
+                if (type === 'info' && message.includes('กำลัง')) {
+                    statusClass += ' processing';
+                }
+                
+                element.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+                
+                if (type === 'error') {
+                    audioManager.playErrorSound();
+                }
+                
+                // สำหรับ success message ให้แสดงค้างไว้ (ไม่เปลี่ยนเป็น default)
+                // ไม่ต้องทำอะไรเพิ่มเติม
+            } else {
+                // สำหรับ element อื่นใช้แบบเดิม
+                let statusClass = type;
+                if (isNewScan) {
+                    statusClass += ' new-scan';
+                }
+                
+                element.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+                if (type === 'error') {
+                    audioManager.playErrorSound();
+                }
+                if (type === 'success') {
+                    setTimeout(() => {
+                        element.innerHTML = '';
+                    }, 3000);
                 }
             }
-            if (type === 'success') {
-                setTimeout(() => {
-                    element.innerHTML = '';
-                }, 3000);
+        }
+
+        // แสดง default status สำหรับ scan
+        function showDefaultScanStatus() {
+            const element = document.getElementById('scanStatus');
+            
+            // ตรวจสอบว่ามีผลการสแกนล่าสุดหรือไม่
+            const lastScanDisplay = statusManager.getLastScanDisplay();
+            
+            if (lastScanDisplay) {
+                // แสดงผลการสแกนล่าสุด
+                element.innerHTML = lastScanDisplay.html;
+            } else {
+                // แสดงสถานะพร้อมสแกน
+                element.innerHTML = `<div class="status info" style="background: #f8f9fa; color: #666; border: 1px solid #e8f0f7;">
+                    ✅ พร้อมสแกน
+                </div>`;
             }
         }
+
+
 
         // Switch between tabs
         function switchTab(tabName) {
@@ -1458,6 +1620,9 @@
             // Pre-load all job data for instant access
             preloadAllJobData();
             
+            // แสดง default scan status เมื่อโหลดหน้า
+            showDefaultScanStatus();
+            
             // Load initial data with delay to prevent race conditions
             setTimeout(() => {
                 loadHistory();
@@ -1474,6 +1639,8 @@
             barcodeInput.placeholder = 'กรุณาเลือก Job Type ก่อน';
             noteTextarea.disabled = true;
             noteTextarea.placeholder = 'กรุณาเลือก Job Type ก่อน';
+            
+
         });
     </script>
         </div> <!-- Close content -->
