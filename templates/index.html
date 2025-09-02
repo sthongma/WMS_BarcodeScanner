@@ -388,6 +388,28 @@
             font-weight: 700;
             font-size: 18px;
             box-shadow: 0 3px 10px rgba(12, 81, 132, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .summary-count.updated {
+            animation: countUpdate 0.6s ease-out;
+        }
+
+        @keyframes countUpdate {
+            0% {
+                transform: scale(1);
+                background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
+            }
+            50% {
+                transform: scale(1.2);
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                background: linear-gradient(135deg, #0c5184 0%, #1a6ba8 100%);
+                box-shadow: 0 3px 10px rgba(12, 81, 132, 0.3);
+            }
         }
 
         .summary-note {
@@ -419,11 +441,39 @@
             border-radius: 10px;
             margin-bottom: 10px;
             border-left: 4px solid #0c5184;
+            opacity: 0;
+            transform: translateY(-20px);
+            animation: slideInFromTop 0.5s ease-out forwards;
         }
 
         .history-item.new {
-            border-left-color: #0c5184;
-            background: #f8f9fa;
+            border-left-color: #28a745;
+            background: #e8f5e8;
+            animation: slideInFromTop 0.5s ease-out forwards, highlightNew 2s ease-out 0.5s forwards;
+        }
+
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes highlightNew {
+            0% {
+                background: #d4edda;
+                border-left-color: #28a745;
+                box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+            }
+            100% {
+                background: #e8f5e8;
+                border-left-color: #28a745;
+                box-shadow: none;
+            }
         }
 
         .history-barcode {
@@ -627,7 +677,7 @@
                 </div>
 
                 <!-- History Section -->
-                <div class="history-section">
+                <div class="history-section" style="display: none;">
                     <div class="history-title">📋 ประวัติการสแกนล่าสุด</div>
                     <div id="historyList"></div>
                 </div>
@@ -943,6 +993,12 @@
                     showStatus('scanStatus', data.message, 'success');
                     document.getElementById('barcode').value = '';
                     document.getElementById('barcode').focus();
+                    
+                    // เพิ่มรายการใหม่เข้าไปในประวัติทันที (ถ้ามีข้อมูล)
+                    if (data.scan_data) {
+                        addNewHistoryItem(data.scan_data);
+                    }
+                    
                     // อัปเดทข้อมูลหลังจากสแกนสำเร็จ
                     batchDataUpdate();
                 } else {
@@ -990,6 +1046,12 @@
                     const summaryContent = document.getElementById('todaySummaryContent');
                     const summaryData = data.data;
                     
+                    // ตรวจสอบว่าตัวเลขเปลี่ยนหรือไม่
+                    const currentCountElement = summaryContent.querySelector('.summary-count');
+                    const currentCount = currentCountElement ? parseInt(currentCountElement.textContent) : 0;
+                    const newCount = summaryData.total_count;
+                    const isCountChanged = currentCount !== newCount;
+                    
                     let noteFilterHtml = '';
                     if (summaryData.note_filter) {
                         noteFilterHtml = `
@@ -1012,12 +1074,23 @@
                         ${noteFilterHtml}
                         <div class="summary-row">
                             <span class="summary-label">จำนวนที่สแกนวันนี้:</span>
-                            <span class="summary-count">${summaryData.total_count}</span>
+                            <span class="summary-count ${isCountChanged ? 'updated' : ''}">${summaryData.total_count}</span>
                         </div>
                         <div class="summary-note">
                             💡 อัปเดทล่าสุด: ${new Date().toLocaleString('th-TH')}
                         </div>
                     `;
+                    
+                    // เพิ่มอนิเมชั่นถ้าตัวเลขเปลี่ยน
+                    if (isCountChanged && currentCountElement) {
+                        const newCountElement = summaryContent.querySelector('.summary-count');
+                        if (newCountElement) {
+                            // ลบ class updated หลังจากอนิเมชั่นเสร็จ
+                            setTimeout(() => {
+                                newCountElement.classList.remove('updated');
+                            }, 600);
+                        }
+                    }
                     
                     document.getElementById('todaySummary').style.display = 'block';
                 } else {
@@ -1044,6 +1117,14 @@
                 const subJobTypeId = document.getElementById('subJobType').value;
                 const noteFilter = document.getElementById('note').value.trim();
                 
+                // ซ่อนประวัติถ้ายังไม่ได้เลือก Job Type
+                const historySection = document.querySelector('.history-section');
+                if (!jobTypeId) {
+                    historySection.style.display = 'none';
+                    loadingStates.history = false;
+                    return;
+                }
+                
                 // Build URL with filters (default to today only)
                 let url = '/api/history?limit=50&today_only=true';
                 
@@ -1064,14 +1145,19 @@
 
                 if (data.success) {
                     const historyList = document.getElementById('historyList');
+                    const historySection = document.querySelector('.history-section');
                     historyList.innerHTML = '';
 
                     if (data.data.length === 0) {
                         historyList.innerHTML = '<div class="loading">ไม่มีประวัติการสแกน</div>';
+                        historySection.style.display = 'none';
                         return;
                     }
 
-                    data.data.forEach(item => {
+                    // แสดง history section เมื่อมีข้อมูล
+                    historySection.style.display = 'block';
+
+                    data.data.forEach((item, index) => {
                         const historyItem = document.createElement('div');
                         historyItem.className = `history-item ${item.status === 'ใหม่' ? 'new' : ''}`;
                         
@@ -1091,6 +1177,9 @@
                             ${noteHtml}
                             <div class="history-time">${time}</div>
                         `;
+                        
+                        // เพิ่มอนิเมชั่นแบบ staggered (ทีละรายการ)
+                        historyItem.style.animationDelay = `${index * 0.1}s`;
                         
                         historyList.appendChild(historyItem);
                     });
@@ -1250,6 +1339,9 @@
             
             // สำหรับ scanStatus ใช้ status bar แบบคงที่
             if (elementId === 'scanStatus') {
+                const container = document.querySelector('.status-container');
+                container.style.display = 'flex'; // แสดง container เมื่อมีสถานะ
+                
                 let statusClass = type;
                 if (isNewScan) {
                     statusClass += ' new-scan';
@@ -1288,6 +1380,7 @@
         // แสดง default status สำหรับ scan
         function showDefaultScanStatus() {
             const element = document.getElementById('scanStatus');
+            const container = document.querySelector('.status-container');
             
             // ตรวจสอบว่ามีผลการสแกนล่าสุดหรือไม่
             const lastScanDisplay = statusManager.getLastScanDisplay();
@@ -1295,11 +1388,56 @@
             if (lastScanDisplay) {
                 // แสดงผลการสแกนล่าสุด
                 element.innerHTML = lastScanDisplay.html;
+                container.style.display = 'flex';
             } else {
-                // แสดงสถานะพร้อมสแกน
-                element.innerHTML = `<div class="status info" style="background: #f8f9fa; color: #666; border: 1px solid #e8f0f7;">
-                    ✅ พร้อมสแกน
-                </div>`;
+                // ซ่อนสถานะเมื่อยังไม่มีการสแกน
+                element.innerHTML = '';
+                container.style.display = 'none';
+            }
+        }
+
+        // เพิ่มรายการใหม่เข้าไปในประวัติ
+        function addNewHistoryItem(scanData) {
+            // ตรวจสอบว่ามีข้อมูลหรือไม่
+            if (!scanData) {
+                console.log('No scan data provided to addNewHistoryItem');
+                return;
+            }
+            
+            const historyList = document.getElementById('historyList');
+            const historySection = document.querySelector('.history-section');
+            
+            // แสดง history section ถ้ายังไม่แสดง
+            historySection.style.display = 'block';
+            
+            // สร้างรายการใหม่
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item new';
+            
+            const time = new Date(scanData.scan_date || new Date()).toLocaleString('th-TH');
+            
+            let noteHtml = '';
+            if (scanData.notes && scanData.notes.trim()) {
+                noteHtml = `<div class="history-note">📝 ${scanData.notes}</div>`;
+            }
+            
+            historyItem.innerHTML = `
+                <div class="history-barcode">${scanData.barcode || 'N/A'}</div>
+                <div class="history-details">
+                    ${scanData.job_type_name || 'N/A'} > ${scanData.sub_job_type_name || 'N/A'}
+                </div>
+                <div class="history-user">👤 ${scanData.user_id || 'N/A'}</div>
+                ${noteHtml}
+                <div class="history-time">${time}</div>
+            `;
+            
+            // เพิ่มรายการใหม่ที่ด้านบนสุด
+            historyList.insertBefore(historyItem, historyList.firstChild);
+            
+            // ลบรายการเก่าถ้ามีมากกว่า 50 รายการ
+            const items = historyList.querySelectorAll('.history-item');
+            if (items.length > 50) {
+                historyList.removeChild(items[items.length - 1]);
             }
         }
 
