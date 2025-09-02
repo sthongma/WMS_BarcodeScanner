@@ -1,0 +1,18 @@
+# WMS Barcode Scanner Dependencies
+
+# Database
+pyodbc>=4.0.39
+
+# Data processing
+pandas>=1.5.0
+openpyxl>=3.0.10
+
+# Web Application
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# QR Code
+qrcode[pil]>=7.4.0
+
+# Utilities
+typing-extensions>=4.0.0 
