@@ -1,8 +1,18 @@
-Flask==2.3.3
-Flask-CORS==4.0.0
-pyodbc>=4.0.30
-gunicorn==21.2.0
-redis==4.6.0
-Flask-Session==0.4.0
-SQLAlchemy==2.0.23
-psutil==5.9.6
+# WMS Barcode Scanner Dependencies
+
+# Database
+pyodbc>=4.0.39
+
+# Data processing
+pandas>=1.5.0
+openpyxl>=3.0.10
+
+# Web Application
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# QR Code
+qrcode[pil]>=7.4.0
+
+# Utilities
+typing-extensions>=4.0.0 

@@ -12,7 +12,7 @@ import logging
 from datetime import timedelta
 from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
-from flask_session import Session
+from dotenv import load_dotenv
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
@@ -29,7 +29,6 @@ from routes.report_routes import report_bp
 
 # Import web services
 from web.database_service import initialize_database
-from src.session.redis_session import configure_flask_redis_sessions, get_redis_session_manager
 
 
 def create_app():
@@ -51,18 +50,6 @@ def create_app():
     # Enable CORS
     CORS(app)
     
-    # Configure Redis sessions with fallback (Phase 1 Complete)
-    redis_url = app_config.get('redis_url', 'redis://localhost:6379/0')
-    logger = logging.getLogger(__name__)
-    
-    try:
-        if configure_flask_redis_sessions(app, redis_url):
-            logger.info("🚀 Redis sessions configured successfully")
-        else:
-            logger.info("📁 Using filesystem sessions as fallback")
-    except Exception as e:
-        logger.warning(f"⚠️ Session configuration failed: {e}, using default Flask sessions")
-    
     # Configure logging
     setup_logging(app_config['debug'])
     
@@ -77,74 +64,8 @@ def create_app():
 
 def setup_logging(debug_mode: bool = False):
     """Setup application logging with daily rotation"""
-    from logging.handlers import TimedRotatingFileHandler
-    import glob
-    from datetime import datetime
-    
-    log_level = logging.DEBUG if debug_mode else logging.INFO
-    
-    # Create logs directory
-    os.makedirs('logs', exist_ok=True)
-    
-    # Use today's date in filename
-    today = datetime.now().strftime('%Y-%m-%d')
-    log_filename = f'logs/web_app_{today}.log'
-    
-    # Create daily rotating file handler
-    file_handler = TimedRotatingFileHandler(
-        log_filename,
-        when='midnight',        # Rotate at midnight
-        interval=1,            # Every 1 day
-        backupCount=30,        # Keep 30 days
-        encoding='utf-8'
-    )
-    file_handler.suffix = '%Y-%m-%d'  # Format for rotated files
-    
-    # Cleanup old logs beyond 30 days
-    def cleanup_old_logs():
-        try:
-            from datetime import datetime, timedelta
-            cutoff_date = datetime.now() - timedelta(days=30)
-            log_files = glob.glob('logs/web_app_*.log*')
-            for log_file in log_files:
-                try:
-                    # Extract date from filename (web_app_2025-08-31.log)
-                    filename = os.path.basename(log_file)
-                    if 'web_app_' in filename:
-                        date_part = filename.replace('web_app_', '').split('.')[0]
-                        if len(date_part) == 10 and date_part.count('-') == 2:  # YYYY-MM-DD format
-                            file_date = datetime.strptime(date_part, '%Y-%m-%d')
-                            if file_date < cutoff_date:
-                                os.remove(log_file)
-                                print(f"🗑️ Cleaned old log: {log_file}")
-                except:
-                    pass
-        except:
-            pass
-    
-    # Run cleanup on startup
-    cleanup_old_logs()
-    
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            file_handler,
-            logging.StreamHandler()
-        ]
-    )
-    
-    # Configure console handler encoding for Windows
-    if sys.platform == 'win32':
-        for handler in logging.root.handlers:
-            if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stderr:
-                try:
-                    handler.stream.reconfigure(encoding='utf-8')
-                except:
-                    pass
-    
-    # Set specific logger levels
-    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    from src.utils.log_manager import setup_daily_rotating_logging
+    setup_daily_rotating_logging(debug_mode, 'logs')
 
 
 def register_blueprints(app: Flask):
@@ -189,6 +110,29 @@ def register_main_routes(app: Flask):
             'version': '2.0.0'
         }
     
+    @app.route('/api/logs/status')
+    @rate_limit(max_requests=10, per_seconds=60)
+    def log_status():
+        """ดูสถานะของระบบ log"""
+        from src.utils.log_manager import get_log_status
+        return get_log_status()
+    
+    @app.route('/api/logs/cleanup')
+    @rate_limit(max_requests=1, per_seconds=300)  # จำกัด 1 ครั้งต่อ 5 นาที
+    def force_log_cleanup():
+        """บังคับลบไฟล์ log เก่า"""
+        from src.utils.log_manager import log_manager
+        log_manager.cleanup_old_logs()
+        return {'success': True, 'message': 'Log cleanup completed'}
+    
+    @app.route('/api/logs/rotate')
+    @rate_limit(max_requests=1, per_seconds=300)  # จำกัด 1 ครั้งต่อ 5 นาที
+    def force_log_rotation():
+        """บังคับหมุนเวียน log ทันที"""
+        from src.utils.log_manager import force_log_rotation
+        force_log_rotation()
+        return {'success': True, 'message': 'Log rotation completed'}
+    
     @app.before_request
     def cleanup_background_tasks():
         """Clean up expired requests periodically"""
@@ -226,6 +170,9 @@ def initialize_app():
 
 def main():
     """Main application entry point"""
+    # Load environment variables from .env file
+    load_dotenv()
+    
     # Create Flask application
     app = create_app()
     
