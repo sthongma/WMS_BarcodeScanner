@@ -2492,13 +2492,19 @@ ID_ประเภทงานย่อย: 10
                 main_job_name = validation_result.get('main_job_name', row.get('ID_ประเภทงานหลัก', ''))
                 sub_job_name = validation_result.get('sub_job_name', row.get('ID_ประเภทงานย่อย', ''))
                 
+                # Clean up display values to avoid showing 'nan'
+                barcode_display = str(row.get('บาร์โค้ด', '')).replace('nan', '').replace('None', '')
+                main_job_display = str(row.get('ID_ประเภทงานหลัก', '')).replace('nan', '').replace('None', '')
+                sub_job_display = str(row.get('ID_ประเภทงานย่อย', '')).replace('nan', '').replace('None', '')
+                notes_display = str(row.get('หมายเหตุ', '')).replace('nan', '').replace('None', '')
+                
                 # Configure row color based on status
                 item = self.import_preview_tree.insert('', tk.END, values=(
                     status,
-                    row.get('บาร์โค้ด', ''),
-                    f"{row.get('ID_ประเภทงานหลัก', '')} - {main_job_name}",
-                    f"{row.get('ID_ประเภทงานย่อย', '')} - {sub_job_name}",
-                    row.get('หมายเหตุ', ''),
+                    barcode_display,
+                    f"{main_job_display} - {main_job_name}",
+                    f"{sub_job_display} - {sub_job_name}",
+                    notes_display,
                     error_msg
                 ))
                 
@@ -2535,15 +2541,15 @@ ID_ประเภทงานย่อย: 10
         main_job_id_raw = str(row.get('ID_ประเภทงานหลัก', '')).strip()
         sub_job_id_raw = str(row.get('ID_ประเภทงานย่อย', '')).strip()
         
-        if not barcode or barcode == 'nan':
+        if not barcode or barcode == 'nan' or barcode == 'None':
             result['valid'] = False
             result['errors'].append('ไม่มีบาร์โค้ด')
         
-        if not main_job_id_raw or main_job_id_raw == 'nan':
+        if not main_job_id_raw or main_job_id_raw == 'nan' or main_job_id_raw == 'None':
             result['valid'] = False
             result['errors'].append('ไม่มี ID ประเภทงานหลัก')
         
-        if not sub_job_id_raw or sub_job_id_raw == 'nan':
+        if not sub_job_id_raw or sub_job_id_raw == 'nan' or sub_job_id_raw == 'None':
             result['valid'] = False
             result['errors'].append('ไม่มี ID ประเภทงานย่อย')
         
@@ -2552,14 +2558,14 @@ ID_ประเภทงานย่อย: 10
         sub_job_id = None
         
         try:
-            if main_job_id_raw and main_job_id_raw != 'nan':
+            if main_job_id_raw and main_job_id_raw not in ['nan', 'None', '']:
                 main_job_id = int(float(main_job_id_raw))
         except (ValueError, TypeError):
             result['valid'] = False
             result['errors'].append(f'ID ประเภทงานหลักไม่ถูกต้อง: {main_job_id_raw}')
         
         try:
-            if sub_job_id_raw and sub_job_id_raw != 'nan':
+            if sub_job_id_raw and sub_job_id_raw not in ['nan', 'None', '']:
                 sub_job_id = int(float(sub_job_id_raw))
         except (ValueError, TypeError):
             result['valid'] = False
@@ -2675,19 +2681,25 @@ ID_ประเภทงานย่อย: 10
                     row_idx = validation_result['row_number'] - 1
                     row = self.import_data_df.iloc[row_idx]
                     
-                    barcode = str(row['บาร์โค้ด']).strip()
-                    main_job_id = int(float(str(row['ID_ประเภทงานหลัก']).strip()))
-                    sub_job_id = int(float(str(row['ID_ประเภทงานย่อย']).strip()))
-                    notes = str(row.get('หมายเหตุ', '')).strip()
+                    barcode = str(row['บาร์โค้ด']).strip().replace('nan', '').replace('None', '')
+                    main_job_id = int(float(str(row['ID_ประเภทงานหลัก']).strip().replace('nan', '').replace('None', '')))
+                    sub_job_id = int(float(str(row['ID_ประเภทงานย่อย']).strip().replace('nan', '').replace('None', '')))
+                    notes = str(row.get('หมายเหตุ', '')).strip().replace('nan', '').replace('None', '')
                     
                     # Get job name for job_type field (for compatibility)
                     job_name_result = self.db.execute_query("SELECT job_name FROM job_types WHERE id = ?", (main_job_id,))
                     main_job_name = job_name_result[0]['job_name'] if job_name_result else f"ID_{main_job_id}"
                     
+                    # Prepare notes with "import" prefix
+                    if notes:
+                        formatted_notes = f"import {notes}"
+                    else:
+                        formatted_notes = "import"
+                    
                     # Insert into database
                     self.db.execute_non_query(
                         "INSERT INTO scan_logs (barcode, scan_date, job_type, user_id, job_id, sub_job_id, notes) VALUES (?, GETDATE(), ?, ?, ?, ?, ?)",
-                        (barcode, main_job_name, f"{self.db.current_user}_IMPORT", main_job_id, sub_job_id, notes)
+                        (barcode, main_job_name, self.db.current_user, main_job_id, sub_job_id, formatted_notes)
                     )
                     
                     success_count += 1

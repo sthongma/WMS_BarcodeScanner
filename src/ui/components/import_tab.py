@@ -118,6 +118,12 @@ class ImportTab:
             sub_job_type = str(row.get('sub_job_type', '')) if pd.notna(row.get('sub_job_type')) else ''
             notes = str(row.get('notes', '')) if pd.notna(row.get('notes')) else ''
             
+            # Clean up display values to avoid showing 'nan'
+            barcode = barcode.replace('nan', '').replace('None', '')
+            job_type = job_type.replace('nan', '').replace('None', '')
+            sub_job_type = sub_job_type.replace('nan', '').replace('None', '')
+            notes = notes.replace('nan', '').replace('None', '')
+            
             self.preview_tree.insert("", tk.END, values=(
                 index + 1, barcode, job_type, sub_job_type, notes, "รอตรวจสอบ"
             ))
@@ -197,6 +203,13 @@ class ImportTab:
                     sub_job_type = str(row.get('sub_job_type', '')).strip() if pd.notna(row.get('sub_job_type')) else None
                     notes = str(row.get('notes', '')).strip() if pd.notna(row.get('notes')) else ''
                     
+                    # Clean up values to avoid 'nan' strings
+                    barcode = barcode.replace('nan', '').replace('None', '')
+                    job_type = job_type.replace('nan', '').replace('None', '')
+                    if sub_job_type:
+                        sub_job_type = sub_job_type.replace('nan', '').replace('None', '')
+                    notes = notes.replace('nan', '').replace('None', '')
+                    
                     if not barcode or not job_type:
                         error_count += 1
                         continue
@@ -219,13 +232,19 @@ class ImportTab:
                         if sub_result:
                             sub_job_type_id = sub_result[0]['id']
                     
+                    # Prepare notes with "import" prefix
+                    if notes:
+                        formatted_notes = f"import {notes}"
+                    else:
+                        formatted_notes = "import"
+                    
                     # บันทึกข้อมูล
                     query = """
                         INSERT INTO scan_records (barcode, job_type_id, sub_job_type_id, scan_date, scanned_by, status, notes)
                         VALUES (?, ?, ?, GETDATE(), ?, 'Active', ?)
                     """
                     self.db_manager.execute_non_query(query, (
-                        barcode, job_type_id, sub_job_type_id, self.db_manager.current_user, notes
+                        barcode, job_type_id, sub_job_type_id, self.db_manager.current_user, formatted_notes
                     ))
                     
                     success_count += 1
