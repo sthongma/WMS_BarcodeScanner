@@ -320,6 +320,10 @@ class WMSScannerApp:
         self.barcode_entry.pack(fill=tk.X, pady=5)
         self.barcode_entry.bind('<Return>', self.process_barcode)
         
+        # Status label for scanning feedback
+        self.status_label = ttk.Label(barcode_frame, text="", font=("Arial", 10))
+        self.status_label.pack(fill=tk.X, pady=(5, 0))
+        
         # Today Summary section (left panel)
         self.today_summary_frame = ttk.LabelFrame(main_frame, text="📊 สรุปงานวันนี้", padding=10)
         self.today_summary_frame.pack(fill=tk.X, pady=10)

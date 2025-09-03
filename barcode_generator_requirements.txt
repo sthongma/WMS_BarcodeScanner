@@ -1,0 +1,18 @@
+# Barcode Generator GUI Dependencies
+
+# GUI Framework (built-in with Python)
+# tkinter - comes with Python standard library
+
+# Clipboard operations
+pyperclip>=1.8.2
+
+# Auto typing functionality
+pyautogui>=0.9.54
+
+# Standard library modules (no installation needed):
+# - threading
+# - time
+# - random
+# - datetime
+
+
