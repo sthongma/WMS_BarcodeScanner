@@ -14,6 +14,7 @@ import datetime
 import os
 import sys
 from typing import Dict, List, Optional, Any
+import pygame
 
 # Import database manager and login window
 try:
@@ -36,6 +37,14 @@ class WMSScannerApp:
         # Initialize database manager with connection info
         self.db = DatabaseManager(connection_info)
         
+        # Initialize pygame for sound
+        try:
+            pygame.mixer.init()
+            self.sound_enabled = True
+        except:
+            self.sound_enabled = False
+            print("Warning: Could not initialize pygame mixer for sound")
+        
         # Initialize tab config loader
         self.tab_config = TabConfigLoader()
         
@@ -57,6 +66,31 @@ class WMSScannerApp:
         if not connection_info:
             if not self.db.test_connection():
                 messagebox.showerror("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
+    
+    def play_sound(self, sound_type="error"):
+        """Play sound notification based on type"""
+        if not self.sound_enabled:
+            return
+        
+        try:
+            # Sound file mapping - you can customize this
+            sound_files = {
+                "error": "static/error_2.mp3",      # For duplicate scan
+                "warning": "static/error_3.mp3",    # For missing dependencies
+                "info": "static/error_4.mp3"        # For general info
+            }
+            
+            sound_file = sound_files.get(sound_type, "static/error_2.mp3")
+            
+            # Check if file exists
+            if os.path.exists(sound_file):
+                pygame.mixer.music.load(sound_file)
+                pygame.mixer.music.play()
+            else:
+                print(f"Sound file not found: {sound_file}")
+                
+        except Exception as e:
+            print(f"Error playing sound: {e}")
         
         # Bind keyboard shortcuts
         self.root.bind('<F11>', self.toggle_fullscreen)
@@ -1701,6 +1735,8 @@ class WMSScannerApp:
                         text=f"ไม่มีงาน {required_job_name}",
                         foreground="red"
                     )
+                    # Play warning sound
+                    self.play_sound("warning")
                     messagebox.showwarning(
                         "คำเตือน",
                         f"ไม่มีงาน {required_job_name}"
@@ -1717,6 +1753,9 @@ class WMSScannerApp:
     
     def show_duplicate_info(self, barcode, job_type, sub_job_type, existing_record):
         """Show detailed duplicate barcode information dialog - no scanning allowed"""
+        # Play error sound for duplicate scan
+        self.play_sound("error")
+        
         dialog = tk.Toplevel(self.root)
         dialog.title("ไม่อนุญาตให้สแกนซ้ำ")
         dialog.geometry("500x200")
