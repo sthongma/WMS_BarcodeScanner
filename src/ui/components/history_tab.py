@@ -242,12 +242,22 @@ class HistoryTab:
                 return
             
             try:
-                query = "UPDATE scan_logs SET barcode = ?, notes = ? WHERE id = ?"
-                self.db_manager.execute_non_query(query, (barcode, notes, record_id))
+                # Use ScanService to update (records audit log)
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    barcode=barcode,
+                    notes=notes if notes else None,
+                    user_id=self.db_manager.current_user
+                )
                 
-                messagebox.showinfo("สำเร็จ", "แก้ไขรายการเรียบร้อยแล้ว")
-                dialog.destroy()
-                self.refresh_history()
+                if result.get('success'):
+                    messagebox.showinfo("สำเร็จ", result.get('message', "แก้ไขรายการเรียบร้อยแล้ว"))
+                    dialog.destroy()
+                    self.refresh_history()
+                else:
+                    messagebox.showerror("ผิดพลาด", result.get('message', 'ไม่สามารถแก้ไขรายการได้'))
                 
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถแก้ไขรายการ: {str(e)}")

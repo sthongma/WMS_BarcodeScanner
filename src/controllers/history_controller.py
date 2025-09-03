@@ -351,15 +351,23 @@ class HistoryController:
             try:
                 new_notes = notes_var.get().strip()
                 
-                # Update database
-                query = "UPDATE scan_logs SET notes = ? WHERE id = ?"
-                self.db.execute_non_query(query, (new_notes if new_notes else None, record_id))
+                # Use ScanService to update and create audit log
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    notes=new_notes if new_notes else None,
+                    user_id=self.db.current_user
+                )
                 
-                messagebox.showinfo("สำเร็จ", "บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว")
-                dialog.destroy()
-                
-                # Refresh history
-                self.search_history()
+                if result.get('success'):
+                    messagebox.showinfo("สำเร็จ", result.get('message', "บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว"))
+                    dialog.destroy()
+                    
+                    # Refresh history
+                    self.search_history()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถบันทึกการเปลี่ยนแปลงได้'))
                 
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการบันทึก: {str(e)}")

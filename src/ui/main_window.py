@@ -2280,14 +2280,23 @@ class WMSScannerApp:
                 return
             
             try:
-                # อัปเดตเฉพาะ barcode และ notes เท่านั้น (ไม่แก้ไข job types)
-                query = "UPDATE scan_logs SET barcode = ?, notes = ? WHERE id = ?"
-                self.db.execute_non_query(query, (new_barcode, new_notes, record_id))
+                # Use ScanService to update (records audit log)
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    barcode=new_barcode,
+                    notes=new_notes if new_notes else None,
+                    user_id=self.db.current_user
+                )
                 
-                messagebox.showinfo("สำเร็จ", "แก้ไขข้อมูลเรียบร้อยแล้ว")
-                dialog.destroy()
-                # Refresh the history table
-                self.refresh_scanning_history()
+                if result.get('success'):
+                    messagebox.showinfo("สำเร็จ", result.get('message', "แก้ไขข้อมูลเรียบร้อยแล้ว"))
+                    dialog.destroy()
+                    # Refresh the history table
+                    self.refresh_scanning_history()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถอัพเดทข้อมูลได้'))
                 
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")

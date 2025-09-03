@@ -393,7 +393,7 @@ class ScanService:
                     old_values=old_values,
                     new_values=new_values,
                     changed_by=audit_user,
-                    notes='แก้ไขหมายเหตุ'
+                    notes='แก้ไขเลขบาร์โค้ดหรือหมายเหตุ'
                 )
                 
                 return {
