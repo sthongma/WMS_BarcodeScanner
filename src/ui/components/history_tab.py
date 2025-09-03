@@ -147,7 +147,7 @@ class HistoryTab:
             # สร้าง query
             query = """
                 SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
+                FROM scan_logs s
                 JOIN job_types j ON s.job_type_id = j.id
                 LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
             """
@@ -242,7 +242,7 @@ class HistoryTab:
                 return
             
             try:
-                query = "UPDATE scan_records SET barcode = ?, notes = ? WHERE id = ?"
+                query = "UPDATE scan_logs SET barcode = ?, notes = ? WHERE id = ?"
                 self.db_manager.execute_non_query(query, (barcode, notes, record_id))
                 
                 messagebox.showinfo("สำเร็จ", "แก้ไขรายการเรียบร้อยแล้ว")
@@ -268,7 +268,7 @@ class HistoryTab:
         
         if messagebox.askyesno("ยืนยัน", f"คุณต้องการลบรายการ Barcode: {barcode} หรือไม่?"):
             try:
-                query = "DELETE FROM scan_records WHERE id = ?"
+                query = "DELETE FROM scan_logs WHERE id = ?"
                 self.db_manager.execute_non_query(query, (record_id,))
                 
                 messagebox.showinfo("สำเร็จ", "ลบรายการเรียบร้อยแล้ว")
@@ -327,7 +327,7 @@ class HistoryTab:
                     COUNT(DISTINCT s.scanned_by) as unique_users,
                     j.name as job_type,
                     COUNT(*) as job_count
-                FROM scan_records s
+                FROM scan_logs s
                 JOIN job_types j ON s.job_type_id = j.id
                 WHERE s.status = 'Active'
                 GROUP BY j.name

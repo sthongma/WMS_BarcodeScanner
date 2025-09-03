@@ -240,8 +240,8 @@ class ImportTab:
                     
                     # บันทึกข้อมูล
                     query = """
-                        INSERT INTO scan_records (barcode, job_type_id, sub_job_type_id, scan_date, scanned_by, status, notes)
-                        VALUES (?, ?, ?, GETDATE(), ?, 'Active', ?)
+                        INSERT INTO scan_logs (barcode, job_id, sub_job_id, scan_date, user_id, notes)
+                        VALUES (?, ?, ?, GETDATE(), ?, ?)
                     """
                     self.db_manager.execute_non_query(query, (
                         barcode, job_type_id, sub_job_type_id, self.db_manager.current_user, formatted_notes

@@ -1,16 +1,14 @@
 {
   "tabs": {
     "tabs_scan": true,
-    "tabs_history": true,
-    "tabs_reports": true,
+    "tabs_history_reports": true,
     "tabs_import": true,
     "tabs_settings": true,
     "tabs_sub_job_settings": true
   },
   "tab_names": {
     "tabs_scan": "หน้าจอหลัก",
-    "tabs_history": "ประวัติ",
-    "tabs_reports": "รายงาน",
+    "tabs_history_reports": "ประวัติและรายงาน",
     "tabs_import": "นำเข้าข้อมูล",
     "tabs_settings": "จัดการประเภทงานหลัก",
     "tabs_sub_job_settings": "จัดการประเภทงานย่อย"

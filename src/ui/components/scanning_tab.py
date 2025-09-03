@@ -153,7 +153,7 @@ class ScanningTab:
             # ตรวจสอบว่าบาร์โค้ดซ้ำหรือไม่
             query = """
                 SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
+                FROM scan_logs s
                 JOIN job_types j ON s.job_type_id = j.id
                 LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
                 WHERE s.barcode = ? AND s.status = 'Active'
@@ -185,12 +185,12 @@ class ScanningTab:
             
             # บันทึกการสแกน
             query = """
-                INSERT INTO scan_records (barcode, job_type_id, sub_job_type_id, scan_date, scanned_by, status)
-                VALUES (?, ?, ?, ?, ?, 'Active')
+                INSERT INTO scan_logs (barcode, job_id, sub_job_id, scan_date, user_id, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
             """
             scan_date = datetime.now()
             self.db_manager.execute_non_query(query, (
-                barcode, job_type_id, sub_job_type_id, scan_date, self.db_manager.current_user
+                barcode, job_type_id, sub_job_type_id, scan_date, self.db_manager.current_user, ''
             ))
             
             # แสดงข้อความสำเร็จ
@@ -251,7 +251,7 @@ class ScanningTab:
             # ดึงประวัติล่าสุด
             query = """
                 SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
+                FROM scan_logs s
                 JOIN job_types j ON s.job_type_id = j.id
                 LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
                 WHERE s.status = 'Active'

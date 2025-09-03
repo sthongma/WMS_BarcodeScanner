@@ -82,11 +82,8 @@ class WMSScannerApp:
         if self.tab_config.is_tab_enabled('tabs_scan'):
             self.create_scanning_tab()
             
-        if self.tab_config.is_tab_enabled('tabs_history'):
-            self.create_history_tab()
-            
-        if self.tab_config.is_tab_enabled('tabs_reports'):
-            self.create_reports_tab()
+        if self.tab_config.is_tab_enabled('tabs_history_reports'):
+            self.create_history_reports_tab()
             
         if self.tab_config.is_tab_enabled('tabs_import'):
             self.create_import_tab()
@@ -475,43 +472,329 @@ class WMSScannerApp:
         self.import_data_df = None
         self.import_validation_results = None
     
-    def create_history_tab(self):
-        """Create history viewing tab"""
-        history_frame = ttk.Frame(self.notebook)
-        tab_name = self.tab_config.get_tab_name('tabs_history')
-        self.notebook.add(history_frame, text=tab_name)
+    def create_history_reports_tab(self):
+        """Create combined history and reports tab"""
+        history_reports_frame = ttk.Frame(self.notebook)
+        tab_name = self.tab_config.get_tab_name('tabs_history_reports')
+        self.notebook.add(history_reports_frame, text=tab_name)
         
-        # Search controls
-        search_frame = ttk.LabelFrame(history_frame, text="ค้นหา", padding=10)
-        search_frame.pack(fill=tk.X, padx=10, pady=5)
+        # Create combined interface with both history and reports functionality
+        self.create_combined_history_reports_interface(history_reports_frame)
+    
+    def create_combined_history_reports_interface(self, parent):
+        """Create unified interface for search and reports functionality"""
+        # Main control frame with unified search and report filters
+        control_frame = ttk.LabelFrame(parent, text="🔍 ค้นหาและรายงาน", padding=15)
+        control_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # Date search
-        date_frame = ttk.Frame(search_frame)
-        date_frame.pack(fill=tk.X, pady=2)
+        # Create unified filter layout
+        # Row 1: Date and Barcode
+        row1_frame = ttk.Frame(control_frame)
+        row1_frame.pack(fill=tk.X, pady=5)
+        
+        # Date selection
+        date_frame = ttk.Frame(row1_frame)
+        date_frame.pack(side=tk.LEFT, padx=(0, 20))
         ttk.Label(date_frame, text="วันที่:").pack(side=tk.LEFT)
-        self.date_entry = ttk.Entry(date_frame, width=12)
-        self.date_entry.pack(side=tk.LEFT, padx=5)
-        self.date_entry.insert(0, datetime.date.today().strftime("%Y-%m-%d"))
-        self.date_entry.bind('<Return>', self.search_history)
+        self.unified_date_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
+        date_entry = ttk.Entry(date_frame, textvariable=self.unified_date_var, width=12)
+        date_entry.pack(side=tk.LEFT, padx=5)
+        date_entry.bind('<Return>', self.unified_search)
         
         # Barcode search
-        barcode_search_frame = ttk.Frame(search_frame)
-        barcode_search_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(barcode_search_frame, text="บาร์โค้ด:").pack(side=tk.LEFT)
-        self.search_barcode_entry = ttk.Entry(barcode_search_frame, width=30)
-        self.search_barcode_entry.pack(side=tk.LEFT, padx=5)
-        self.search_barcode_entry.bind('<Return>', self.search_history)
+        barcode_frame = ttk.Frame(row1_frame)
+        barcode_frame.pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Label(barcode_frame, text="บาร์โค้ด:").pack(side=tk.LEFT)
+        self.unified_barcode_var = tk.StringVar()
+        barcode_entry = ttk.Entry(barcode_frame, textvariable=self.unified_barcode_var, width=25)
+        barcode_entry.pack(side=tk.LEFT, padx=5)
+        barcode_entry.bind('<Return>', self.unified_search)
         
-        # Job type search
-        job_search_frame = ttk.Frame(search_frame)
-        job_search_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(job_search_frame, text="ประเภทงาน:").pack(side=tk.LEFT)
-        self.search_job_combo = ttk.Combobox(job_search_frame, state="readonly", width=25)
-        self.search_job_combo.pack(side=tk.LEFT, padx=5)
-        self.search_job_combo.bind('<<ComboboxSelected>>', self.search_history)
+        # Row 2: Job Type and Sub Job Type
+        row2_frame = ttk.Frame(control_frame)
+        row2_frame.pack(fill=tk.X, pady=5)
+        
+        # Job Type selection
+        job_type_frame = ttk.Frame(row2_frame)
+        job_type_frame.pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Label(job_type_frame, text="งานหลัก:").pack(side=tk.LEFT)
+        self.unified_job_type_var = tk.StringVar()
+        self.unified_job_type_combo = ttk.Combobox(job_type_frame, textvariable=self.unified_job_type_var, 
+                                                   state="readonly", width=25)
+        self.unified_job_type_combo.pack(side=tk.LEFT, padx=5)
+        self.unified_job_type_combo.bind("<<ComboboxSelected>>", self.on_unified_job_type_change)
+        
+        # Sub Job Type selection
+        sub_job_type_frame = ttk.Frame(row2_frame)
+        sub_job_type_frame.pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Label(sub_job_type_frame, text="งานรอง:").pack(side=tk.LEFT)
+        self.unified_sub_job_type_var = tk.StringVar()
+        self.unified_sub_job_type_combo = ttk.Combobox(sub_job_type_frame, textvariable=self.unified_sub_job_type_var, 
+                                                       state="readonly", width=25)
+        self.unified_sub_job_type_combo.pack(side=tk.LEFT, padx=5)
+        
+        # Row 3: Notes filter and Action buttons
+        row3_frame = ttk.Frame(control_frame)
+        row3_frame.pack(fill=tk.X, pady=5)
+        
+        # Note filter
+        note_filter_frame = ttk.Frame(row3_frame)
+        note_filter_frame.pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Label(note_filter_frame, text="กรองหมายเหตุ:").pack(side=tk.LEFT)
+        self.unified_note_filter_var = tk.StringVar()
+        note_filter_entry = ttk.Entry(note_filter_frame, textvariable=self.unified_note_filter_var, width=30)
+        note_filter_entry.pack(side=tk.LEFT, padx=5)
+        note_filter_entry.bind('<Return>', self.unified_search)
+        
+        # Action buttons
+        button_frame = ttk.Frame(row3_frame)
+        button_frame.pack(side=tk.LEFT, padx=(20, 0))
+        ttk.Button(button_frame, text="🔍 ค้นหา", command=self.unified_search).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="📤 ส่งออก Excel", command=self.unified_export).pack(side=tk.LEFT, padx=5)
         
         # Results table
-        self.create_history_table(history_frame)
+        self.create_history_table(parent)
+        
+        # Load available job types
+        self.refresh_unified_job_types()
+    
+    def refresh_unified_job_types(self):
+        """Load job types for unified interface"""
+        try:
+            query = "SELECT id, job_name FROM job_types ORDER BY job_name"
+            results = self.db.execute_query(query)
+            
+            job_types = ["ทั้งหมด"]
+            self.unified_job_types_data = {"ทั้งหมด": None}
+            
+            for row in results:
+                job_types.append(f"{row['id']} - {row['job_name']}")
+                self.unified_job_types_data[f"{row['id']} - {row['job_name']}"] = row['id']
+            
+            self.unified_job_type_combo['values'] = job_types
+            
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานหลักได้: {str(e)}")
+    
+    def on_unified_job_type_change(self, event=None):
+        """Handle job type change in unified interface"""
+        selected_job_type = self.unified_job_type_var.get()
+        job_type_id = self.unified_job_types_data.get(selected_job_type)
+        
+        # Clear sub job type
+        self.unified_sub_job_type_var.set("")
+        self.unified_sub_job_type_combo['values'] = []
+        
+        if job_type_id:
+            try:
+                query = """
+                    SELECT id, sub_job_name 
+                    FROM sub_job_types 
+                    WHERE main_job_id = ? AND is_active = 1 
+                    ORDER BY sub_job_name
+                """
+                results = self.db.execute_query(query, (job_type_id,))
+                
+                sub_job_types = ["ทั้งหมด"]
+                self.unified_sub_job_types_data = {"ทั้งหมด": None}
+                
+                for row in results:
+                    sub_job_types.append(f"{row['id']} - {row['sub_job_name']}")
+                    self.unified_sub_job_types_data[f"{row['id']} - {row['sub_job_name']}"] = row['id']
+                
+                self.unified_sub_job_type_combo['values'] = sub_job_types
+                
+            except Exception as e:
+                messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานรองได้: {str(e)}")
+    
+    def unified_search(self, event=None):
+        """Unified search function that works for both history and reports"""
+        try:
+            # Get filter values
+            date_filter = self.unified_date_var.get().strip()
+            barcode_filter = self.unified_barcode_var.get().strip()
+            job_type_filter = self.unified_job_type_var.get()
+            sub_job_type_filter = self.unified_sub_job_type_var.get()
+            note_filter = self.unified_note_filter_var.get().strip()
+            
+            # Build query
+            query = """
+                SELECT TOP (1000)
+                    sl.id,
+                    sl.barcode,
+                    sl.scan_date,
+                    jt.job_name as job_type_name,
+                    ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name,
+                    sl.notes,
+                    sl.user_id
+                FROM scan_logs sl
+                LEFT JOIN job_types jt ON sl.job_id = jt.id
+                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                WHERE 1=1
+            """
+            
+            params = []
+            
+            # Add date filter
+            if date_filter:
+                query += " AND CAST(sl.scan_date AS DATE) = ?"
+                params.append(date_filter)
+            
+            # Add barcode filter
+            if barcode_filter:
+                query += " AND sl.barcode LIKE ?"
+                params.append(f"%{barcode_filter}%")
+            
+            # Add job type filter
+            if job_type_filter and job_type_filter != "ทั้งหมด":
+                job_type_id = self.unified_job_types_data.get(job_type_filter)
+                if job_type_id:
+                    query += " AND sl.job_id = ?"
+                    params.append(job_type_id)
+            
+            # Add sub job type filter
+            if sub_job_type_filter and sub_job_type_filter != "ทั้งหมด":
+                sub_job_type_id = self.unified_sub_job_types_data.get(sub_job_type_filter)
+                if sub_job_type_id:
+                    query += " AND sl.sub_job_id = ?"
+                    params.append(sub_job_type_id)
+            
+            # Add note filter
+            if note_filter:
+                query += " AND sl.notes LIKE ?"
+                params.append(f"%{note_filter}%")
+            
+            query += " ORDER BY sl.scan_date DESC"
+            
+            # Execute query
+            results = self.db.execute_query(query, tuple(params))
+            
+            # Clear existing data
+            for item in self.history_tree.get_children():
+                self.history_tree.delete(item)
+            
+            # Populate table
+            for row in results:
+                values = (
+                    row['id'],
+                    row['barcode'],
+                    row['scan_date'].strftime("%Y-%m-%d %H:%M:%S") if row['scan_date'] else '',
+                    row['job_type_name'] or '',
+                    row['sub_job_type_name'] or '',
+                    row['notes'] or '',
+                    row['user_id'] or ''
+                )
+                self.history_tree.insert('', tk.END, values=values)
+            
+            # Show result count
+            messagebox.showinfo("ผลการค้นหา", f"พบข้อมูล {len(results)} รายการ")
+            
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการค้นหา: {str(e)}")
+    
+
+    def unified_export(self, event=None):
+        """Unified export function using current filters"""
+        try:
+            # Get current data from table
+            items = self.history_tree.get_children()
+            if not items:
+                messagebox.showwarning("คำเตือน", "ไม่มีข้อมูลให้ส่งออก")
+                return
+            
+            # Generate automatic filename
+            from datetime import datetime
+            current_time = datetime.now()
+            timestamp = current_time.strftime("%Y%m%d_%H%M%S")
+            auto_filename = f"รายงาน_{timestamp}.xlsx"
+            
+            # Ask for save location with auto-generated filename
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+                title="บันทึกไฟล์ Excel",
+                initialfile=auto_filename
+            )
+            
+            if not file_path:
+                return
+            
+            # Prepare data for export
+            import pandas as pd
+            from openpyxl import Workbook
+            from openpyxl.utils.dataframe import dataframe_to_rows
+            from openpyxl.styles import Font, Alignment
+            from openpyxl.utils import get_column_letter
+            
+            data = []
+            for item in items:
+                values = self.history_tree.item(item)['values']
+                data.append({
+                    'ID': values[0],
+                    'บาร์โค้ด': values[1],
+                    'วันที่/เวลา': values[2],
+                    'ประเภทงานหลัก': values[3],
+                    'ประเภทงานย่อย': values[4],
+                    'หมายเหตุ': values[5],
+                    'ผู้ใช้': values[6]
+                })
+            
+            # Create DataFrame
+            df = pd.DataFrame(data)
+            
+            # Create Excel file with custom formatting
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "รายงานการสแกน"
+            
+            # Add data to worksheet
+            for r in dataframe_to_rows(df, index=False, header=True):
+                ws.append(r)
+            
+            # Format header row
+            from openpyxl.styles import PatternFill
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_alignment = Alignment(horizontal="center", vertical="center")
+            
+            for cell in ws[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+            
+            # Auto-adjust column widths
+            column_widths = {
+                'A': 8,   # ID
+                'B': 20,  # บาร์โค้ด
+                'C': 20,  # วันที่/เวลา
+                'D': 25,  # ประเภทงานหลัก
+                'E': 25,  # ประเภทงานย่อย
+                'F': 30,  # หมายเหตุ
+                'G': 15   # ผู้ใช้
+            }
+            
+            for col_letter, width in column_widths.items():
+                ws.column_dimensions[col_letter].width = width
+            
+            # Set text wrapping for notes column
+            for row in range(2, ws.max_row + 1):
+                ws[f'F{row}'].alignment = Alignment(wrap_text=True, vertical="top")
+            
+            # Add summary information
+            summary_row = ws.max_row + 2
+            ws[f'A{summary_row}'] = f"สรุป: ส่งออกเมื่อ {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            ws[f'A{summary_row}'].font = Font(bold=True)
+            ws[f'A{summary_row + 1}'] = f"จำนวนรายการ: {len(data)} รายการ"
+            ws[f'A{summary_row + 1}'].font = Font(bold=True)
+            
+            # Save the file
+            wb.save(file_path)
+            
+            messagebox.showinfo("สำเร็จ", f"ส่งออกข้อมูล {len(data)} รายการเรียบร้อย\nบันทึกที่: {file_path}")
+            
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการส่งออก: {str(e)}")
+
     
     def create_history_table(self, parent):
         """Create table for history display"""
@@ -540,62 +823,7 @@ class WMSScannerApp:
         v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
     
-    def create_reports_tab(self):
-        """Create reports tab with dynamic filtering like Web App"""
-        reports_frame = ttk.Frame(self.notebook)
-        tab_name = self.tab_config.get_tab_name('tabs_reports')
-        self.notebook.add(reports_frame, text=tab_name)
-        
-        # Filter selection frame
-        filter_frame = ttk.LabelFrame(reports_frame, text="เลือกเงื่อนไขรายงาน", padding=10)
-        filter_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Date selection
-        date_frame = ttk.Frame(filter_frame)
-        date_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(date_frame, text="วันที่:").pack(side=tk.LEFT)
-        self.report_date_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
-        report_date_entry = ttk.Entry(date_frame, textvariable=self.report_date_var, width=15)
-        report_date_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Job Type selection
-        job_type_frame = ttk.Frame(filter_frame)
-        job_type_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(job_type_frame, text="งานหลัก:").pack(side=tk.LEFT)
-        self.report_job_type_var = tk.StringVar()
-        self.report_job_type_combo = ttk.Combobox(job_type_frame, textvariable=self.report_job_type_var, 
-                                                  state="readonly", width=30)
-        self.report_job_type_combo.pack(side=tk.LEFT, padx=10)
-        self.report_job_type_combo.bind("<<ComboboxSelected>>", self.on_report_job_type_change)
-        
-        # Sub Job Type selection
-        sub_job_type_frame = ttk.Frame(filter_frame)
-        sub_job_type_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(sub_job_type_frame, text="งานรอง:").pack(side=tk.LEFT)
-        self.report_sub_job_type_var = tk.StringVar()
-        self.report_sub_job_type_combo = ttk.Combobox(sub_job_type_frame, textvariable=self.report_sub_job_type_var, 
-                                                      state="readonly", width=30)
-        self.report_sub_job_type_combo.pack(side=tk.LEFT, padx=10)
-        
-        # Note filter
-        note_filter_frame = ttk.Frame(filter_frame)
-        note_filter_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(note_filter_frame, text="กรองหมายเหตุ:").pack(side=tk.LEFT)
-        self.report_note_filter_var = tk.StringVar()
-        note_filter_entry = ttk.Entry(note_filter_frame, textvariable=self.report_note_filter_var, width=40)
-        note_filter_entry.pack(side=tk.LEFT, padx=10)
-        
-        # Run buttons
-        button_frame = ttk.Frame(filter_frame)
-        button_frame.pack(fill=tk.X, pady=10)
-        ttk.Button(button_frame, text="📊 ดูรายงาน", command=self.run_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="ส่งออก Excel", command=self.export_report).pack(side=tk.LEFT, padx=5)
-        
-        # Results table
-        self.create_report_table(reports_frame)
-        
-        # Load available job types
-        self.refresh_report_job_types()
+
     
     def create_report_table(self, parent):
         """Create table for report display"""
@@ -808,7 +1036,9 @@ class WMSScannerApp:
             
             # Update UI components
             self.job_combo['values'] = job_names
-            self.search_job_combo['values'] = [''] + job_names  # Include empty option for search
+            # Update unified interface if it exists
+            if hasattr(self, 'unified_job_type_combo'):
+                self.refresh_unified_job_types()
             
             # Update settings listbox if it exists
             if hasattr(self, 'job_listbox'):
@@ -1574,23 +1804,38 @@ class WMSScannerApp:
             """
             params = []
             
+            # Use unified interface if available, otherwise use old interface
+            if hasattr(self, 'unified_date_var'):
+                # Use unified interface
+                date_str = self.unified_date_var.get().strip()
+                barcode_search = self.unified_barcode_var.get().strip()
+                job_search = self.unified_job_type_var.get().strip()
+            else:
+                # Use old interface (fallback)
+                date_str = self.date_entry.get().strip()
+                barcode_search = self.search_barcode_entry.get().strip()
+                job_search = ""
+            
             # Date filter
-            date_str = self.date_entry.get().strip()
             if date_str:
                 query += " AND CAST(sl.scan_date AS DATE) = ?"
                 params.append(date_str)
             
             # Barcode filter
-            barcode_search = self.search_barcode_entry.get().strip()
             if barcode_search:
                 query += " AND sl.barcode LIKE ?"
                 params.append(f"%{barcode_search}%")
             
             # Job type filter (main job only)
-            job_search = self.search_job_combo.get().strip()
-            if job_search:
-                query += " AND sl.job_type = ?"
-                params.append(job_search)
+            if job_search and job_search != "ทั้งหมด":
+                # Extract job name from "ID - Name" format if using unified interface
+                if " - " in job_search:
+                    job_name = job_search.split(" - ", 1)[1]
+                    query += " AND sl.job_type = ?"
+                    params.append(job_name)
+                else:
+                    query += " AND sl.job_type = ?"
+                    params.append(job_search)
             
             query += " ORDER BY sl.scan_date DESC"
             
@@ -2036,7 +2281,7 @@ class WMSScannerApp:
             
             try:
                 # อัปเดตเฉพาะ barcode และ notes เท่านั้น (ไม่แก้ไข job types)
-                query = "UPDATE scan_records SET barcode = ?, notes = ? WHERE id = ?"
+                query = "UPDATE scan_logs SET barcode = ?, notes = ? WHERE id = ?"
                 self.db.execute_non_query(query, (new_barcode, new_notes, record_id))
                 
                 messagebox.showinfo("สำเร็จ", "แก้ไขข้อมูลเรียบร้อยแล้ว")
