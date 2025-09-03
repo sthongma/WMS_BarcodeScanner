@@ -607,6 +607,99 @@
             transition: all 0.3s;
         }
 
+        /* Responsive for small mobile screens */
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+                font-size: 18px;
+            }
+
+            .container {
+                max-width: 100%;
+                border-radius: 12px;
+                box-shadow: 0 10px 20px rgba(12, 81, 132, 0.12);
+            }
+
+            .header {
+                padding: 40px 16px 20px 16px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .header p {
+                font-size: 16px;
+            }
+
+            .header-right {
+                top: 10px;
+                right: 10px;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .content {
+                padding: 20px 16px;
+            }
+
+            .tab-button {
+                padding: 14px;
+                font-size: 18px;
+            }
+
+            .form-group label {
+                font-size: 16px;
+            }
+
+            .form-group input, .form-group select, .form-group textarea {
+                padding: 16px;
+                font-size: 18px;
+            }
+
+            .btn {
+                padding: 16px;
+                font-size: 18px;
+            }
+
+            .today-summary-title,
+            .history-title,
+            .report-summary h3,
+            .report-details h4 {
+                font-size: 18px;
+            }
+
+            .summary-label,
+            .summary-value {
+                font-size: 16px;
+            }
+
+            .summary-count {
+                font-size: 20px;
+            }
+
+            .report-item .item-barcode,
+            .history-barcode {
+                font-size: 18px;
+            }
+
+            .report-item .item-details,
+            .history-details {
+                font-size: 16px;
+            }
+
+            .report-item .item-time,
+            .history-time,
+            .summary-note {
+                font-size: 14px;
+            }
+
+            .report-item .item-notes,
+            .history-note {
+                font-size: 14px;
+            }
+        }
+
     </style>
 </head>
 <body>
