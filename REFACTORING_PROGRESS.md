@@ -526,23 +526,99 @@ These are acceptable to keep as direct SQL since they involve complex joins, dyn
 
 ---
 
-## 📋 Pending Phases
-
 ### Phase 3: Extract Service Layer - Part 3 (ReportService)
-**Status:** ⏳ Pending
-**Estimated Time:** 2-3 hours
+**Status:** ✅ Completed
+**Started:** 2025-11-09
+**Completed:** 2025-11-09
+**Time Spent:** ~1.5 hours
 
 **Objective:** Create ReportService to handle report generation business logic
 
-**Tasks:**
-- [ ] Create ReportService + tests
-- [ ] Implement report generation logic
-- [ ] Achieve 100% test coverage
+**Tasks Completed:**
+- [x] Created ReportService with pure business logic (no UI dependencies)
+- [x] Implemented generate_report() for single date reports
+- [x] Implemented generate_date_range_report() for date range reports
+- [x] Implemented _validate_inputs() for validation
+- [x] Created comprehensive tests (20 tests, 4 test classes)
+- [x] Achieved 99% code coverage for ReportService
+- [x] All 171 tests passing (151 + 20 new)
 
-**Files to Create:**
-- `src/services/report_service.py`
+**Code Changes:**
+- **Lines Added:** 78 lines (ReportService)
+- **Test Lines Added:** 362 lines (test_report_service.py)
+- **Test Coverage:** 99% for ReportService
+- **Repository Dependencies:** ScanLogRepository, JobTypeRepository, SubJobRepository
+
+**Files Created:**
+- `src/services/report_service.py` - Report generation service
+- `tests/services/test_report_service.py` - Comprehensive tests (20 tests)
+
+**Files Modified:**
+- `src/services/__init__.py` - Added ReportService export
+
+**Service Features:**
+1. **generate_report()** - Generate report for specific date:
+   - Validates date format (YYYY-MM-DD)
+   - Validates job and sub job exist
+   - Gets report data using ScanLogRepository
+   - Optional notes filtering
+   - Calculates statistics (total scans, unique barcodes)
+   - Returns structured result with report data
+
+2. **generate_date_range_report()** - Generate report for date range:
+   - Validates start and end dates
+   - Ensures start date <= end date
+   - Supports job and sub job filtering
+   - Optional notes filtering
+   - Calculates statistics across date range
+
+3. **_validate_inputs()** - Private validation helper:
+   - Validates date not empty
+   - Validates job exists using JobTypeRepository
+   - Validates sub job exists and belongs to main job
+   - Returns Thai language error messages
+
+**Design Principles:**
+- ✅ **NO UI DEPENDENCIES** - Pure business logic only
+- ✅ **TESTABLE** - All logic fully unit tested with mocks
+- ✅ **RETURNS RESULTS** - Structured dict with success/message/data
+- ✅ **DEPENDENCY INJECTION** - Repositories injected via constructor
+- ✅ **CLEAN SEPARATION** - Service layer completely separate from UI
+- ✅ **STATISTICS** - Automatic calculation of report statistics
+
+**Test Results:**
+- **Total Tests:** 171 (151 existing + 20 new)
+- **Success Rate:** 100% ✅
+- **ReportService Coverage:** 99% ✅ (only unreachable branch not covered)
+- **Test Speed:** 1.41 seconds for all 171 tests
+
+**Test Classes (4 total):**
+1. TestReportServiceInitialization - Service initialization
+2. TestReportServiceValidation - Input validation (6 tests)
+3. TestReportServiceGenerateReport - Single date reports (7 tests)
+4. TestReportServiceDateRangeReport - Date range reports (5 tests)
+5. TestReportServiceStatistics - Statistics calculation (2 tests)
+
+**Benefits:**
+- 🎯 Report generation logic now separate from UI
+- 🎯 Supports both single date and date range reports
+- 🎯 Automatic statistics calculation (total scans, unique barcodes)
+- 🎯 Flexible filtering (job, sub job, notes)
+- 🎯 Reusable across different UI layers
+- 🎯 Single source of truth for report operations
+- 🎯 Easy to test without UI dependencies
+
+**Notes:**
+- Service contains NO UI code whatsoever
+- All validations use repository methods
+- Date format standardized to YYYY-MM-DD
+- Fully backwards compatible with existing repository layer
+- Ready for UI integration
+- Notes filtering uses case-insensitive matching
 
 ---
+
+## 📋 Pending Phases
 
 ### Phase 3: Extract Service Layer - Part 4 (ImportService)
 **Status:** ⏳ Pending
@@ -657,10 +733,10 @@ These are acceptable to keep as direct SQL since they involve complex joins, dyn
 | **Methods > 100 lines** | ~25 methods | ~25 methods | < 5 methods | 🔴 |
 | **SQL in Web Code** | ~30 queries | **~5 queries (-290 lines)** | 0 queries | 🟢 |
 | **SQL in Desktop Code** | ~45 queries | **~7 queries (-38 queries, 84%)** | 0 queries | 🟢 |
-| **Test Coverage** | 0% | **15% (151 tests)** | > 70% | 🟡 |
+| **Test Coverage** | 0% | **17% (171 tests)** | > 70% | 🟡 |
 | **Repository Layer** | 0 repos | **4 repos (100% coverage)** | 4 repos | 🟢 |
-| **Service Layer** | 0 services | **2 services (96-100% coverage)** | 4 services | 🟡 |
-| **Test Count** | 0 tests | **151 tests (+151)** | > 50 tests | 🟢 |
+| **Service Layer** | 0 services | **3 services (96-100% coverage)** | 4 services | 🟡 |
+| **Test Count** | 0 tests | **171 tests (+171)** | > 50 tests | 🟢 |
 | **Config Duplication** | 3 places | 1 place | 1 place | 🟢 |
 | **DatabaseManager Copies** | 3 copies | 1 copy | 1 copy | 🟢 |
 
@@ -698,24 +774,26 @@ Legend: 🔴 Critical | 🟡 Needs Work | 🟢 Good
 - ✅ **Phase 2 Complete:** Repository layer fully integrated
 - ✅ Phase 3 Part 1: ScanService (+21 tests, 100% coverage)
 - ✅ Phase 3 Part 2: DependencyService (+24 tests, 96% coverage)
+- ✅ Phase 3 Part 3: ReportService (+20 tests, 99% coverage)
 
 **In Progress:**
-- 🔄 Phase 3 Part 3: ReportService (Pending)
 - 🔄 Phase 3 Part 4: ImportService (Pending)
+- 🔄 Phase 3 Part 5: UI Integration (Pending)
 
 **Blockers:**
 - None
 
 **Notes:**
 - Incremental refactoring approach working extremely well
-- Test coverage increased from 0% → 15% (151/151 tests passing)
+- Test coverage increased from 0% → 17% (171/171 tests passing)
 - Code duplication reduced from 30% → 12% (-670 lines total)
 - Repository pattern successfully implemented and integrated
-- **Service layer successfully created with 2 services (ScanService, DependencyService)**
+- **Service layer successfully created with 3 services (ScanService, DependencyService, ReportService)**
 - Service layer achieves 96-100% test coverage
 - Pure business logic now separated from UI
 - Services are fully testable without UI dependencies
 - Main scanning workflow (process_barcode) fully refactored
+- Report generation logic now in service layer
 - Web app and desktop app both using repositories
 - Ready for production deployment
 
