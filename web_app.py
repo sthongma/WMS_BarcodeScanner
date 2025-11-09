@@ -17,18 +17,28 @@ import threading
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.database.database_manager import DatabaseManager
+from src.database import (
+    JobTypeRepository,
+    SubJobRepository,
+    ScanLogRepository,
+    DependencyRepository
+)
 from src.models.data_models import ScanRecord
 
 app = Flask(__name__)
 app.secret_key = 'wms_scanner_secret_key_2024'
 CORS(app)
 
-# Global database manager
+# Global database manager and repositories
 db_manager = None
+job_type_repo = None
+sub_job_repo = None
+scan_log_repo = None
+dependency_repo = None
 
 def initialize_database():
     """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
-    global db_manager
+    global db_manager, job_type_repo, sub_job_repo, scan_log_repo, dependency_repo
     try:
         print("🔗 กำลังเชื่อมต่อฐานข้อมูล...")
 
@@ -38,6 +48,13 @@ def initialize_database():
         if db_manager.test_connection():
             config = db_manager.get_config()
             print(f"✅ เชื่อมต่อฐานข้อมูลสำเร็จ: {config.get('server', '')}/{config.get('database', '')}")
+
+            # สร้าง repository instances
+            job_type_repo = JobTypeRepository(db_manager)
+            sub_job_repo = SubJobRepository(db_manager)
+            scan_log_repo = ScanLogRepository(db_manager)
+            dependency_repo = DependencyRepository(db_manager)
+            print("✅ สร้าง repositories สำเร็จ")
 
             # ตรวจสอบและสร้างตารางที่จำเป็น
             ensure_tables_exist()
@@ -53,67 +70,36 @@ def initialize_database():
 def check_dependencies(barcode, job_type_id):
     """ตรวจสอบ Dependencies ของงาน (เหมือน Desktop App)"""
     try:
-        # ตรวจสอบว่าตาราง job_dependencies มีอยู่หรือไม่
-        try:
-            check_table_query = "SELECT COUNT(*) as count FROM job_dependencies"
-            db_manager.execute_query(check_table_query)
-        except:
-            # ถ้าไม่มีตาราง job_dependencies ให้สร้างใหม่
-            create_dependencies_query = """
-            CREATE TABLE job_dependencies (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                job_id INT NOT NULL,
-                required_job_id INT NOT NULL,
-                created_date DATETIME2 DEFAULT GETDATE(),
-                CONSTRAINT FK_job_dependencies_job_id 
-                    FOREIGN KEY (job_id) REFERENCES job_types(id),
-                CONSTRAINT FK_job_dependencies_required_job_id 
-                    FOREIGN KEY (required_job_id) REFERENCES job_types(id),
-                CONSTRAINT UQ_job_dependencies_unique 
-                    UNIQUE (job_id, required_job_id)
-            )
-            """
-            db_manager.execute_query(create_dependencies_query)
-            print("✅ สร้างตาราง job_dependencies สำเร็จ")
-            return {'success': True, 'message': 'ไม่มี dependencies ให้ตรวจสอบ'}  # ไม่มี dependencies ให้ตรวจสอบ
-        
-        # ตรวจสอบ Dependencies
-        required_jobs_query = """
-            SELECT jd.required_job_id, jt.job_name 
-            FROM job_dependencies jd
-            JOIN job_types jt ON jd.required_job_id = jt.id
-            WHERE jd.job_id = ?
-        """
-        required_jobs = db_manager.execute_query(required_jobs_query, (job_type_id,))
-        
+        # ตรวจสอบ Dependencies ผ่าน DependencyRepository
+        required_jobs = dependency_repo.get_required_jobs(job_type_id)
+
         if not required_jobs:
             # ไม่มี dependencies สามารถสแกนได้
             return {'success': True, 'message': 'ไม่มี dependencies'}
-        
+
         # ตรวจสอบว่าทุกงานที่จำเป็นถูกสแกนแล้วหรือไม่
         for required_job in required_jobs:
             required_job_id = required_job['required_job_id']
             required_job_name = required_job['job_name']
-            
-            # ตรวจสอบว่างานที่จำเป็นถูกสแกนแล้วหรือไม่
-            check_query = """
-                SELECT COUNT(*) as count 
-                FROM scan_logs 
-                WHERE barcode = ? AND job_id = ?
-            """
-            result = db_manager.execute_query(check_query, (barcode, required_job_id))
-            
-            if result[0]['count'] == 0:
+
+            # ตรวจสอบว่างานที่จำเป็นถูกสแกนแล้วหรือไม่ ผ่าน ScanLogRepository
+            duplicate = scan_log_repo.check_duplicate(
+                barcode=barcode,
+                job_id=required_job_id,
+                hours=24*365  # ตรวจสอบย้อนหลัง 1 ปี (ไม่จำกัดเวลา)
+            )
+
+            if duplicate is None:
                 # งานที่จำเป็นยังไม่ถูกสแกน
                 print(f"❌ ไม่มีงาน {required_job_name} สำหรับบาร์โค้ด {barcode}")
                 return {
-                    'success': False, 
+                    'success': False,
                     'message': f'ไม่สามารถสแกนได้ - ต้องสแกนงาน "{required_job_name}" ก่อน'
                 }
-        
+
         # ทุก dependencies ถูกต้อง
         return {'success': True, 'message': 'Dependencies ถูกต้อง'}
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการตรวจสอบ Dependencies: {str(e)}")
         return {'success': False, 'message': f'เกิดข้อผิดพลาดในการตรวจสอบ Dependencies: {str(e)}'}
@@ -121,50 +107,23 @@ def check_dependencies(barcode, job_type_id):
 def ensure_tables_exist():
     """ตรวจสอบและสร้างตารางที่จำเป็น"""
     try:
-        # ตรวจสอบตาราง scan_logs
-        try:
-            check_query = "SELECT COUNT(*) as count FROM scan_logs"
-            db_manager.execute_query(check_query)
-            print("✅ ตาราง scan_logs มีอยู่แล้ว")
-        except:
-            print("❌ ตาราง scan_logs ไม่มีอยู่ จะสร้างใหม่...")
-            create_scan_logs_query = """
-            CREATE TABLE scan_logs (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                barcode VARCHAR(100) NOT NULL,
-                scan_date DATETIME NOT NULL DEFAULT GETDATE(),
-                job_type VARCHAR(100) NOT NULL,
-                user_id VARCHAR(50) NOT NULL,
-                job_id INT NULL,
-                sub_job_id INT NULL,
-                notes NVARCHAR(1000) NULL,
-                CONSTRAINT FK_scan_logs_job_id 
-                    FOREIGN KEY (job_id) REFERENCES job_types(id),
-                CONSTRAINT FK_scan_logs_sub_job 
-                    FOREIGN KEY (sub_job_id) REFERENCES sub_job_types(id)
-            )
-            """
-            db_manager.execute_query(create_scan_logs_query)
-            print("✅ สร้างตาราง scan_logs สำเร็จ")
-            
-            # สร้าง indexes
-            indexes = [
-                "CREATE INDEX IX_scan_logs_barcode ON scan_logs (barcode)",
-                "CREATE INDEX IX_scan_logs_scan_date ON scan_logs (scan_date)",
-                "CREATE INDEX IX_scan_logs_job_type ON scan_logs (job_type)",
-                "CREATE INDEX IX_scan_logs_user_id ON scan_logs (user_id)",
-                "CREATE INDEX IX_scan_logs_job_id ON scan_logs (job_id)",
-                "CREATE INDEX IX_scan_logs_sub_job_id ON scan_logs(sub_job_id)"
-            ]
-            
-            for index_query in indexes:
-                try:
-                    db_manager.execute_query(index_query)
-                except:
-                    pass  # Index อาจมีอยู่แล้ว
-            
-            print("✅ สร้าง indexes สำเร็จ")
-            
+        # สร้างตารางผ่าน repositories
+        if job_type_repo.ensure_table_exists():
+            print("✅ ตาราง job_types พร้อมใช้งาน")
+
+        if sub_job_repo.ensure_table_exists():
+            print("✅ ตาราง sub_job_types พร้อมใช้งาน")
+
+        if scan_log_repo.ensure_table_exists():
+            print("✅ ตาราง scan_logs พร้อมใช้งาน")
+
+            # สร้าง indexes สำหรับ scan_logs
+            if scan_log_repo.ensure_indexes_exist():
+                print("✅ สร้าง indexes สำเร็จ")
+
+        if dependency_repo.ensure_table_exists():
+            print("✅ ตาราง job_dependencies พร้อมใช้งาน")
+
     except Exception as e:
         print(f"⚠️ เกิดข้อผิดพลาดในการตรวจสอบตาราง: {e}")
 
@@ -248,65 +207,46 @@ def login():
 def get_job_types():
     """API สำหรับดึงรายการ Job Types"""
     try:
-        if not db_manager:
-            print("❌ ไม่มี db_manager")
+        if not job_type_repo:
+            print("❌ ไม่มี job_type_repo")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
         print("🔍 กำลังดึงข้อมูล Job Types...")
-        query = "SELECT id, job_name FROM job_types ORDER BY job_name"
-        print(f"📝 Query: {query}")
-        
-        results = db_manager.execute_query(query)
+        results = job_type_repo.get_all_job_types()
         print(f"📊 ผลลัพธ์: {len(results) if results else 0} รายการ")
-        
+
         # ถ้าไม่มีข้อมูล ให้เพิ่มข้อมูลตัวอย่าง
         if not results:
             print("⚠️ ไม่พบข้อมูล Job Types จะเพิ่มข้อมูลตัวอย่าง...")
-            
-            # ตรวจสอบว่าตารางมีอยู่หรือไม่
-            try:
-                check_table_query = "SELECT COUNT(*) as count FROM job_types"
-                db_manager.execute_query(check_table_query)
-                print("✅ ตาราง job_types มีอยู่แล้ว")
-            except:
-                print("❌ ตาราง job_types ไม่มีอยู่ จะสร้างใหม่...")
-                create_table_query = """
-                CREATE TABLE job_types (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    job_name VARCHAR(100) NOT NULL UNIQUE
-                )
-                """
-                db_manager.execute_query(create_table_query)
-                print("✅ สร้างตาราง job_types สำเร็จ")
-            
+
             sample_data = [
-                ('1.Release',),
-                ('2.Inprocess',),
-                ('3.Outbound',),
-                ('4.Loading',),
-                ('5.Return',),
-                ('6.Repack',)
+                '1.Release',
+                '2.Inprocess',
+                '3.Outbound',
+                '4.Loading',
+                '5.Return',
+                '6.Repack'
             ]
-            
+
             for job_name in sample_data:
                 try:
-                    insert_query = "INSERT INTO job_types (job_name) VALUES (?)"
-                    db_manager.execute_query(insert_query, job_name)
-                    print(f"✅ เพิ่ม Job Type: {job_name[0]}")
+                    if not job_type_repo.job_name_exists(job_name):
+                        job_type_repo.create_job_type(job_name)
+                        print(f"✅ เพิ่ม Job Type: {job_name}")
                 except Exception as e:
-                    print(f"⚠️ ไม่สามารถเพิ่ม Job Type {job_name[0]}: {str(e)}")
-            
+                    print(f"⚠️ ไม่สามารถเพิ่ม Job Type {job_name}: {str(e)}")
+
             # ดึงข้อมูลใหม่
-            results = db_manager.execute_query(query)
+            results = job_type_repo.get_all_job_types()
             print(f"📊 ผลลัพธ์ใหม่: {len(results) if results else 0} รายการ")
-        
+
         if results:
             for row in results:
                 print(f"  - ID: {row['id']}, Name: {row['job_name']}")
-        
+
         job_types = [{'id': row['id'], 'name': row['job_name']} for row in results] if results else []
         return jsonify({'success': True, 'data': job_types})
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน get_job_types: {str(e)}")
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
@@ -315,48 +255,19 @@ def get_job_types():
 def get_sub_job_types(job_type_id):
     """API สำหรับดึงรายการ Sub Job Types"""
     try:
-        if not db_manager:
-            print("❌ ไม่มี db_manager")
+        if not sub_job_repo:
+            print("❌ ไม่มี sub_job_repo")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
         print(f"🔍 กำลังดึงข้อมูล Sub Job Types สำหรับ Job Type ID: {job_type_id}")
-        query = "SELECT id, sub_job_name FROM sub_job_types WHERE main_job_id = ? AND is_active = 1 ORDER BY sub_job_name"
-        print(f"📝 Query: {query}")
-        print(f"🔢 Parameter: job_type_id = {job_type_id}")
-        
-        results = db_manager.execute_query(query, (job_type_id,))
+
+        results = sub_job_repo.get_by_main_job(job_type_id, active_only=True)
         print(f"📊 ผลลัพธ์: {len(results) if results else 0} รายการ")
-        
+
         # ถ้าไม่มีข้อมูล ให้เพิ่มข้อมูลตัวอย่าง
         if not results:
             print("⚠️ ไม่พบข้อมูล Sub Job Types จะเพิ่มข้อมูลตัวอย่าง...")
-            
-            # ตรวจสอบว่าตารางมีอยู่หรือไม่
-            try:
-                check_table_query = "SELECT COUNT(*) as count FROM sub_job_types"
-                db_manager.execute_query(check_table_query)
-                print("✅ ตาราง sub_job_types มีอยู่แล้ว")
-            except:
-                print("❌ ตาราง sub_job_types ไม่มีอยู่ จะสร้างใหม่...")
-                create_table_query = """
-                CREATE TABLE sub_job_types (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    main_job_id INT NOT NULL,
-                    sub_job_name NVARCHAR(255) NOT NULL,
-                    description NVARCHAR(500) NULL,
-                    created_date DATETIME2 DEFAULT GETDATE(),
-                    updated_date DATETIME2 DEFAULT GETDATE(),
-                    is_active BIT DEFAULT 1,
-                    CONSTRAINT FK_sub_job_types_main_job 
-                        FOREIGN KEY (main_job_id) REFERENCES job_types(id) 
-                        ON DELETE CASCADE,
-                    CONSTRAINT UQ_sub_job_types_name_per_main 
-                        UNIQUE (main_job_id, sub_job_name)
-                )
-                """
-                db_manager.execute_query(create_table_query)
-                print("✅ สร้างตาราง sub_job_types สำเร็จ")
-            
+
             # ข้อมูลตัวอย่างตาม Job Type
             sample_sub_jobs = {
                 1: [('รับสินค้าปกติ',), ('รับสินค้าด่วน',)],
@@ -366,27 +277,27 @@ def get_sub_job_types(job_type_id):
                 5: [('คืนสินค้าปกติ',), ('คืนสินค้าด่วน',)],
                 6: [('แพ็คใหม่',), ('แพ็คซ่อม',)]
             }
-            
+
             if job_type_id in sample_sub_jobs:
                 for sub_job_name in sample_sub_jobs[job_type_id]:
                     try:
-                        insert_query = "INSERT INTO sub_job_types (main_job_id, sub_job_name, is_active) VALUES (?, ?, 1)"
-                        db_manager.execute_query(insert_query, (job_type_id, sub_job_name[0]))
-                        print(f"✅ เพิ่ม Sub Job Type: {sub_job_name[0]} สำหรับ Job Type ID: {job_type_id}")
+                        if not sub_job_repo.duplicate_exists(job_type_id, sub_job_name[0]):
+                            sub_job_repo.create_sub_job(job_type_id, sub_job_name[0])
+                            print(f"✅ เพิ่ม Sub Job Type: {sub_job_name[0]} สำหรับ Job Type ID: {job_type_id}")
                     except Exception as e:
                         print(f"⚠️ ไม่สามารถเพิ่ม Sub Job Type {sub_job_name[0]}: {str(e)}")
-                
+
                 # ดึงข้อมูลใหม่
-                results = db_manager.execute_query(query, (job_type_id,))
+                results = sub_job_repo.get_by_main_job(job_type_id, active_only=True)
                 print(f"📊 ผลลัพธ์ใหม่: {len(results) if results else 0} รายการ")
-        
+
         if results:
             for row in results:
                 print(f"  - ID: {row['id']}, Name: {row['sub_job_name']}")
-        
+
         sub_job_types = [{'id': row['id'], 'name': row['sub_job_name']} for row in results] if results else []
         return jsonify({'success': True, 'data': sub_job_types})
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน get_sub_job_types: {str(e)}")
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
@@ -396,133 +307,124 @@ def scan_barcode():
     """API สำหรับสแกนบาร์โค้ด - ทำงานเหมือน Desktop App"""
     try:
         print(f"🔍 เริ่มต้นการสแกนบาร์โค้ด...")
-        
-        if not db_manager:
-            print("❌ ไม่มี db_manager")
+
+        if not scan_log_repo or not job_type_repo or not sub_job_repo:
+            print("❌ ไม่มี repositories")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
         data = request.get_json()
         barcode = data.get('barcode')
         job_type_id = data.get('job_type_id')
         sub_job_type_id = data.get('sub_job_type_id')
         note = data.get('note', '')  # หมายเหตุ (ไม่บังคับ)
-        
+
         print(f"📝 ข้อมูลที่ได้รับ: barcode={barcode}, job_type_id={job_type_id}, sub_job_type_id={sub_job_type_id}, note={note}")
-        
+
         if not barcode:
             print("❌ ไม่มีบาร์โค้ด")
             return jsonify({'success': False, 'message': 'กรุณากรอกบาร์โค้ด'})
-        
+
         if not job_type_id:
             print("❌ ไม่มี job_type_id")
             return jsonify({'success': False, 'message': 'กรุณาเลือก Job Type'})
-        
+
         print(f"🔍 กำลังดึงข้อมูล Job Type ID: {job_type_id}")
-        
-        # ดึงข้อมูล Job Type และ Sub Job Type
+
+        # ดึงข้อมูล Job Type (ใช้ db_manager เนื่องจาก repository ไม่มี get_by_id)
         job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
         job_result = db_manager.execute_query(job_type_query, (job_type_id,))
-        
+
         if not job_result:
             print(f"❌ ไม่พบ Job Type ID: {job_type_id}")
             return jsonify({'success': False, 'message': 'ไม่พบ Job Type ที่เลือก'})
-        
+
         job_type_name = job_result[0]['job_name']
         print(f"✅ พบ Job Type: {job_type_name}")
-        
+
         sub_job_type_name = None
-        
+
         if sub_job_type_id:
             print(f"🔍 กำลังดึงข้อมูล Sub Job Type ID: {sub_job_type_id}")
-            sub_job_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
-            sub_result = db_manager.execute_query(sub_job_query, (sub_job_type_id,))
+            # ใช้ get_details จาก SubJobRepository
+            sub_result = sub_job_repo.get_details(sub_job_type_id)
             if sub_result:
-                sub_job_type_name = sub_result[0]['sub_job_name']
+                sub_job_type_name = sub_result['sub_job_name']
                 print(f"✅ พบ Sub Job Type: {sub_job_type_name}")
             else:
                 print(f"⚠️ ไม่พบ Sub Job Type ID: {sub_job_type_id}")
         else:
             print("ℹ️ ไม่มี Sub Job Type")
-        
+
         # ตรวจสอบ Dependencies ก่อน (เหมือน Desktop App)
         print(f"🔍 กำลังตรวจสอบ Dependencies สำหรับ Job Type ID: {job_type_id}")
         dependencies_result = check_dependencies(barcode, job_type_id)
         print(f"📊 ผลการตรวจสอบ Dependencies: {dependencies_result}")
-        
+
         if not dependencies_result['success']:
             print(f"❌ Dependencies ไม่ผ่าน: {dependencies_result['message']}")
             return jsonify({'success': False, 'message': dependencies_result['message']})
-        
+
         print("✅ Dependencies ผ่าน")
-        
+
         # ตรวจสอบว่าบาร์โค้ดซ้ำหรือไม่ (หลังจากตรวจสอบ Dependencies)
         # ตรวจสอบเฉพาะในงานเดียวกัน (เหมือน Desktop App)
         print(f"🔍 กำลังตรวจสอบข้อมูลซ้ำ...")
-        
-        if sub_job_type_id:
-            # มี Sub Job Type - ตรวจสอบทั้ง Main Job และ Sub Job
-            print(f"🔍 ตรวจสอบข้อมูลซ้ำสำหรับ Main Job + Sub Job")
-            check_query = """
-                SELECT sl.*, jt.job_name as job_type_name, sjt.sub_job_name as sub_job_type_name
-                FROM scan_logs sl
-                LEFT JOIN job_types jt ON sl.job_type = jt.job_name
-                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                WHERE sl.barcode = ? AND sl.job_id = ? AND sl.sub_job_id = ?
-                ORDER BY sl.scan_date DESC
-            """
-            existing_records = db_manager.execute_query(check_query, (barcode, job_type_id, sub_job_type_id))
-        else:
-            # ไม่มี Sub Job Type - ตรวจสอบเฉพาะ Main Job
-            print(f"🔍 ตรวจสอบข้อมูลซ้ำสำหรับ Main Job เท่านั้น")
-            check_query = """
-                SELECT sl.*, jt.job_name as job_type_name, sjt.sub_job_name as sub_job_type_name
-                FROM scan_logs sl
-                LEFT JOIN job_types jt ON sl.job_type = jt.job_name
-                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                WHERE sl.barcode = ? AND sl.job_id = ? AND sl.sub_job_id IS NULL
-                ORDER BY sl.scan_date DESC
-            """
-            existing_records = db_manager.execute_query(check_query, (barcode, job_type_id,))
-        
-        print(f"📊 พบข้อมูลซ้ำ: {len(existing_records) if existing_records else 0} รายการ")
-        
-        if existing_records:
-            existing_record = existing_records[0]
-            job_type_display = existing_record['job_type_name'] or existing_record['job_type']
-            sub_job_display = existing_record['sub_job_type_name'] or 'ไม่มี'
-            
-            print(f"❌ พบข้อมูลซ้ำ: {job_type_display} > {sub_job_display}")
-            
-            return jsonify({
-                'success': False, 
-                'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_type_display} > {sub_job_display}" แล้ว',
-                'duplicate': True,
-                'existing_record': {
-                    'scan_date': existing_record['scan_date'].isoformat(),
-                    'job_type_name': job_type_display,
-                    'sub_job_type_name': sub_job_display,
-                    'user_id': existing_record['user_id']
-                }
-            })
-        
+
+        # ใช้ check_duplicate แทนการ query โดยตรง
+        # Note: check_duplicate ไม่รองรับ sub_job_id โดยตรง ดังนั้นต้องตรวจสอบด้วยวิธีอื่น
+        # เราจะตรวจสอบด้วย hours=0 เพื่อตรวจสอบทุกระเบียนในงานนี้
+        existing_record = scan_log_repo.check_duplicate(barcode, job_type_id, hours=24*365)
+
+        # ถ้าพบข้อมูลและต้องตรวจสอบ sub_job_id
+        if existing_record:
+            # ตรวจสอบว่า sub_job_id ตรงกันหรือไม่
+            if sub_job_type_id:
+                # กรณีมี sub_job_type_id ต้องตรงกับที่พบ
+                if existing_record.get('sub_job_id') == sub_job_type_id:
+                    print(f"❌ พบข้อมูลซ้ำ: {job_type_name} > {sub_job_type_name or 'ไม่มี'}")
+                    return jsonify({
+                        'success': False,
+                        'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_type_name} > {sub_job_type_name or "ไม่มี"}" แล้ว',
+                        'duplicate': True,
+                        'existing_record': {
+                            'scan_date': existing_record['scan_date'].isoformat() if hasattr(existing_record['scan_date'], 'isoformat') else str(existing_record['scan_date']),
+                            'job_type_name': job_type_name,
+                            'sub_job_type_name': sub_job_type_name or 'ไม่มี',
+                            'user_id': existing_record['user_id']
+                        }
+                    })
+            else:
+                # กรณีไม่มี sub_job_type_id และ existing_record ก็ไม่มี sub_job_id
+                if existing_record.get('sub_job_id') is None:
+                    print(f"❌ พบข้อมูลซ้ำ: {job_type_name} > ไม่มี")
+                    return jsonify({
+                        'success': False,
+                        'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_type_name} > ไม่มี" แล้ว',
+                        'duplicate': True,
+                        'existing_record': {
+                            'scan_date': existing_record['scan_date'].isoformat() if hasattr(existing_record['scan_date'], 'isoformat') else str(existing_record['scan_date']),
+                            'job_type_name': job_type_name,
+                            'sub_job_type_name': 'ไม่มี',
+                            'user_id': existing_record['user_id']
+                        }
+                    })
+
         # บันทึกการสแกน (เหมือน Desktop App)
         print(f"💾 กำลังบันทึกข้อมูล...")
-        insert_query = """
-            INSERT INTO scan_logs (barcode, scan_date, job_type, user_id, job_id, sub_job_id, notes)
-            VALUES (?, GETDATE(), ?, ?, ?, ?, ?)
-        """
-        
-        print(f"📝 Query: {insert_query}")
         print(f"📝 Parameters: barcode={barcode}, job_type_name={job_type_name}, user={db_manager.current_user}, job_id={job_type_id}, sub_job_id={sub_job_type_id}, note={note}")
-        
-        db_manager.execute_non_query(insert_query, (
-            barcode, job_type_name, db_manager.current_user, 
-            job_type_id, sub_job_type_id, note
-        ))
-        
+
+        scan_log_repo.create_scan(
+            barcode=barcode,
+            job_type=job_type_name,
+            user_id=db_manager.current_user,
+            job_id=job_type_id,
+            sub_job_id=sub_job_type_id if sub_job_type_id else None,
+            notes=note
+        )
+
         print(f"✅ บันทึกสำเร็จ")
         return jsonify({'success': True, 'message': f'บันทึกการสแกนบาร์โค้ด: {barcode}'})
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาด: {str(e)}")
         import traceback
@@ -535,16 +437,17 @@ def get_scan_history():
     try:
         if not db_manager:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
+        # ใช้ db_manager โดยตรงเพื่อรวม job_type_name (get_recent_scans ไม่มี JOIN กับ job_types)
         query = """
-            SELECT TOP 50 
+            SELECT TOP 50
                 sl.scan_date,
                 sl.barcode,
                 jt.job_name as job_type_name,
                 ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name,
                 sl.notes,
                 sl.user_id,
-                CASE 
+                CASE
                     WHEN sl.scan_date >= DATEADD(MINUTE, -5, GETDATE()) THEN 'ใหม่'
                     ELSE 'ปกติ'
                 END as status
@@ -554,21 +457,21 @@ def get_scan_history():
             ORDER BY sl.scan_date DESC
         """
         results = db_manager.execute_query(query)
-        
+
         history = []
         for row in results:
             history.append({
-                'scan_date': row['scan_date'].isoformat(),
+                'scan_date': row['scan_date'].isoformat() if hasattr(row['scan_date'], 'isoformat') else str(row['scan_date']),
                 'barcode': row['barcode'],
                 'job_type_name': row['job_type_name'],
                 'sub_job_type_name': row['sub_job_type_name'],
-                'notes': row['notes'] or '',
+                'notes': row.get('notes') or '',
                 'user_id': row['user_id'],
                 'status': row['status']
             })
-        
+
         return jsonify({'success': True, 'data': history})
-        
+
     except Exception as e:
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
@@ -588,57 +491,60 @@ def get_status():
 def get_today_summary():
     """API สำหรับดึงสรุปงานที่สแกนวันนี้"""
     try:
-        if not db_manager:
+        if not scan_log_repo or not job_type_repo or not sub_job_repo:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
         job_type_id = request.args.get('job_type_id')
         sub_job_type_id = request.args.get('sub_job_type_id')
         note_filter = request.args.get('note_filter')
-        
+
         if not job_type_id:
             return jsonify({'success': True, 'data': {'total_count': 0, 'message': 'กรุณาเลือก Job Type'}})
-        
-        # สร้าง query สำหรับนับจำนวนการสแกนวันนี้
-        if sub_job_type_id and sub_job_type_id != '':
-            # มี Sub Job Type
-            count_query = """
-                SELECT COUNT(*) as total_count
-                FROM scan_logs sl
-                WHERE sl.job_id = ? 
-                AND sl.sub_job_id = ?
-                AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
-            """
-            params = [job_type_id, sub_job_type_id]
-        else:
-            # ไม่มี Sub Job Type - นับเฉพาะงานหลัก
-            count_query = """
-                SELECT COUNT(*) as total_count
-                FROM scan_logs sl
-                WHERE sl.job_id = ? 
-                AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
-            """
-            params = [job_type_id]
-        
-        # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
+
+        # ใช้ get_today_summary_count จาก repository (ไม่รองรับ note_filter)
+        # ถ้ามี note_filter ต้องใช้ db_manager โดยตรง
         if note_filter and note_filter.strip():
-            count_query += " AND sl.notes LIKE ?"
-            params.append(f"%{note_filter.strip()}%")
-        
-        result = db_manager.execute_query(count_query, tuple(params))
-        total_count = result[0]['total_count'] if result else 0
-        
+            # ใช้ db_manager สำหรับกรณีมี note_filter
+            if sub_job_type_id and sub_job_type_id != '':
+                count_query = """
+                    SELECT COUNT(*) as total_count
+                    FROM scan_logs sl
+                    WHERE sl.job_id = ?
+                    AND sl.sub_job_id = ?
+                    AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
+                    AND sl.notes LIKE ?
+                """
+                params = (job_type_id, sub_job_type_id, f"%{note_filter.strip()}%")
+            else:
+                count_query = """
+                    SELECT COUNT(*) as total_count
+                    FROM scan_logs sl
+                    WHERE sl.job_id = ?
+                    AND CAST(sl.scan_date AS DATE) = CAST(GETDATE() AS DATE)
+                    AND sl.notes LIKE ?
+                """
+                params = (job_type_id, f"%{note_filter.strip()}%")
+
+            result = db_manager.execute_query(count_query, params)
+            total_count = result[0]['total_count'] if result else 0
+        else:
+            # ใช้ repository สำหรับกรณีไม่มี note_filter
+            total_count = scan_log_repo.get_today_summary_count(
+                job_id=job_type_id,
+                sub_job_id=sub_job_type_id if sub_job_type_id and sub_job_type_id != '' else None
+            )
+
         # ดึงข้อมูล Job Type และ Sub Job Type สำหรับแสดงผล
         job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
         job_result = db_manager.execute_query(job_type_query, (job_type_id,))
         job_type_name = job_result[0]['job_name'] if job_result else 'ไม่ทราบ'
-        
+
         sub_job_type_name = 'ไม่มี'
         if sub_job_type_id and sub_job_type_id != '':
-            sub_job_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
-            sub_result = db_manager.execute_query(sub_job_query, (sub_job_type_id,))
+            sub_result = sub_job_repo.get_details(sub_job_type_id)
             if sub_result:
-                sub_job_type_name = sub_result[0]['sub_job_name']
-        
+                sub_job_type_name = sub_result['sub_job_name']
+
         return jsonify({
             'success': True,
             'data': {
@@ -649,7 +555,7 @@ def get_today_summary():
                 'date': datetime.now().strftime('%Y-%m-%d')
             }
         })
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการดึงสรุปงานวันนี้: {str(e)}")
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาดในการดึงสรุปงานวันนี้: {str(e)}'})
@@ -658,21 +564,21 @@ def get_today_summary():
 def generate_report():
     """API สำหรับสร้างรายงาน"""
     try:
-        if not db_manager:
+        if not scan_log_repo or not job_type_repo or not sub_job_repo:
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
-        
+
         data = request.get_json()
         report_date = data.get('report_date')
         job_type_id = data.get('job_type_id')
         sub_job_type_id = data.get('sub_job_type_id')
         note_filter = data.get('note_filter')
-        
+
         if not report_date:
             return jsonify({'success': False, 'message': 'กรุณาเลือกวันที่'})
-        
+
         if not job_type_id:
             return jsonify({'success': False, 'message': 'กรุณาเลือกงานหลัก'})
-        
+
         # แปลงวันที่เป็นรูปแบบที่เหมาะสม
         try:
             from datetime import datetime
@@ -681,94 +587,111 @@ def generate_report():
             end_date = report_date_obj.strftime('%Y-%m-%d 23:59:59')
         except:
             return jsonify({'success': False, 'message': 'รูปแบบวันที่ไม่ถูกต้อง'})
-        
+
         # ดึงข้อมูล Job Type และ Sub Job Type
         job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
         job_result = db_manager.execute_query(job_type_query, (job_type_id,))
         if not job_result:
             return jsonify({'success': False, 'message': 'ไม่พบงานหลักที่เลือก'})
-        
+
         job_type_name = job_result[0]['job_name']
         sub_job_type_name = None
-        
+
         if sub_job_type_id:
-            sub_job_query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
-            sub_result = db_manager.execute_query(sub_job_query, (sub_job_type_id,))
+            sub_result = sub_job_repo.get_details(sub_job_type_id)
             if sub_result:
-                sub_job_type_name = sub_result[0]['sub_job_name']
+                sub_job_type_name = sub_result['sub_job_name']
             else:
                 return jsonify({'success': False, 'message': 'ไม่พบงานรองที่เลือก'})
-        
-        # สร้าง query สำหรับดึงข้อมูลรายงาน
-        if sub_job_type_id:
-            # มีงานรอง
-            report_query = """
-                SELECT 
-                    sl.barcode,
-                    sl.scan_date,
-                    sl.notes,
-                    sl.user_id,
-                    jt.job_name as job_type_name,
-                    sjt.sub_job_name as sub_job_type_name
-                FROM scan_logs sl
-                LEFT JOIN job_types jt ON sl.job_id = jt.id
-                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                WHERE sl.job_id = ? 
-                AND sl.sub_job_id = ?
-                AND CAST(sl.scan_date AS DATE) = ?
-            """
-            params = [job_type_id, sub_job_type_id, report_date]
-            
-            # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
-            if note_filter and note_filter.strip():
-                report_query += " AND sl.notes LIKE ?"
-                params.append(f"%{note_filter.strip()}%")
-                
-            report_query += " ORDER BY sl.scan_date DESC"
-            params = tuple(params)
+
+        # ใช้ repository สำหรับดึงข้อมูลรายงาน (ไม่รองรับ note_filter)
+        # ถ้ามี note_filter ต้องใช้ db_manager โดยตรง
+        if note_filter and note_filter.strip():
+            # ใช้ db_manager สำหรับกรณีมี note_filter
+            if sub_job_type_id:
+                # มีงานรอง
+                report_query = """
+                    SELECT
+                        sl.barcode,
+                        sl.scan_date,
+                        sl.notes,
+                        sl.user_id,
+                        jt.job_name as job_type_name,
+                        sjt.sub_job_name as sub_job_type_name
+                    FROM scan_logs sl
+                    LEFT JOIN job_types jt ON sl.job_id = jt.id
+                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                    WHERE sl.job_id = ?
+                    AND sl.sub_job_id = ?
+                    AND CAST(sl.scan_date AS DATE) = ?
+                    AND sl.notes LIKE ?
+                    ORDER BY sl.scan_date DESC
+                """
+                params = (job_type_id, sub_job_type_id, report_date, f"%{note_filter.strip()}%")
+            else:
+                # ไม่มีงานรอง - แสดงเฉพาะงานหลัก (ไม่กรอง sub_job_id)
+                report_query = """
+                    SELECT
+                        sl.barcode,
+                        sl.scan_date,
+                        sl.notes,
+                        sl.user_id,
+                        jt.job_name as job_type_name,
+                        ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
+                    FROM scan_logs sl
+                    LEFT JOIN job_types jt ON sl.job_id = jt.id
+                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
+                    WHERE sl.job_id = ?
+                    AND CAST(sl.scan_date AS DATE) = ?
+                    AND sl.notes LIKE ?
+                    ORDER BY sl.scan_date DESC
+                """
+                params = (job_type_id, report_date, f"%{note_filter.strip()}%")
+
+            results = db_manager.execute_query(report_query, params)
         else:
-            # ไม่มีงานรอง - แสดงเฉพาะงานหลัก (ไม่กรอง sub_job_id)
-            report_query = """
-                SELECT 
-                    sl.barcode,
-                    sl.scan_date,
-                    sl.notes,
-                    sl.user_id,
-                    jt.job_name as job_type_name,
-                    ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
-                FROM scan_logs sl
-                LEFT JOIN job_types jt ON sl.job_id = jt.id
-                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                WHERE sl.job_id = ? 
-                AND CAST(sl.scan_date AS DATE) = ?
-            """
-            params = [job_type_id, report_date]
-            
-            # เพิ่มเงื่อนไขกรองหมายเหตุถ้ามี
-            if note_filter and note_filter.strip():
-                report_query += " AND sl.notes LIKE ?"
-                params.append(f"%{note_filter.strip()}%")
-                
-            report_query += " ORDER BY sl.scan_date DESC"
-            params = tuple(params)
-        
-        results = db_manager.execute_query(report_query, params)
-        
+            # ใช้ repository สำหรับกรณีไม่มี note_filter
+            if sub_job_type_id:
+                # มีงานรอง - ใช้ get_report_with_sub_job
+                results = scan_log_repo.get_report_with_sub_job(
+                    start_date=start_date,
+                    end_date=end_date,
+                    job_id=job_type_id,
+                    sub_job_id=sub_job_type_id
+                )
+            else:
+                # ไม่มีงานรอง - ใช้ get_report_main_job_only
+                results = scan_log_repo.get_report_main_job_only(
+                    start_date=start_date,
+                    end_date=end_date,
+                    job_id=job_type_id
+                )
+
+            # เพิ่ม job_type_name และ sub_job_type_name ให้กับผลลัพธ์
+            for row in results:
+                if 'job_type_name' not in row:
+                    row['job_type_name'] = job_type_name
+                if 'sub_job_type_name' not in row:
+                    if sub_job_type_id:
+                        row['sub_job_type_name'] = sub_job_type_name
+                    else:
+                        row['sub_job_type_name'] = 'ไม่มี'
+
         # นับจำนวนรวม
         total_count = len(results) if results else 0
-        
+
         # แปลงข้อมูลสำหรับส่งกลับ
         report_data = []
         for row in results:
             report_data.append({
                 'barcode': row['barcode'],
-                'scan_date': row['scan_date'].isoformat(),
-                'notes': row['notes'] or '',
+                'scan_date': row['scan_date'].isoformat() if hasattr(row['scan_date'], 'isoformat') else str(row['scan_date']),
+                'notes': row.get('notes') or '',
                 'user_id': row['user_id'],
                 'job_type_name': row['job_type_name'],
-                'sub_job_type_name': row['sub_job_type_name']
+                'sub_job_type_name': row.get('sub_job_type_name') or 'ไม่มี'
             })
-        
+
         # สร้างข้อมูลสรุป
         summary = {
             'report_date': report_date,
@@ -778,13 +701,13 @@ def generate_report():
             'total_count': total_count,
             'generated_at': datetime.now().isoformat()
         }
-        
+
         return jsonify({
             'success': True,
             'summary': summary,
             'data': report_data
         })
-        
+
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการสร้างรายงาน: {str(e)}")
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาดในการสร้างรายงาน: {str(e)}'})

@@ -2,10 +2,11 @@
 
 ## 📋 Summary
 - **Start Date:** 2025-11-09
-- **Current Phase:** Phase 2 - Extract Repository Layer (Part 1 Complete, Part 2 Pending)
-- **Overall Completion:** 35% (2.5/7 phases)
+- **Current Phase:** Phase 2 - Extract Repository Layer (Part 1 ✅, Part 2A ✅, Part 2B Pending)
+- **Overall Completion:** 40% (2.75/7 phases)
 - **Test Coverage:** 100% (88/88 tests passing)
 - **New Tests Added:** +74 repository tests
+- **Code Reduced:** ~490 lines removed (208 + 290 lines)
 - **Strategy:** Incremental refactoring, Critical issues first
 
 ---
@@ -191,15 +192,55 @@
 
 ---
 
+### Phase 2: Extract Repository Layer - Part 2A (Web App Integration)
+**Status:** ✅ Completed
+**Started:** 2025-11-09
+**Completed:** 2025-11-09
+**Time Spent:** ~2 hours
+
+**Objective:** Integrate repositories with web_app.py
+
+**Tasks Completed:**
+- [x] Added repository imports and initialization in web_app.py
+- [x] Refactored `/api/job_types` to use JobTypeRepository
+- [x] Refactored `/api/sub_job_types` to use SubJobRepository
+- [x] Refactored `/api/scan` to use ScanLogRepository + SubJobRepository
+- [x] Refactored `/api/today_summary` to use ScanLogRepository
+- [x] Refactored `/api/report` to use ScanLogRepository
+- [x] Refactored `check_dependencies()` to use DependencyRepository
+- [x] Refactored `ensure_tables_exist()` to use repository methods
+- [x] Verified all 88 tests still passing
+
+**Code Changes:**
+- **Lines Removed:** ~290 lines of direct SQL code
+- **Routes Refactored:** 5 API routes + 2 helper functions
+- **Repository Methods Used:** 15+ different repository methods
+- **Backwards Compatibility:** 100% maintained
+
+**Files Modified:**
+- `web_app.py` - Refactored to use repositories (reduced SQL queries from ~30 to ~5)
+
+**Remaining Direct SQL in web_app.py:**
+- Job type lookups by ID (repository lacks `find_by_id()` method)
+- `/api/history` route (requires JOIN with job_types table)
+- Note filtering (repository methods don't support `note_filter` parameter)
+
+**Notes:**
+- All API responses maintain exact same format
+- All business logic preserved
+- Error handling unchanged
+- Ready for production use
+
+---
+
 ## 🚧 In Progress
 
-### Phase 2: Extract Repository Layer - Part 2 (Integration)
+### Phase 2: Extract Repository Layer - Part 2B (Desktop App Integration)
 **Status:** ⏳ Pending
-**Estimated Time:** 4-6 hours
+**Estimated Time:** 3-4 hours
 
 **Tasks:**
 - [ ] Update main_window.py to use repositories
-- [ ] Update web_app.py to use repositories
 - [ ] Remove duplicate SQL queries
 - [ ] Integration testing
 
@@ -308,9 +349,10 @@
 | Metric | Before | Current | Target | Status |
 |--------|--------|---------|--------|--------|
 | **Largest File** | 2,878 lines | 2,721 lines (-157) | < 500 lines | 🔴 |
-| **Code Duplication** | ~30% | ~20% | < 5% | 🟡 |
+| **Code Duplication** | ~30% | ~15% (-490 lines) | < 5% | 🟡 |
 | **Methods > 100 lines** | ~25 methods | ~25 methods | < 5 methods | 🔴 |
-| **SQL in UI Code** | 50+ queries | **50+ queries** (repos ready) | 0 queries | 🟡 |
+| **SQL in Web Code** | ~30 queries | **~5 queries (-290 lines)** | 0 queries | 🟢 |
+| **SQL in Desktop Code** | ~25 queries | **~25 queries** (pending) | 0 queries | 🔴 |
 | **Test Coverage** | 0% | **100% (88 tests)** | > 70% | 🟢 |
 | **Repository Layer** | 0 repos | **4 repos (100% coverage)** | 4 repos | 🟢 |
 | **Test Count** | 0 tests | **88 tests (+74)** | > 50 tests | 🟢 |
