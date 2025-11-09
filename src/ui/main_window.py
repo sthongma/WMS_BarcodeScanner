@@ -13,8 +13,14 @@ import os
 import sys
 from typing import Dict, List, Optional, Any
 
-# Import database manager from centralized location
+# Import database manager and repositories from centralized location
 from ..database.database_manager import DatabaseManager
+from ..database import (
+    JobTypeRepository,
+    SubJobRepository,
+    ScanLogRepository,
+    DependencyRepository
+)
 
 # Import login window
 try:
@@ -34,7 +40,13 @@ class WMSScannerApp:
         
         # Initialize database manager with connection info
         self.db = DatabaseManager(connection_info)
-        
+
+        # Initialize repositories
+        self.job_type_repo = JobTypeRepository(self.db)
+        self.sub_job_repo = SubJobRepository(self.db)
+        self.scan_log_repo = ScanLogRepository(self.db)
+        self.dependency_repo = DependencyRepository(self.db)
+
         # Session variables
         self.current_job_type = tk.StringVar()
         self.current_sub_job_type = tk.StringVar()
@@ -666,47 +678,34 @@ class WMSScannerApp:
         """Refresh scanning history table with recent data"""
         try:
             print("Refreshing scanning history...")  # Debug message
-            
-            # Get recent scan data (last 50 records) with sub job types
-            query = """
-                SELECT TOP 50 
-                    sl.id, 
-                    sl.barcode, 
-                    sl.scan_date, 
-                    sl.job_type as main_job_name,
-                    sjt.sub_job_name,
-                    sl.notes,
-                    sl.user_id 
-                FROM scan_logs sl
-                LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                ORDER BY sl.scan_date DESC
-            """
-            results = self.db.execute_query(query)
-            
+
+            # Use ScanLogRepository instead of direct SQL
+            results = self.scan_log_repo.get_recent_scans(limit=50, include_sub_job_name=True)
+
             print(f"Found {len(results)} records")  # Debug message
-            
+
             # Clear existing data
             for item in self.scan_history_tree.get_children():
                 self.scan_history_tree.delete(item)
-            
+
             # Populate table
             for row in results:
                 scan_date = row['scan_date'].strftime("%Y-%m-%d %H:%M:%S") if row['scan_date'] else ""
-                sub_job_name = row['sub_job_name'] if row['sub_job_name'] else ""
-                notes = row['notes'] if row['notes'] else ""
-                
+                sub_job_name = row.get('sub_job_name', '') or ""
+                notes = row.get('notes', '') or ""
+
                 self.scan_history_tree.insert('', tk.END, values=(
                     row['id'],
                     row['barcode'],
                     scan_date,
-                    row['main_job_name'],
+                    row['job_type'],  # ScanLogRepository returns 'job_type', not 'main_job_name'
                     sub_job_name,
                     notes,
                     row['user_id']
                 ))
-            
+
             print("Scanning history refreshed successfully")  # Debug message
-                
+
         except Exception as e:
             # Don't show error message for history refresh to avoid interrupting scanning
             print(f"Error refreshing scanning history: {str(e)}")
@@ -715,29 +714,30 @@ class WMSScannerApp:
     def refresh_job_types(self):
         """Refresh job types from database"""
         try:
-            results = self.db.execute_query("SELECT id, job_name FROM job_types ORDER BY job_name")
+            # Use JobTypeRepository instead of direct SQL
+            results = self.job_type_repo.get_all_job_types()
             job_names = [row['job_name'] for row in results]
-            
+
             # Store job types with ID for validation
             self.job_types_data = {row['job_name']: row['id'] for row in results}
-            
+
             # Update UI components
             self.job_combo['values'] = job_names
             self.search_job_combo['values'] = [''] + job_names  # Include empty option for search
-            
+
             # Update settings listbox
             self.job_listbox.delete(0, tk.END)
             for result in results:
                 display_text = f"{result['job_name']} (ID: {result['id']})"
                 self.job_listbox.insert(tk.END, display_text)
-            
+
             # Refresh dependencies display
             self.refresh_dependencies_display()
-            
+
             # Refresh main job list for sub job management
             if hasattr(self, 'main_job_listbox'):
                 self.refresh_main_job_list_for_sub()
-                
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดประเภทงานได้: {str(e)}")
     
@@ -777,38 +777,35 @@ class WMSScannerApp:
         """Refresh sub job types list for selected main job"""
         if not self.current_selected_main_job_id:
             return
-        
+
         try:
             # Clear existing items
             self.sub_job_listbox.delete(0, tk.END)
-            
-            # Get sub job types for current main job
-            query = """
-                SELECT id, sub_job_name, description 
-                FROM sub_job_types 
-                WHERE main_job_id = ? AND is_active = 1
-                ORDER BY sub_job_name
-            """
-            results = self.db.execute_query(query, (self.current_selected_main_job_id,))
-            
+
+            # Use SubJobRepository instead of direct SQL
+            results = self.sub_job_repo.get_by_main_job(
+                main_job_id=self.current_selected_main_job_id,
+                active_only=True
+            )
+
             # Update sub_job_types_data
             self.sub_job_types_data = {}
-            
+
             for row in results:
                 sub_job_id = row['id']
                 sub_job_name = row['sub_job_name']
-                description = row['description'] or ""
-                
+                description = row.get('description', '') or ""
+
                 self.sub_job_types_data[sub_job_name] = sub_job_id
-                
+
                 # Display in listbox
                 display_text = f"{sub_job_name}"
                 if description:
                     display_text += f" - {description}"
                 display_text += f" (ID: {sub_job_id})"
-                
+
                 self.sub_job_listbox.insert(tk.END, display_text)
-                
+
         except Exception as e:
             print(f"Error refreshing sub job list: {str(e)}")
     
@@ -838,43 +835,37 @@ class WMSScannerApp:
         if not self.current_selected_main_job_id:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลักก่อน")
             return
-        
+
         sub_job_name = self.new_sub_job_entry.get().strip()
         description = self.sub_job_desc_entry.get().strip()
-        
+
         if not sub_job_name:
             messagebox.showwarning("คำเตือน", "กรุณาใส่ชื่อประเภทงานย่อย")
             return
-        
+
         try:
+            # Use SubJobRepository instead of direct SQL
             # Check for duplicate name within the same main job
-            check_query = """
-                SELECT COUNT(*) as count 
-                FROM sub_job_types 
-                WHERE main_job_id = ? AND sub_job_name = ? AND is_active = 1
-            """
-            result = self.db.execute_query(check_query, (self.current_selected_main_job_id, sub_job_name))
-            
-            if result[0]['count'] > 0:
+            if self.sub_job_repo.duplicate_exists(self.current_selected_main_job_id, sub_job_name):
                 messagebox.showwarning("คำเตือน", "ชื่อประเภทงานย่อยนี้มีอยู่แล้ว")
                 return
-            
+
             # Insert new sub job type
-            insert_query = """
-                INSERT INTO sub_job_types (main_job_id, sub_job_name, description) 
-                VALUES (?, ?, ?)
-            """
-            self.db.execute_non_query(insert_query, (self.current_selected_main_job_id, sub_job_name, description))
-            
+            self.sub_job_repo.create_sub_job(
+                main_job_id=self.current_selected_main_job_id,
+                sub_job_name=sub_job_name,
+                description=description
+            )
+
             # Clear input fields
             self.new_sub_job_entry.delete(0, tk.END)
             self.sub_job_desc_entry.delete(0, tk.END)
-            
+
             # Refresh list
             self.refresh_sub_job_list()
-            
+
             messagebox.showinfo("สำเร็จ", f"เพิ่มประเภทงานย่อย '{sub_job_name}' แล้ว")
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถเพิ่มประเภทงานย่อยได้: {str(e)}")
     
@@ -883,21 +874,18 @@ class WMSScannerApp:
         if not self.current_selected_sub_job_id:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อยที่จะแก้ไข")
             return
-        
-        # Get current data
+
+        # Get current data using SubJobRepository
         try:
-            query = "SELECT sub_job_name, description FROM sub_job_types WHERE id = ?"
-            result = self.db.execute_query(query, (self.current_selected_sub_job_id,))
-            
-            if not result:
+            current_data = self.sub_job_repo.find_by_id(self.current_selected_sub_job_id)
+
+            if not current_data:
                 messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลประเภทงานย่อย")
                 return
-            
-            current_data = result[0]
-            
+
             # Show edit dialog
             self.show_sub_job_edit_dialog(self.current_selected_sub_job_id, current_data)
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดข้อมูลได้: {str(e)}")
     
@@ -906,37 +894,35 @@ class WMSScannerApp:
         if not self.current_selected_sub_job_id:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อยที่จะลบ")
             return
-        
-        # Get sub job name for confirmation
+
+        # Get sub job name for confirmation using SubJobRepository
         try:
-            query = "SELECT sub_job_name FROM sub_job_types WHERE id = ?"
-            result = self.db.execute_query(query, (self.current_selected_sub_job_id,))
-            
-            if not result:
+            sub_job_data = self.sub_job_repo.find_by_id(self.current_selected_sub_job_id)
+
+            if not sub_job_data:
                 messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลประเภทงานย่อย")
                 return
-            
-            sub_job_name = result[0]['sub_job_name']
-            
+
+            sub_job_name = sub_job_data['sub_job_name']
+
             # Confirm deletion
-            if messagebox.askyesno("ยืนยัน", 
+            if messagebox.askyesno("ยืนยัน",
                                   f"ต้องการลบประเภทงานย่อย '{sub_job_name}' หรือไม่?\n\n" +
                                   "หมายเหตุ: ข้อมูลการสแกนที่ใช้ประเภทงานย่อยนี้จะยังคงอยู่ แต่จะไม่สามารถเลือกใช้ได้อีก"):
-                
-                # Soft delete (set is_active = 0)
-                update_query = "UPDATE sub_job_types SET is_active = 0 WHERE id = ?"
-                self.db.execute_non_query(update_query, (self.current_selected_sub_job_id,))
-                
+
+                # Soft delete (set is_active = 0) using SubJobRepository
+                self.sub_job_repo.soft_delete(self.current_selected_sub_job_id)
+
                 messagebox.showinfo("สำเร็จ", f"ลบประเภทงานย่อย '{sub_job_name}' แล้ว")
-                
+
                 # Refresh list
                 self.refresh_sub_job_list()
-                
+
                 # Reset button states
                 self.edit_sub_job_btn.config(state=tk.DISABLED)
                 self.delete_sub_job_btn.config(state=tk.DISABLED)
                 self.current_selected_sub_job_id = None
-                
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบประเภทงานย่อยได้: {str(e)}")
     
@@ -984,32 +970,29 @@ class WMSScannerApp:
                 return
             
             try:
+                # Use SubJobRepository instead of direct SQL
                 # Check for duplicate name (excluding current record)
-                check_query = """
-                    SELECT COUNT(*) as count 
-                    FROM sub_job_types 
-                    WHERE main_job_id = ? AND sub_job_name = ? AND id != ? AND is_active = 1
-                """
-                result = self.db.execute_query(check_query, (self.current_selected_main_job_id, new_name, sub_job_id))
-                
-                if result[0]['count'] > 0:
+                if self.sub_job_repo.duplicate_exists(
+                    main_job_id=self.current_selected_main_job_id,
+                    sub_job_name=new_name,
+                    exclude_id=sub_job_id
+                ):
                     messagebox.showwarning("คำเตือน", "ชื่อประเภทงานย่อยนี้มีอยู่แล้ว")
                     return
-                
-                # Update database
-                update_query = """
-                    UPDATE sub_job_types 
-                    SET sub_job_name = ?, description = ?, updated_date = GETDATE() 
-                    WHERE id = ?
-                """
-                self.db.execute_non_query(update_query, (new_name, new_desc, sub_job_id))
-                
+
+                # Update database using SubJobRepository
+                self.sub_job_repo.update_sub_job(
+                    sub_job_id=sub_job_id,
+                    sub_job_name=new_name,
+                    description=new_desc
+                )
+
                 messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
                 dialog.destroy()
-                
+
                 # Refresh list
                 self.refresh_sub_job_list()
-                
+
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
         
@@ -1156,35 +1139,36 @@ class WMSScannerApp:
         """Save dependencies for selected job"""
         if not self.current_selected_job:
             return
-        
+
         try:
+            # Use DependencyRepository instead of direct SQL
             # Delete existing dependencies
-            self.db.execute_non_query("DELETE FROM job_dependencies WHERE job_id = ?", 
-                                     (self.current_selected_job,))
-            
+            self.dependency_repo.remove_all_dependencies(self.current_selected_job)
+
             # Insert new dependencies
             for job_id, var in self.dependencies_vars.items():
                 if var.get():
-                    self.db.execute_non_query(
-                        "INSERT INTO job_dependencies (job_id, required_job_id) VALUES (?, ?)",
-                        (self.current_selected_job, job_id)
+                    self.dependency_repo.add_dependency(
+                        job_id=self.current_selected_job,
+                        required_job_id=job_id
                     )
-            
+
             messagebox.showinfo("สำเร็จ", "บันทึกการตั้งค่า Dependencies แล้ว")
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกการตั้งค่าได้: {str(e)}")
     
     def add_job_type(self):
         """Add new job type"""
         job_name = self.new_job_entry.get().strip()
-        
+
         if not job_name:
             messagebox.showwarning("คำเตือน", "กรุณาใส่ชื่อประเภทงาน")
             return
-        
+
         try:
-            self.db.execute_non_query("INSERT INTO job_types (job_name) VALUES (?)", (job_name,))
+            # Use JobTypeRepository instead of direct SQL
+            self.job_type_repo.create_job_type(job_name)
             self.new_job_entry.delete(0, tk.END)
             self.refresh_job_types()
             messagebox.showinfo("สำเร็จ", f"เพิ่มประเภทงาน '{job_name}' แล้ว")
@@ -1197,20 +1181,22 @@ class WMSScannerApp:
         if not selection:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานที่จะลบ")
             return
-        
+
         # Get the display text and extract job name
         display_text = self.job_listbox.get(selection[0])
         # Extract job name from "job_name (ID: X)" format
         job_name = display_text.split(" (ID: ")[0]
         job_id = self.job_types_data.get(job_name)
-        
+
         if messagebox.askyesno("ยืนยัน", f"ต้องการลบประเภทงาน '{job_name}' หรือไม่?\n(จะลบ Dependencies ที่เกี่ยวข้องด้วย)"):
             try:
-                # Delete dependencies first
-                self.db.execute_non_query("DELETE FROM job_dependencies WHERE job_id = ? OR required_job_id = ?", 
-                                         (job_id, job_id))
+                # Use DependencyRepository and JobTypeRepository instead of direct SQL
+                # Delete dependencies where this job is dependent on others
+                self.dependency_repo.remove_all_dependencies(job_id)
+                # Delete dependencies where others depend on this job
+                self.dependency_repo.remove_where_required(job_id)
                 # Delete job type
-                self.db.execute_non_query("DELETE FROM job_types WHERE id = ?", (job_id,))
+                self.job_type_repo.delete_job_type(job_id)
                 self.refresh_job_types()
                 # Reset selection
                 self.current_selected_job = None
@@ -1242,30 +1228,29 @@ class WMSScannerApp:
         try:
             # Get job IDs
             main_job_id = self.job_types_data.get(job_type)
-            
-            # Get sub job ID
-            sub_job_query = """
-                SELECT id FROM sub_job_types 
-                WHERE main_job_id = ? AND sub_job_name = ? AND is_active = 1
-            """
-            sub_job_result = self.db.execute_query(sub_job_query, (main_job_id, sub_job_type))
-            
-            if not sub_job_result:
+
+            # Use SubJobRepository to get sub job ID
+            sub_job_data = self.sub_job_repo.find_by_name(main_job_id, sub_job_type)
+
+            if not sub_job_data:
                 messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
                 return
-            
-            sub_job_id = sub_job_result[0]['id']
-            
-            # Check for existing scan with same barcode + main job + sub job combination
-            existing = self.db.execute_query(
-                "SELECT scan_date, user_id FROM scan_logs WHERE barcode = ? AND job_id = ? AND sub_job_id = ? ORDER BY scan_date DESC", 
-                (barcode, main_job_id, sub_job_id)
+
+            sub_job_id = sub_job_data['id']
+
+            # Use ScanLogRepository to check for existing scan with same combination
+            existing = self.scan_log_repo.check_duplicate(
+                barcode=barcode,
+                job_id=main_job_id,
+                hours=24*365  # Check entire history
             )
-            if existing:
+
+            # Check if the existing scan has the same sub_job_id
+            if existing and existing.get('sub_job_id') == sub_job_id:
                 # Clear barcode immediately when duplicate is detected
                 self.barcode_entry_var.set("")
                 # Show duplicate warning with details - no option to continue
-                self.show_duplicate_info(barcode, job_type, sub_job_type, existing[0])
+                self.show_duplicate_info(barcode, job_type, sub_job_type, existing)
                 return
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถตรวจสอบข้อมูลซ้ำได้: {str(e)}")
@@ -1277,34 +1262,34 @@ class WMSScannerApp:
         
         # Save barcode
         try:
-            self.db.execute_non_query(
-                "INSERT INTO scan_logs (barcode, scan_date, job_type, user_id, job_id, sub_job_id, notes) VALUES (?, GETDATE(), ?, ?, ?, ?, ?)",
-                (barcode, job_type, self.db.current_user, main_job_id, sub_job_id, notes)
+            # Use ScanLogRepository to create scan
+            self.scan_log_repo.create_scan(
+                barcode=barcode,
+                job_type=job_type,
+                user_id=self.db.current_user,
+                job_id=main_job_id,
+                sub_job_id=sub_job_id,
+                notes=notes
             )
-            
-            # Get the ID of the newly inserted record
-            scan_id_result = self.db.execute_query("SELECT @@IDENTITY as scan_id")
-            scan_id = scan_id_result[0]['scan_id'] if scan_id_result else "N/A"
-            
-            # Update status
+
+            # Update status (commented out in original code)
             # current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # status_text = f"สแกนสำเร็จ | ID: {scan_id} | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
+            # status_text = f"สแกนสำเร็จ | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
             # if notes:
             #     status_text += f" | หมายเหตุ: {notes}"
             # status_text += f" | เวลา: {current_time}"
-            
             # self.status_label.config(text=status_text, foreground="green")
-            
+
             # Clear input for next scan
             self.barcode_entry_var.set("")
             # Keep job types and notes (user might want to scan multiple items with same settings)
-            
+
             # Refresh scanning history table
             self.refresh_scanning_history()
-            
+
             # Update today summary
             self.load_today_summary()
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกข้อมูลได้: {str(e)}")
             self.status_label.config(text="เกิดข้อผิดพลาดในการบันทึก", foreground="red")
@@ -1313,34 +1298,27 @@ class WMSScannerApp:
         """Check if barcode can be scanned based on job dependencies"""
         try:
             current_job_id = self.job_types_data.get(job_type, 0)
-            
-            # Get required job IDs for current job type
-            required_jobs_query = """
-                SELECT jd.required_job_id, jt.job_name 
-                FROM job_dependencies jd
-                JOIN job_types jt ON jd.required_job_id = jt.id
-                WHERE jd.job_id = ?
-            """
-            required_jobs = self.db.execute_query(required_jobs_query, (current_job_id,))
-            
+
+            # Use DependencyRepository instead of direct SQL
+            required_jobs = self.dependency_repo.get_required_jobs(current_job_id)
+
             if not required_jobs:
                 # No dependencies, can scan
                 return True
-            
-            # Check if all required jobs have been scanned for this barcode (excluding same job type)
+
+            # Check if all required jobs have been scanned for this barcode
             for required_job in required_jobs:
                 required_job_id = required_job['required_job_id']
                 required_job_name = required_job['job_name']
-                
-                # Check if this required job has been scanned for this barcode
-                check_query = """
-                    SELECT COUNT(*) as count 
-                    FROM scan_logs 
-                    WHERE barcode = ? AND job_id = ?
-                """
-                result = self.db.execute_query(check_query, (barcode, required_job_id))
-                
-                if result[0]['count'] == 0:
+
+                # Use ScanLogRepository to check if barcode was scanned for required job
+                duplicate = self.scan_log_repo.check_duplicate(
+                    barcode=barcode,
+                    job_id=required_job_id,
+                    hours=24*365  # Check entire history
+                )
+
+                if duplicate is None:
                     # Required job not found, show warning
                     self.status_label.config(
                         text=f"ไม่มีงาน {required_job_name}",
@@ -1352,10 +1330,10 @@ class WMSScannerApp:
                     )
                     self.barcode_entry_var.set("")  # Clear input
                     return False
-            
+
             # All dependencies satisfied
             return True
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการตรวจสอบ Dependencies: {str(e)}")
             return False

@@ -259,6 +259,75 @@ class TestSubJobRepositoryCount:
 
 @pytest.mark.unit
 @pytest.mark.database
+class TestSubJobRepositoryAdvanced:
+    """Test advanced sub job operations"""
+
+    def test_get_all_active(self, sub_job_repo, mock_db_manager):
+        """Test getting all active sub jobs across all main jobs"""
+        mock_db_manager.execute_query.return_value = [
+            {'id': 1, 'main_job_id': 1, 'sub_job_name': 'Receiving', 'description': 'Receive items'},
+            {'id': 2, 'main_job_id': 2, 'sub_job_name': 'Picking', 'description': 'Pick items'},
+            {'id': 3, 'main_job_id': 1, 'sub_job_name': 'Putaway', 'description': 'Store items'}
+        ]
+
+        results = sub_job_repo.get_all_active()
+
+        assert len(results) == 3
+        assert results[0]['sub_job_name'] == 'Receiving'
+        assert results[1]['main_job_id'] == 2
+        mock_db_manager.execute_query.assert_called_once()
+
+        # Verify query filters by is_active and orders by sub_job_name
+        call_args = mock_db_manager.execute_query.call_args[0]
+        assert "WHERE is_active = 1" in call_args[0]
+        assert "ORDER BY sub_job_name" in call_args[0]
+
+    def test_get_all_active_empty(self, sub_job_repo, mock_db_manager):
+        """Test getting all active sub jobs when none exist"""
+        mock_db_manager.execute_query.return_value = []
+
+        results = sub_job_repo.get_all_active()
+
+        assert len(results) == 0
+
+    def test_update_sub_job(self, sub_job_repo, mock_db_manager):
+        """Test updating a sub job's name and description"""
+        mock_db_manager.execute_non_query.return_value = 1
+
+        rowcount = sub_job_repo.update_sub_job(
+            sub_job_id=5,
+            sub_job_name='New Name',
+            description='New Description'
+        )
+
+        assert rowcount == 1
+        mock_db_manager.execute_non_query.assert_called_once()
+
+        # Verify UPDATE query
+        call_args = mock_db_manager.execute_non_query.call_args[0]
+        assert "UPDATE sub_job_types" in call_args[0]
+        assert "SET sub_job_name = ?" in call_args[0]
+        assert "description = ?" in call_args[0]
+        assert "updated_date = GETDATE()" in call_args[0]
+        assert "WHERE id = ?" in call_args[0]
+        assert call_args[1] == ('New Name', 'New Description', 5)
+
+    def test_update_sub_job_no_description(self, sub_job_repo, mock_db_manager):
+        """Test updating sub job without description"""
+        mock_db_manager.execute_non_query.return_value = 1
+
+        rowcount = sub_job_repo.update_sub_job(
+            sub_job_id=3,
+            sub_job_name='Updated Name'
+        )
+
+        assert rowcount == 1
+        call_args = mock_db_manager.execute_non_query.call_args[0]
+        assert call_args[1] == ('Updated Name', '', 3)
+
+
+@pytest.mark.unit
+@pytest.mark.database
 class TestSubJobRepositoryTableManagement:
     """Test table creation and management"""
 

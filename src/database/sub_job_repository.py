@@ -197,6 +197,45 @@ class SubJobRepository(BaseRepository):
 
         return results[0]['count'] > 0 if results else False
 
+    def get_all_active(self) -> List[Dict[str, Any]]:
+        """
+        Get all active sub jobs across all main jobs
+
+        Returns:
+            List of active sub job dictionaries
+        """
+        query = """
+            SELECT id, main_job_id, sub_job_name, description
+            FROM sub_job_types
+            WHERE is_active = 1
+            ORDER BY sub_job_name
+        """
+        return self.db.execute_query(query)
+
+    def update_sub_job(
+        self,
+        sub_job_id: int,
+        sub_job_name: str,
+        description: str = ""
+    ) -> int:
+        """
+        Update a sub job's name and description
+
+        Args:
+            sub_job_id: ID of the sub job to update
+            sub_job_name: New name for the sub job
+            description: New description
+
+        Returns:
+            Number of rows affected
+        """
+        query = """
+            UPDATE sub_job_types
+            SET sub_job_name = ?, description = ?, updated_date = GETDATE()
+            WHERE id = ?
+        """
+        return self.db.execute_non_query(query, (sub_job_name, description, sub_job_id))
+
     def get_active_count(self, main_job_id: Optional[int] = None) -> int:
         """
         Get count of active sub jobs

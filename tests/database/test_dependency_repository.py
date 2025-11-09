@@ -196,6 +196,21 @@ class TestDependencyRepositoryManagement:
         assert "required_job_id" not in call_args[0]
         assert call_args[1] == (3,)
 
+    def test_remove_where_required(self, dependency_repo, mock_db_manager):
+        """Test removing all dependencies where a job is required"""
+        mock_db_manager.execute_non_query.return_value = 2
+
+        rowcount = dependency_repo.remove_where_required(required_job_id=5)
+
+        assert rowcount == 2
+        mock_db_manager.execute_non_query.assert_called_once()
+
+        # Verify DELETE query filters by required_job_id
+        call_args = mock_db_manager.execute_non_query.call_args[0]
+        assert "DELETE FROM job_dependencies" in call_args[0]
+        assert "WHERE required_job_id = ?" in call_args[0]
+        assert call_args[1] == (5,)
+
     def test_dependency_exists_true(self, dependency_repo, mock_db_manager):
         """Test checking if dependency exists (returns true)"""
         mock_db_manager.execute_query.return_value = [{'count': 1}]

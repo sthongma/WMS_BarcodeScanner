@@ -171,6 +171,23 @@ class DependencyRepository(BaseRepository):
         query = "DELETE FROM job_dependencies WHERE job_id = ?"
         return self.db.execute_non_query(query, (job_id,))
 
+    def remove_where_required(self, required_job_id: int) -> int:
+        """
+        Remove all dependencies where this job is the required job
+
+        Args:
+            required_job_id: ID of the job that is required by others
+
+        Returns:
+            Number of rows affected
+
+        Note:
+            This is used when deleting a job type to remove all dependencies
+            where this job is required by other jobs
+        """
+        query = "DELETE FROM job_dependencies WHERE required_job_id = ?"
+        return self.db.execute_non_query(query, (required_job_id,))
+
     def dependency_exists(self, job_id: int, required_job_id: int) -> bool:
         """
         Check if a dependency already exists
