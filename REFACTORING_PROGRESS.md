@@ -2,12 +2,13 @@
 
 ## 📋 Summary
 - **Start Date:** 2025-11-09
-- **Current Phase:** Phase 3 Complete ✅ - Phase 4 Next
-- **Overall Completion:** 80% (3/4 major phases complete)
-- **Test Coverage:** 19% (190/190 tests passing - 100% success rate)
+- **Current Phase:** Phase 4 In Progress 🔄 (40% complete)
+- **Overall Completion:** 84% (Phase 3 complete, Phase 4 in progress)
+- **Test Coverage:** 23% (190/190 tests passing - 100% success rate)
 - **New Tests Added:** +177 tests (13 → 190)
-- **Code Reduced:** ~530 lines removed from UI layer
+- **Code Reduced:** ~805 lines removed from UI layer (+275 from Phase 4)
 - **Service Layer:** 4 services with 88-100% coverage
+- **Dialog Layer:** 3 dialogs (267 lines, extracted & integrated)
 - **Strategy:** Incremental refactoring, Test-driven development
 
 ---
@@ -764,28 +765,71 @@ These are acceptable to keep as direct SQL since they involve complex joins, dyn
 ---
 
 ### Phase 4: Break Down main_window.py
-**Status:** ⏳ Pending
+**Status:** 🔄 In Progress (40% complete)
+**Started:** 2025-11-09
 **Estimated Time:** 12-16 hours
 
-**Objective:** Reduce main_window.py from 2,878 lines to < 300 lines
+**Objective:** Reduce main_window.py from 2,652 lines to < 300 lines
+
+**Progress:**
+
+- ✅ **Phase 4.1:** Create infrastructure (tabs & dialogs directories, BaseTab class)
+- ✅ **Phase 4.2A:** Extract 3 dialog classes (267 lines)
+- ✅ **Phase 4.2B:** Integrate dialogs into main_window.py (-275 lines)
+- ⏳ **Phase 4.3:** Extract 6 tab classes (Next)
+- ⏳ **Phase 4.4:** Refactor WMSScannerApp to orchestrator only
 
 **Tasks:**
-- [ ] Extract ScanningTab class + tests
-- [ ] Extract HistoryTab class + tests
-- [ ] Extract ReportsTab class + tests
-- [ ] Extract SettingsTab class + tests
+
+- [x] Extract dialog classes (DuplicateWarningDialog, SubJobEditDialog, EditScanDialog)
+- [x] Integrate dialogs into main_window.py
 - [ ] Extract ImportTab class + tests
-- [ ] Extract dialog classes
+- [ ] Extract ReportsTab class + tests
+- [ ] Extract HistoryTab class + tests
+- [ ] Extract ScanningTab class + tests
+- [ ] Extract SettingsTab class + tests
+- [ ] Extract SubJobSettingsTab class + tests
 - [ ] Refactor WMSScannerApp to orchestrator only
 
-**Files to Create:**
-- `src/ui/tabs/scanning_tab.py`
-- `src/ui/tabs/history_tab.py`
-- `src/ui/tabs/reports_tab.py`
-- `src/ui/tabs/settings_tab.py`
+**Files Created:**
+
+✅ Infrastructure:
+
+- `src/ui/tabs/__init__.py`
+- `src/ui/tabs/base_tab.py` (27 lines, 37% coverage)
+- `src/ui/dialogs/__init__.py`
+- `tests/ui/tabs/__init__.py`
+- `tests/ui/tabs/test_base_tab.py` (7 tests, 100% passing)
+- `tests/ui/dialogs/__init__.py`
+
+✅ Dialogs (267 lines total):
+
+- `src/ui/dialogs/duplicate_warning_dialog.py` (62 lines)
+- `src/ui/dialogs/sub_job_edit_dialog.py` (62 lines)
+- `src/ui/dialogs/edit_scan_dialog.py` (143 lines)
+
+⏳ Tabs (Pending):
+
 - `src/ui/tabs/import_tab.py`
-- `src/ui/dialogs/edit_scan_dialog.py`
-- `src/ui/dialogs/duplicate_warning_dialog.py`
+- `src/ui/tabs/reports_tab.py`
+- `src/ui/tabs/history_tab.py`
+- `src/ui/tabs/scanning_tab.py`
+- `src/ui/tabs/settings_tab.py`
+- `src/ui/tabs/sub_job_settings_tab.py`
+
+**Code Metrics:**
+
+- main_window.py: 2,652 → 2,377 lines (-275 lines, -10.4%)
+- Dialog methods: 326 → 43 lines (-87%)
+- Still to extract: ~2,100 lines of tab code
+- Target: < 300 lines
+
+**Test Results:**
+
+- Total Tests: 190 (100% passing ✅)
+- BaseTab Tests: 7 tests
+- Coverage: 23% overall
+- No regressions
 
 ---
 
