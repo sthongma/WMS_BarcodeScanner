@@ -22,6 +22,14 @@ from ..database import (
     DependencyRepository
 )
 
+# Import services
+from ..services import (
+    ScanService,
+    DependencyService,
+    ReportService,
+    ImportService
+)
+
 # Import login window
 try:
     from .login_window import LoginWindow
@@ -46,6 +54,27 @@ class WMSScannerApp:
         self.sub_job_repo = SubJobRepository(self.db)
         self.scan_log_repo = ScanLogRepository(self.db)
         self.dependency_repo = DependencyRepository(self.db)
+
+        # Initialize services
+        self.scan_service = ScanService(
+            scan_log_repo=self.scan_log_repo,
+            sub_job_repo=self.sub_job_repo,
+            dependency_repo=self.dependency_repo
+        )
+        self.dependency_service = DependencyService(
+            dependency_repo=self.dependency_repo,
+            job_type_repo=self.job_type_repo
+        )
+        self.report_service = ReportService(
+            scan_log_repo=self.scan_log_repo,
+            job_type_repo=self.job_type_repo,
+            sub_job_repo=self.sub_job_repo
+        )
+        self.import_service = ImportService(
+            job_type_repo=self.job_type_repo,
+            sub_job_repo=self.sub_job_repo,
+            scan_log_repo=self.scan_log_repo
+        )
 
         # Session variables
         self.current_job_type = tk.StringVar()
@@ -1127,27 +1156,39 @@ class WMSScannerApp:
             print(f"Error refreshing dependencies: {str(e)}")
     
     def save_dependencies(self):
-        """Save dependencies for selected job"""
+        """Save dependencies for selected job using DependencyService"""
         if not self.current_selected_job:
             return
 
-        try:
-            # Use DependencyRepository instead of direct SQL
-            # Delete existing dependencies
-            self.dependency_repo.remove_all_dependencies(self.current_selected_job)
+        # Collect selected dependencies from checkboxes
+        required_job_ids = [
+            job_id for job_id, var in self.dependencies_vars.items()
+            if var.get()
+        ]
 
-            # Insert new dependencies
-            for job_id, var in self.dependencies_vars.items():
-                if var.get():
-                    self.dependency_repo.add_dependency(
-                        job_id=self.current_selected_job,
-                        required_job_id=job_id
-                    )
+        # Use DependencyService to save dependencies (handles validation and circular checks)
+        result = self.dependency_service.save_dependencies(
+            job_id=self.current_selected_job,
+            required_job_ids=required_job_ids
+        )
 
-            messagebox.showinfo("สำเร็จ", "บันทึกการตั้งค่า Dependencies แล้ว")
-
-        except Exception as e:
-            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกการตั้งค่าได้: {str(e)}")
+        # Handle the result
+        if result['success']:
+            added_count = result['data'].get('added_count', 0)
+            removed_count = result['data'].get('removed_count', 0)
+            messagebox.showinfo(
+                "สำเร็จ",
+                f"บันทึกการตั้งค่า Dependencies แล้ว\n"
+                f"ลบ: {removed_count} รายการ, เพิ่ม: {added_count} รายการ"
+            )
+        else:
+            # Show errors if any
+            errors = result['data'].get('errors', [])
+            if errors:
+                error_msg = result['message'] + "\n\nรายละเอียด:\n" + "\n".join(errors)
+                messagebox.showerror("ข้อผิดพลาด", error_msg)
+            else:
+                messagebox.showerror("ข้อผิดพลาด", result['message'])
     
     def add_job_type(self):
         """Add new job type"""
@@ -1198,92 +1239,75 @@ class WMSScannerApp:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบประเภทงานได้: {str(e)}")
     
     def process_barcode(self, event=None):
-        """Process scanned barcode"""
+        """Process scanned barcode using ScanService"""
         barcode = self.barcode_entry_var.get().strip()
         job_type = self.current_job_type.get()
         sub_job_type = self.current_sub_job_type.get()
         notes = self.notes_var.get().strip()
-        
+
+        # Basic input validation (UI layer responsibility)
         if not barcode:
             return
-        
+
         if not job_type:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลักก่อน")
             return
-        
+
         if not sub_job_type:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อยก่อน")
             return
-        
-        # Check for duplicates in same main job + sub job combination - no duplicates allowed
-        try:
-            # Get job IDs
-            main_job_id = self.job_types_data.get(job_type)
 
-            # Use SubJobRepository to get sub job ID
-            sub_job_data = self.sub_job_repo.find_by_name(main_job_id, sub_job_type)
-
-            if not sub_job_data:
-                messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
-                return
-
-            sub_job_id = sub_job_data['id']
-
-            # Use ScanLogRepository to check for existing scan with same combination
-            existing = self.scan_log_repo.check_duplicate(
-                barcode=barcode,
-                job_id=main_job_id,
-                hours=24*365  # Check entire history
-            )
-
-            # Check if the existing scan has the same sub_job_id
-            if existing and existing.get('sub_job_id') == sub_job_id:
-                # Clear barcode immediately when duplicate is detected
-                self.barcode_entry_var.set("")
-                # Show duplicate warning with details - no option to continue
-                self.show_duplicate_info(barcode, job_type, sub_job_type, existing)
-                return
-        except Exception as e:
-            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถตรวจสอบข้อมูลซ้ำได้: {str(e)}")
+        # Get main job ID
+        main_job_id = self.job_types_data.get(job_type)
+        if not main_job_id:
+            messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานหลักที่เลือก")
             return
-        
-        # Check dependencies validation AFTER duplicate check (using main job only)
-        if not self.check_dependencies(barcode, job_type):
-            return
-        
-        # Save barcode
-        try:
-            # Use ScanLogRepository to create scan
-            self.scan_log_repo.create_scan(
-                barcode=barcode,
-                job_type=job_type,
-                user_id=self.db.current_user,
-                job_id=main_job_id,
-                sub_job_id=sub_job_id,
-                notes=notes
-            )
 
-            # Update status (commented out in original code)
-            # current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # status_text = f"สแกนสำเร็จ | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
-            # if notes:
-            #     status_text += f" | หมายเหตุ: {notes}"
-            # status_text += f" | เวลา: {current_time}"
-            # self.status_label.config(text=status_text, foreground="green")
+        # Use ScanService to process the scan (handles all business logic)
+        result = self.scan_service.process_scan(
+            barcode=barcode,
+            job_type_name=job_type,
+            job_id=main_job_id,
+            sub_job_type_name=sub_job_type,
+            user_id=self.db.current_user,
+            notes=notes
+        )
 
-            # Clear input for next scan
+        # Handle the result (UI layer responsibility)
+        if not result['success']:
+            # Clear barcode on error
             self.barcode_entry_var.set("")
-            # Keep job types and notes (user might want to scan multiple items with same settings)
 
-            # Refresh scanning history table
-            self.refresh_scanning_history()
+            # Check error type and show appropriate message
+            message = result['message']
 
-            # Update today summary
-            self.load_today_summary()
+            if 'ซ้ำ' in message or 'duplicate' in message.lower():
+                # Duplicate detected - show detailed info
+                duplicate_info = result['data'].get('duplicate_info')
+                if duplicate_info:
+                    self.show_duplicate_info(barcode, job_type, sub_job_type, duplicate_info)
+                else:
+                    messagebox.showwarning("คำเตือน", message)
+            elif 'ไม่มีงาน' in message or 'dependency' in message.lower():
+                # Missing dependencies - show warning
+                self.status_label.config(text=message, foreground="red")
+                messagebox.showwarning("คำเตือน", message)
+            else:
+                # Other errors
+                messagebox.showerror("ข้อผิดพลาด", message)
+                self.status_label.config(text="เกิดข้อผิดพลาดในการบันทึก", foreground="red")
 
-        except Exception as e:
-            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกข้อมูลได้: {str(e)}")
-            self.status_label.config(text="เกิดข้อผิดพลาดในการบันทึก", foreground="red")
+            return
+
+        # Success! Clear input and refresh UI
+        self.barcode_entry_var.set("")
+        # Keep job types and notes (user might want to scan multiple items with same settings)
+
+        # Refresh scanning history table
+        self.refresh_scanning_history()
+
+        # Update today summary
+        self.load_today_summary()
     
     def check_dependencies(self, barcode, job_type):
         """Check if barcode can be scanned based on job dependencies"""
@@ -1519,92 +1543,54 @@ class WMSScannerApp:
                 self.report_sub_job_types_data = {"ทั้งหมด": None}
     
     def run_report(self):
-        """Generate report with filters like Web App"""
+        """Generate report using ReportService"""
         # Get filter values
         report_date = self.report_date_var.get()
         selected_job_type = self.report_job_type_var.get()
         selected_sub_job_type = self.report_sub_job_type_var.get()
         note_filter = self.report_note_filter_var.get().strip()
-        
+
         # Validate inputs
         if not report_date:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกวันที่")
             return
-        
+
         if not selected_job_type:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกงานหลัก")
             return
-        
+
         try:
             # Get actual IDs
             job_type_id = self.report_job_types_data.get(selected_job_type)
+            if not job_type_id:
+                messagebox.showerror("ข้อผิดพลาด", "ไม่พบงานหลักที่เลือก")
+                return
+
             sub_job_type_id = None
             if selected_sub_job_type and hasattr(self, 'report_sub_job_types_data'):
                 sub_job_type_id = self.report_sub_job_types_data.get(selected_sub_job_type)
-            
-            # Build query similar to Web App
-            if job_type_id and sub_job_type_id:
-                # Specific job type and sub job type
-                report_query = """
-                    SELECT 
-                        sl.barcode,
-                        sl.scan_date,
-                        sl.notes,
-                        sl.user_id,
-                        jt.job_name as job_type_name,
-                        sjt.sub_job_name as sub_job_type_name
-                    FROM scan_logs sl
-                    LEFT JOIN job_types jt ON sl.job_id = jt.id
-                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                    WHERE sl.job_id = ? 
-                    AND sl.sub_job_id = ?
-                    AND CAST(sl.scan_date AS DATE) = ?
-                """
-                params = [job_type_id, sub_job_type_id, report_date]
-            elif job_type_id:
-                # Specific job type, all sub job types
-                report_query = """
-                    SELECT 
-                        sl.barcode,
-                        sl.scan_date,
-                        sl.notes,
-                        sl.user_id,
-                        jt.job_name as job_type_name,
-                        ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
-                    FROM scan_logs sl
-                    LEFT JOIN job_types jt ON sl.job_id = jt.id
-                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                    WHERE sl.job_id = ? 
-                    AND CAST(sl.scan_date AS DATE) = ?
-                """
-                params = [job_type_id, report_date]
-            else:
-                # All job types
-                report_query = """
-                    SELECT 
-                        sl.barcode,
-                        sl.scan_date,
-                        sl.notes,
-                        sl.user_id,
-                        jt.job_name as job_type_name,
-                        ISNULL(sjt.sub_job_name, 'ไม่มี') as sub_job_type_name
-                    FROM scan_logs sl
-                    LEFT JOIN job_types jt ON sl.job_id = jt.id
-                    LEFT JOIN sub_job_types sjt ON sl.sub_job_id = sjt.id
-                    WHERE CAST(sl.scan_date AS DATE) = ?
-                """
-                params = [report_date]
-            
-            # Add note filter if specified
-            if note_filter:
-                report_query += " AND sl.notes LIKE ?"
-                params.append(f"%{note_filter}%")
-            
-            report_query += " ORDER BY sl.scan_date DESC"
-            
-            # Execute query
-            results = self.db.execute_query(report_query, tuple(params))
-            
+
+            # Use ReportService to generate report (handles all business logic and SQL)
+            result = self.report_service.generate_report(
+                report_date=report_date,
+                job_id=job_type_id,
+                sub_job_id=sub_job_type_id,
+                notes_filter=note_filter if note_filter else None
+            )
+
+            # Handle the result
+            if not result['success']:
+                messagebox.showerror("ข้อผิดพลาด", result['message'])
+                # Clear table
+                for item in self.report_tree.get_children():
+                    self.report_tree.delete(item)
+                return
+
+            # Get report data from result
+            report_data = result['data']
+            results = report_data['scans']
+            statistics = report_data['statistics']
+
             # Store data for export
             self.current_report_data = results
             self.current_report_summary = {
@@ -1612,26 +1598,27 @@ class WMSScannerApp:
                 'job_type_name': selected_job_type,
                 'sub_job_type_name': selected_sub_job_type or 'ทั้งหมด',
                 'note_filter': note_filter if note_filter else None,
-                'total_count': len(results),
+                'total_count': statistics['total_scans'],
+                'unique_barcodes': statistics['unique_barcodes'],
                 'generated_at': datetime.datetime.now().isoformat()
             }
-            
+
             if not results:
                 messagebox.showinfo("ผลลัพธ์", "ไม่พบข้อมูลในวันที่ที่เลือก")
                 # Clear table
                 for item in self.report_tree.get_children():
                     self.report_tree.delete(item)
                 return
-            
+
             # Clear existing data
             for item in self.report_tree.get_children():
                 self.report_tree.delete(item)
-            
+
             # Setup columns
             columns = ['barcode', 'scan_date', 'job_type_name', 'sub_job_type_name', 'user_id', 'notes']
             self.report_tree['columns'] = columns
             self.report_tree['show'] = 'headings'
-            
+
             # Configure column headings and widths
             column_widths = {
                 'barcode': 150,
@@ -1641,7 +1628,7 @@ class WMSScannerApp:
                 'user_id': 100,
                 'notes': 200
             }
-            
+
             column_names = {
                 'barcode': 'บาร์โค้ด',
                 'scan_date': 'วันที่/เวลา',
@@ -1650,11 +1637,11 @@ class WMSScannerApp:
                 'user_id': 'ผู้ใช้',
                 'notes': 'หมายเหตุ'
             }
-            
+
             for col in columns:
                 self.report_tree.heading(col, text=column_names.get(col, col))
                 self.report_tree.column(col, width=column_widths.get(col, 120))
-            
+
             # Populate data
             for row in results:
                 values = []
@@ -1666,8 +1653,12 @@ class WMSScannerApp:
                             value = value.strftime("%Y-%m-%d %H:%M:%S")
                     values.append(str(value) if value is not None else "")
                 self.report_tree.insert('', tk.END, values=values)
-            
-            messagebox.showinfo("สำเร็จ", f"รันรายงานสำเร็จ พบข้อมูล {len(results)} รายการ")
+
+            messagebox.showinfo(
+                "สำเร็จ",
+                f"รันรายงานสำเร็จ พบข้อมูล {statistics['total_scans']} รายการ "
+                f"(บาร์โค้ดที่ไม่ซ้ำ: {statistics['unique_barcodes']})"
+            )
             
         except Exception as e:
             import traceback
@@ -2268,76 +2259,92 @@ ID_ประเภทงานย่อย: 10
             self.import_preview_tree.delete(item)
     
     def validate_import_data(self):
-        """Validate import data from Excel file"""
+        """Validate import data from Excel file using ImportService"""
         file_path = self.import_file_var.get()
         if not file_path:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกไฟล์ Excel ก่อน")
             return
-        
+
         try:
-            # Read Excel file
+            # Read Excel file (UI layer responsibility)
             df = pd.read_excel(file_path, sheet_name=0)
-            
+
             # Check required columns
             required_columns = ['บาร์โค้ด', 'ID_ประเภทงานหลัก', 'ID_ประเภทงานย่อย']
             missing_columns = [col for col in required_columns if col not in df.columns]
-            
+
             if missing_columns:
-                messagebox.showerror("ข้อผิดพลาด", 
+                messagebox.showerror("ข้อผิดพลาด",
                                    f"ไฟล์ Excel ไม่มีคอลัมน์ที่จำเป็น:\n{', '.join(missing_columns)}\n\n" +
                                    "คอลัมน์ที่ต้องมี:\n- บาร์โค้ด\n- ID_ประเภทงานหลัก\n- ID_ประเภทงานย่อย\n- หมายเหตุ (ไม่บังคับ)")
                 return
-            
-            # Clean and validate data
-            self.import_data_df = df.copy()
-            self.import_validation_results = []
-            
-            self.clear_import_preview()
-            
+
+            # Transform DataFrame rows into dict list for ImportService
+            import_data = []
             for idx, row in df.iterrows():
-                validation_result = self.validate_import_row(row, idx + 1)
-                self.import_validation_results.append(validation_result)
-                
-                # Add to preview table
+                import_data.append({
+                    'barcode': row.get('บาร์โค้ด', ''),
+                    'main_job_id': row.get('ID_ประเภทงานหลัก', ''),
+                    'sub_job_id': row.get('ID_ประเภทงานย่อย', ''),
+                    'notes': row.get('หมายเหตุ', '')
+                })
+
+            # Use ImportService to validate data (handles all business logic)
+            validation_result = self.import_service.validate_import_data(import_data)
+
+            # Store original df and validation results
+            self.import_data_df = df.copy()
+            self.import_validation_results = validation_result['data']['validation_results']
+
+            # Clear and populate preview table (UI layer responsibility)
+            self.clear_import_preview()
+
+            for validation_result in self.import_validation_results:
+                row_idx = validation_result['row_number'] - 1
+                row = df.iloc[row_idx]
+
                 status = "✓" if validation_result['valid'] else "✗"
-                error_msg = validation_result.get('errors', '')
-                
+                error_msgs = validation_result.get('errors', [])
+                error_text = '; '.join(error_msgs) if isinstance(error_msgs, list) else str(error_msgs)
+
                 # Get job names for display
-                main_job_name = validation_result.get('main_job_name', row.get('ID_ประเภทงานหลัก', ''))
-                sub_job_name = validation_result.get('sub_job_name', row.get('ID_ประเภทงานย่อย', ''))
-                
-                # Configure row color based on status
+                main_job_name = validation_result.get('main_job_name', '')
+                sub_job_name = validation_result.get('sub_job_name', '')
+
+                # Add to preview table
                 item = self.import_preview_tree.insert('', tk.END, values=(
                     status,
                     row.get('บาร์โค้ด', ''),
                     f"{row.get('ID_ประเภทงานหลัก', '')} - {main_job_name}",
                     f"{row.get('ID_ประเภทงานย่อย', '')} - {sub_job_name}",
                     row.get('หมายเหตุ', ''),
-                    error_msg
+                    error_text
                 ))
-                
+
                 # Color coding
                 if not validation_result['valid']:
                     self.import_preview_tree.set(item, 'สถานะ', '✗')
                 else:
                     self.import_preview_tree.set(item, 'สถานะ', '✓')
-            
+
             # Update status
             valid_count = sum(1 for r in self.import_validation_results if r['valid'])
             total_count = len(self.import_validation_results)
-            
+
             if valid_count == total_count:
                 self.import_status_label.config(
-                    text=f"ตรวจสอบเรียบร้อย: {valid_count}/{total_count} แถว พร้อมนำเข้า", 
+                    text=f"ตรวจสอบเรียบร้อย: {valid_count}/{total_count} แถว พร้อมนำเข้า",
                     foreground="green"
                 )
             else:
                 self.import_status_label.config(
-                    text=f"พบข้อผิดพลาด: {valid_count}/{total_count} แถวที่ถูกต้อง", 
+                    text=f"พบข้อผิดพลาด: {valid_count}/{total_count} แถวที่ถูกต้อง",
                     foreground="red"
                 )
-                
+
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอ่านไฟล์ Excel ได้: {str(e)}")
     
     def validate_import_row(self, row, row_number):
@@ -2451,87 +2458,84 @@ ID_ประเภทงานย่อย: 10
         return result
     
     def import_data(self):
-        """Import validated data into database"""
+        """Import validated data into database using ImportService"""
         if not self.import_validation_results:
             messagebox.showwarning("คำเตือน", "กรุณาตรวจสอบข้อมูลก่อนนำเข้า")
             return
-        
+
         # Count valid records
         valid_records = [r for r in self.import_validation_results if r['valid']]
-        
+
         if not valid_records:
             messagebox.showwarning("คำเตือน", "ไม่มีข้อมูลที่ถูกต้องสำหรับการนำเข้า")
             return
-        
+
         # Confirm import
         total_count = len(self.import_validation_results)
         valid_count = len(valid_records)
-        
+
         if valid_count < total_count:
-            if not messagebox.askyesno("ยืนยัน", 
+            if not messagebox.askyesno("ยืนยัน",
                                      f"พบข้อมูลที่ถูกต้อง {valid_count} จาก {total_count} แถว\n" +
                                      "ต้องการนำเข้าเฉพาะข้อมูลที่ถูกต้องหรือไม่?"):
                 return
         else:
-            if not messagebox.askyesno("ยืนยัน", 
+            if not messagebox.askyesno("ยืนยัน",
                                      f"ต้องการนำเข้าข้อมูล {valid_count} แถวหรือไม่?"):
                 return
-        
+
         try:
-            success_count = 0
-            error_count = 0
-            
-            for validation_result in self.import_validation_results:
-                if not validation_result['valid']:
-                    continue
-                
-                try:
-                    row_idx = validation_result['row_number'] - 1
-                    row = self.import_data_df.iloc[row_idx]
-                    
-                    barcode = str(row['บาร์โค้ด']).strip()
-                    main_job_id = int(float(str(row['ID_ประเภทงานหลัก']).strip()))
-                    sub_job_id = int(float(str(row['ID_ประเภทงานย่อย']).strip()))
-                    notes = str(row.get('หมายเหตุ', '')).strip()
-                    
-                    # Get job name for job_type field (for compatibility)
-                    job_name_result = self.db.execute_query("SELECT job_name FROM job_types WHERE id = ?", (main_job_id,))
-                    main_job_name = job_name_result[0]['job_name'] if job_name_result else f"ID_{main_job_id}"
-                    
-                    # Insert into database
-                    self.db.execute_non_query(
-                        "INSERT INTO scan_logs (barcode, scan_date, job_type, user_id, job_id, sub_job_id, notes) VALUES (?, GETDATE(), ?, ?, ?, ?, ?)",
-                        (barcode, main_job_name, f"{self.db.current_user}_IMPORT", main_job_id, sub_job_id, notes)
-                    )
-                    
-                    success_count += 1
-                    
-                except Exception as e:
-                    error_count += 1
-                    print(f"Error importing row {validation_result['row_number']}: {str(e)}")
-            
+            # Use ImportService to import scans (handles all business logic and database operations)
+            user_id = f"{self.db.current_user}_IMPORT"
+            result = self.import_service.import_scans(
+                validated_rows=self.import_validation_results,
+                user_id=user_id
+            )
+
+            # Handle the result
+            imported_count = result['data'].get('imported_count', 0)
+            failed_count = result['data'].get('failed_count', 0)
+            errors = result['data'].get('errors', [])
+
             # Show results
-            if error_count == 0:
-                messagebox.showinfo("สำเร็จ", f"นำเข้าข้อมูลเรียบร้อย {success_count} แถว")
+            if failed_count == 0:
+                messagebox.showinfo("สำเร็จ", f"นำเข้าข้อมูลเรียบร้อย {imported_count} แถว")
             else:
-                messagebox.showwarning("เสร็จสิ้น", 
+                error_details = ""
+                if errors and len(errors) <= 5:
+                    # Show first 5 errors
+                    error_details = "\n\nตัวอย่างข้อผิดพลาด:\n" + "\n".join([
+                        f"แถว {err['row_number']}: {err['error']}"
+                        for err in errors[:5]
+                    ])
+
+                messagebox.showwarning("เสร็จสิ้น",
                                      f"นำเข้าข้อมูลเสร็จสิ้น\n" +
-                                     f"สำเร็จ: {success_count} แถว\n" +
-                                     f"ข้อผิดพลาด: {error_count} แถว")
-            
+                                     f"สำเร็จ: {imported_count} แถว\n" +
+                                     f"ข้อผิดพลาด: {failed_count} แถว" +
+                                     error_details)
+
             # Refresh scanning history if on scanning tab
             try:
                 self.refresh_scanning_history()
             except:
                 pass
-            
+
             # Update status
-            self.import_status_label.config(
-                text=f"นำเข้าเรียบร้อย: {success_count} แถว", 
-                foreground="green"
-            )
-            
+            if failed_count == 0:
+                self.import_status_label.config(
+                    text=f"นำเข้าเรียบร้อย: {imported_count} แถว",
+                    foreground="green"
+                )
+            else:
+                self.import_status_label.config(
+                    text=f"นำเข้าเสร็จสิ้น: สำเร็จ {imported_count}, ล้มเหลว {failed_count}",
+                    foreground="orange"
+                )
+
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการนำเข้าข้อมูล: {str(e)}")
     
     def load_today_summary(self):

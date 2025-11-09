@@ -23,22 +23,31 @@ from src.database import (
     ScanLogRepository,
     DependencyRepository
 )
+from src.services import (
+    ScanService,
+    DependencyService,
+    ReportService
+)
 from src.models.data_models import ScanRecord
 
 app = Flask(__name__)
 app.secret_key = 'wms_scanner_secret_key_2024'
 CORS(app)
 
-# Global database manager and repositories
+# Global database manager, repositories, and services
 db_manager = None
 job_type_repo = None
 sub_job_repo = None
 scan_log_repo = None
 dependency_repo = None
+scan_service = None
+dependency_service = None
+report_service = None
 
 def initialize_database():
     """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
     global db_manager, job_type_repo, sub_job_repo, scan_log_repo, dependency_repo
+    global scan_service, dependency_service, report_service
     try:
         print("🔗 กำลังเชื่อมต่อฐานข้อมูล...")
 
@@ -55,6 +64,23 @@ def initialize_database():
             scan_log_repo = ScanLogRepository(db_manager)
             dependency_repo = DependencyRepository(db_manager)
             print("✅ สร้าง repositories สำเร็จ")
+
+            # สร้าง service instances
+            scan_service = ScanService(
+                scan_log_repo=scan_log_repo,
+                sub_job_repo=sub_job_repo,
+                dependency_repo=dependency_repo
+            )
+            dependency_service = DependencyService(
+                dependency_repo=dependency_repo,
+                job_type_repo=job_type_repo
+            )
+            report_service = ReportService(
+                scan_log_repo=scan_log_repo,
+                job_type_repo=job_type_repo,
+                sub_job_repo=sub_job_repo
+            )
+            print("✅ สร้าง services สำเร็จ")
 
             # ตรวจสอบและสร้างตารางที่จำเป็น
             ensure_tables_exist()
@@ -304,123 +330,72 @@ def get_sub_job_types(job_type_id):
 
 @app.route('/api/scan', methods=['POST'])
 def scan_barcode():
-    """API สำหรับสแกนบาร์โค้ด - ทำงานเหมือน Desktop App"""
+    """API สำหรับสแกนบาร์โค้ด using ScanService"""
     try:
         print(f"🔍 เริ่มต้นการสแกนบาร์โค้ด...")
 
-        if not scan_log_repo or not job_type_repo or not sub_job_repo:
-            print("❌ ไม่มี repositories")
+        if not scan_service:
+            print("❌ ไม่มี scan service")
             return jsonify({'success': False, 'message': 'ไม่มีการเชื่อมต่อฐานข้อมูล'})
 
         data = request.get_json()
         barcode = data.get('barcode')
         job_type_id = data.get('job_type_id')
         sub_job_type_id = data.get('sub_job_type_id')
-        note = data.get('note', '')  # หมายเหตุ (ไม่บังคับ)
+        note = data.get('note', '')
 
         print(f"📝 ข้อมูลที่ได้รับ: barcode={barcode}, job_type_id={job_type_id}, sub_job_type_id={sub_job_type_id}, note={note}")
 
+        # Basic validation
         if not barcode:
-            print("❌ ไม่มีบาร์โค้ด")
             return jsonify({'success': False, 'message': 'กรุณากรอกบาร์โค้ด'})
 
         if not job_type_id:
-            print("❌ ไม่มี job_type_id")
             return jsonify({'success': False, 'message': 'กรุณาเลือก Job Type'})
 
-        print(f"🔍 กำลังดึงข้อมูล Job Type ID: {job_type_id}")
-
-        # ดึงข้อมูล Job Type (ใช้ db_manager เนื่องจาก repository ไม่มี get_by_id)
-        job_type_query = "SELECT job_name FROM job_types WHERE id = ?"
-        job_result = db_manager.execute_query(job_type_query, (job_type_id,))
-
-        if not job_result:
-            print(f"❌ ไม่พบ Job Type ID: {job_type_id}")
+        # Get job type info
+        job_info = job_type_repo.find_by_id(job_type_id)
+        if not job_info:
             return jsonify({'success': False, 'message': 'ไม่พบ Job Type ที่เลือก'})
 
-        job_type_name = job_result[0]['job_name']
-        print(f"✅ พบ Job Type: {job_type_name}")
+        job_type_name = job_info['job_name']
 
+        # Get sub job type info if provided
         sub_job_type_name = None
-
         if sub_job_type_id:
-            print(f"🔍 กำลังดึงข้อมูล Sub Job Type ID: {sub_job_type_id}")
-            # ใช้ get_details จาก SubJobRepository
-            sub_result = sub_job_repo.get_details(sub_job_type_id)
-            if sub_result:
-                sub_job_type_name = sub_result['sub_job_name']
-                print(f"✅ พบ Sub Job Type: {sub_job_type_name}")
-            else:
-                print(f"⚠️ ไม่พบ Sub Job Type ID: {sub_job_type_id}")
-        else:
-            print("ℹ️ ไม่มี Sub Job Type")
+            sub_info = sub_job_repo.get_details(sub_job_type_id)
+            if sub_info:
+                sub_job_type_name = sub_info['sub_job_name']
 
-        # ตรวจสอบ Dependencies ก่อน (เหมือน Desktop App)
-        print(f"🔍 กำลังตรวจสอบ Dependencies สำหรับ Job Type ID: {job_type_id}")
-        dependencies_result = check_dependencies(barcode, job_type_id)
-        print(f"📊 ผลการตรวจสอบ Dependencies: {dependencies_result}")
-
-        if not dependencies_result['success']:
-            print(f"❌ Dependencies ไม่ผ่าน: {dependencies_result['message']}")
-            return jsonify({'success': False, 'message': dependencies_result['message']})
-
-        print("✅ Dependencies ผ่าน")
-
-        # ตรวจสอบว่าบาร์โค้ดซ้ำหรือไม่ (หลังจากตรวจสอบ Dependencies)
-        # ตรวจสอบเฉพาะในงานเดียวกัน (เหมือน Desktop App)
-        print(f"🔍 กำลังตรวจสอบข้อมูลซ้ำ...")
-
-        # ใช้ check_duplicate แทนการ query โดยตรง
-        # Note: check_duplicate ไม่รองรับ sub_job_id โดยตรง ดังนั้นต้องตรวจสอบด้วยวิธีอื่น
-        # เราจะตรวจสอบด้วย hours=0 เพื่อตรวจสอบทุกระเบียนในงานนี้
-        existing_record = scan_log_repo.check_duplicate(barcode, job_type_id, hours=24*365)
-
-        # ถ้าพบข้อมูลและต้องตรวจสอบ sub_job_id
-        if existing_record:
-            # ตรวจสอบว่า sub_job_id ตรงกันหรือไม่
-            if sub_job_type_id:
-                # กรณีมี sub_job_type_id ต้องตรงกับที่พบ
-                if existing_record.get('sub_job_id') == sub_job_type_id:
-                    print(f"❌ พบข้อมูลซ้ำ: {job_type_name} > {sub_job_type_name or 'ไม่มี'}")
-                    return jsonify({
-                        'success': False,
-                        'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_type_name} > {sub_job_type_name or "ไม่มี"}" แล้ว',
-                        'duplicate': True,
-                        'existing_record': {
-                            'scan_date': existing_record['scan_date'].isoformat() if hasattr(existing_record['scan_date'], 'isoformat') else str(existing_record['scan_date']),
-                            'job_type_name': job_type_name,
-                            'sub_job_type_name': sub_job_type_name or 'ไม่มี',
-                            'user_id': existing_record['user_id']
-                        }
-                    })
-            else:
-                # กรณีไม่มี sub_job_type_id และ existing_record ก็ไม่มี sub_job_id
-                if existing_record.get('sub_job_id') is None:
-                    print(f"❌ พบข้อมูลซ้ำ: {job_type_name} > ไม่มี")
-                    return jsonify({
-                        'success': False,
-                        'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_type_name} > ไม่มี" แล้ว',
-                        'duplicate': True,
-                        'existing_record': {
-                            'scan_date': existing_record['scan_date'].isoformat() if hasattr(existing_record['scan_date'], 'isoformat') else str(existing_record['scan_date']),
-                            'job_type_name': job_type_name,
-                            'sub_job_type_name': 'ไม่มี',
-                            'user_id': existing_record['user_id']
-                        }
-                    })
-
-        # บันทึกการสแกน (เหมือน Desktop App)
-        print(f"💾 กำลังบันทึกข้อมูล...")
-        print(f"📝 Parameters: barcode={barcode}, job_type_name={job_type_name}, user={db_manager.current_user}, job_id={job_type_id}, sub_job_id={sub_job_type_id}, note={note}")
-
-        scan_log_repo.create_scan(
+        # Use ScanService to process the scan (handles all business logic)
+        result = scan_service.process_scan(
             barcode=barcode,
-            job_type=job_type_name,
-            user_id=db_manager.current_user,
+            job_type_name=job_type_name,
             job_id=job_type_id,
-            sub_job_id=sub_job_type_id if sub_job_type_id else None,
+            sub_job_type_name=sub_job_type_name or "",
+            user_id=db_manager.current_user,
             notes=note
         )
+
+        # Handle the result
+        if not result['success']:
+            print(f"❌ Scan failed: {result['message']}")
+            # Check if it's a duplicate
+            if 'ซ้ำ' in result['message'] or 'duplicate' in result['message'].lower():
+                duplicate_info = result['data'].get('duplicate_info', {})
+                return jsonify({
+                    'success': False,
+                    'message': result['message'],
+                    'duplicate': True,
+                    'existing_record': {
+                        'scan_date': duplicate_info.get('scan_date', ''),
+                        'job_type_name': job_type_name,
+                        'sub_job_type_name': sub_job_type_name or 'ไม่มี',
+                        'user_id': duplicate_info.get('user_id', '')
+                    }
+                })
+            else:
+                return jsonify({'success': False, 'message': result['message']})
 
         print(f"✅ บันทึกสำเร็จ")
         return jsonify({'success': True, 'message': f'บันทึกการสแกนบาร์โค้ด: {barcode}'})
