@@ -7,25 +7,30 @@ UI component for scan history
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 from datetime import datetime, timedelta
+from ..tabs.base_tab import BaseTab
 
 
-class HistoryTab:
+class HistoryTab(BaseTab):
     """แท็บประวัติการสแกน"""
-    
-    def __init__(self, parent: ttk.Frame, db_manager, on_history_updated: Callable = None):
-        self.parent = parent
-        self.db_manager = db_manager
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        db_manager: Any,
+        repositories: Dict[str, Any],
+        services: Dict[str, Any],
+        on_history_updated: Optional[Callable] = None
+    ):
         self.on_history_updated = on_history_updated
-        
-        self.setup_ui()
+        super().__init__(parent, db_manager, repositories, services)
         self.refresh_history()
-    
-    def setup_ui(self):
+
+    def build_ui(self):
         """สร้าง UI"""
-        # สร้าง frame หลัก
-        main_frame = ttk.Frame(self.parent)
+        # Use the frame provided by BaseTab
+        main_frame = ttk.Frame(self.frame)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
@@ -85,7 +90,7 @@ class HistoryTab:
         self.history_tree.configure(yscrollcommand=scrollbar.set)
         
         # Context menu สำหรับตาราง
-        self.context_menu = tk.Menu(self.parent, tearoff=0)
+        self.context_menu = tk.Menu(self.frame, tearoff=0)
         self.context_menu.add_command(label="แก้ไข", command=self.edit_record)
         self.context_menu.add_command(label="ลบ", command=self.delete_record)
         self.context_menu.add_separator()
@@ -107,60 +112,42 @@ class HistoryTab:
     def load_job_types(self):
         """โหลดรายการ Job Types"""
         try:
-            query = "SELECT id, name FROM job_types WHERE is_active = 1 ORDER BY name"
-            results = self.db_manager.execute_query(query)
-            
+            # Use JobTypeRepository
+            results = self.job_type_repo.get_all_job_types()
+
             job_types = ["ทั้งหมด"] + [row['name'] for row in results]
             self.job_type_combo['values'] = job_types
             self.job_type_combo.set("ทั้งหมด")
-            
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลด Job Types: {str(e)}")
     
     def search_history(self):
         """ค้นหาประวัติ"""
         try:
-            # สร้างเงื่อนไขการค้นหา
-            conditions = []
-            params = []
-            
-            # วันที่
-            start_date = self.start_date_var.get()
-            end_date = self.end_date_var.get()
-            
-            if start_date and end_date:
-                conditions.append("CAST(s.scan_date AS DATE) BETWEEN ? AND ?")
-                params.extend([start_date, end_date])
-            
-            # Job Type
+            # Get search filters
+            start_date = self.start_date_var.get() or None
+            end_date = self.end_date_var.get() or None
             job_type = self.job_type_var.get()
+            barcode = self.barcode_var.get().strip() or None
+
+            # Convert job type name to ID if not "ทั้งหมด"
+            job_type_id = None
             if job_type and job_type != "ทั้งหมด":
-                conditions.append("j.name = ?")
-                params.append(job_type)
-            
-            # Barcode
-            barcode = self.barcode_var.get().strip()
-            if barcode:
-                conditions.append("s.barcode LIKE ?")
-                params.append(f"%{barcode}%")
-            
-            # สร้าง query
-            query = """
-                SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
-                JOIN job_types j ON s.job_type_id = j.id
-                LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
-            """
-            
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-            
-            query += " ORDER BY s.scan_date DESC"
-            
-            # ดึงข้อมูล
-            results = self.db_manager.execute_query(query, tuple(params))
+                job_obj = self.job_type_repo.find_by_name(job_type)
+                if job_obj:
+                    job_type_id = job_obj['id']
+
+            # Use ScanLogRepository's search functionality
+            results = self.scan_log_repo.search(
+                start_date=start_date,
+                end_date=end_date,
+                job_type_id=job_type_id,
+                barcode=barcode
+            )
+
             self.display_history(results)
-            
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการค้นหา: {str(e)}")
     
@@ -216,10 +203,10 @@ class HistoryTab:
     
     def show_edit_dialog(self, record_id: int, current_values: tuple):
         """แสดง dialog สำหรับแก้ไข"""
-        dialog = tk.Toplevel(self.parent)
+        dialog = tk.Toplevel(self.frame)
         dialog.title("แก้ไขรายการสแกน")
         dialog.geometry("400x300")
-        dialog.transient(self.parent)
+        dialog.transient(self.frame)
         dialog.grab_set()
         
         # สร้าง UI สำหรับ dialog
@@ -236,19 +223,19 @@ class HistoryTab:
         def save_changes():
             barcode = barcode_entry.get().strip()
             notes = notes_entry.get().strip()
-            
+
             if not barcode:
                 messagebox.showerror("ผิดพลาด", "กรุณากรอก Barcode")
                 return
-            
+
             try:
-                query = "UPDATE scan_records SET barcode = ?, notes = ? WHERE id = ?"
-                self.db_manager.execute_non_query(query, (barcode, notes, record_id))
-                
+                # Use ScanLogRepository to update
+                self.scan_log_repo.update(record_id, {'barcode': barcode, 'notes': notes})
+
                 messagebox.showinfo("สำเร็จ", "แก้ไขรายการเรียบร้อยแล้ว")
                 dialog.destroy()
                 self.refresh_history()
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถแก้ไขรายการ: {str(e)}")
         
@@ -268,12 +255,12 @@ class HistoryTab:
         
         if messagebox.askyesno("ยืนยัน", f"คุณต้องการลบรายการ Barcode: {barcode} หรือไม่?"):
             try:
-                query = "DELETE FROM scan_records WHERE id = ?"
-                self.db_manager.execute_non_query(query, (record_id,))
-                
+                # Use ScanLogRepository to delete
+                self.scan_log_repo.delete(record_id)
+
                 messagebox.showinfo("สำเร็จ", "ลบรายการเรียบร้อยแล้ว")
                 self.refresh_history()
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถลบรายการ: {str(e)}")
     
@@ -307,11 +294,11 @@ class HistoryTab:
             )
             
             if file_path:
-                from ..utils.file_utils import export_to_excel
-                if export_to_excel(data, file_path, "ประวัติการสแกน"):
-                    messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์เรียบร้อยแล้วที่: {file_path}")
-                else:
-                    messagebox.showerror("ผิดพลาด", "ไม่สามารถส่งออกไฟล์ได้")
+                # Use pandas to export to Excel
+                import pandas as pd
+                df = pd.DataFrame(data)
+                df.to_excel(file_path, index=False, sheet_name="ประวัติการสแกน")
+                messagebox.showinfo("สำเร็จ", f"ส่งออกไฟล์เรียบร้อยแล้วที่: {file_path}")
                     
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการส่งออก: {str(e)}")
@@ -319,27 +306,22 @@ class HistoryTab:
     def show_statistics(self):
         """แสดงสถิติ"""
         try:
-            # ดึงสถิติจากฐานข้อมูล
-            query = """
-                SELECT 
-                    COUNT(*) as total_scans,
-                    COUNT(DISTINCT s.barcode) as unique_barcodes,
-                    COUNT(DISTINCT s.scanned_by) as unique_users,
-                    j.name as job_type,
-                    COUNT(*) as job_count
-                FROM scan_records s
-                JOIN job_types j ON s.job_type_id = j.id
-                WHERE s.status = 'Active'
-                GROUP BY j.name
-                ORDER BY job_count DESC
-            """
-            results = self.db_manager.execute_query(query)
-            
-            # สร้าง dialog แสดงสถิติ
-            dialog = tk.Toplevel(self.parent)
+            # Get all scans with job info
+            scans = self.scan_log_repo.get_recent_scans(limit=10000, include_job_info=True)
+
+            # Calculate statistics
+            from collections import Counter
+            job_counts = Counter(scan['job_type_name'] for scan in scans)
+
+            # Convert to results format
+            results = [{'job_type': job, 'job_count': count}
+                      for job, count in job_counts.most_common()]
+
+            # Create statistics dialog
+            dialog = tk.Toplevel(self.frame)
             dialog.title("สถิติการสแกน")
             dialog.geometry("500x400")
-            dialog.transient(self.parent)
+            dialog.transient(self.frame)
             dialog.grab_set()
             
             # สร้าง UI สำหรับ dialog

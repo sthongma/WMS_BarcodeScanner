@@ -7,27 +7,30 @@ UI component for data import
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from typing import Dict, Any, Callable, List
+from typing import Dict, Any, Callable, List, Optional
 import pandas as pd
-from ..utils.file_utils import select_file, read_excel_file, create_template_excel
-from ..utils.validation_utils import validate_import_data
+from ..tabs.base_tab import BaseTab
 
 
-class ImportTab:
+class ImportTab(BaseTab):
     """แท็บการนำเข้าข้อมูล"""
-    
-    def __init__(self, parent: ttk.Frame, db_manager, on_import_completed: Callable = None):
-        self.parent = parent
-        self.db_manager = db_manager
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        db_manager: Any,
+        repositories: Dict[str, Any],
+        services: Dict[str, Any],
+        on_import_completed: Optional[Callable] = None
+    ):
         self.on_import_completed = on_import_completed
         self.import_data = None
-        
-        self.setup_ui()
-    
-    def setup_ui(self):
+        super().__init__(parent, db_manager, repositories, services)
+
+    def build_ui(self):
         """สร้าง UI"""
-        # สร้าง frame หลัก
-        main_frame = ttk.Frame(self.parent)
+        # Use the frame provided by BaseTab
+        main_frame = ttk.Frame(self.frame)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
@@ -77,12 +80,15 @@ class ImportTab:
     
     def select_file(self):
         """เลือกไฟล์"""
-        file_path = select_file("เลือกไฟล์ Excel/CSV", [
-            ("Excel files", "*.xlsx *.xls"),
-            ("CSV files", "*.csv"),
-            ("All files", "*.*")
-        ])
-        
+        file_path = filedialog.askopenfilename(
+            title="เลือกไฟล์ Excel/CSV",
+            filetypes=[
+                ("Excel files", "*.xlsx *.xls"),
+                ("CSV files", "*.csv"),
+                ("All files", "*.*")
+            ]
+        )
+
         if file_path:
             self.file_label.config(text=f"ไฟล์: {file_path}")
             self.load_file(file_path)
@@ -90,13 +96,17 @@ class ImportTab:
     def load_file(self, file_path: str):
         """โหลดไฟล์"""
         try:
-            self.import_data = read_excel_file(file_path)
-            
-            if self.import_data is not None:
+            # Read Excel or CSV file using pandas
+            if file_path.endswith('.csv'):
+                self.import_data = pd.read_csv(file_path)
+            else:
+                self.import_data = pd.read_excel(file_path)
+
+            if self.import_data is not None and not self.import_data.empty:
                 self.display_preview()
             else:
-                messagebox.showerror("ผิดพลาด", "ไม่สามารถอ่านไฟล์ได้")
-                
+                messagebox.showerror("ผิดพลาด", "ไม่สามารถอ่านไฟล์ได้หรือไฟล์ว่างเปล่า")
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการโหลดไฟล์: {str(e)}")
     
@@ -130,43 +140,54 @@ class ImportTab:
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx")]
             )
-            
+
             if file_path:
-                columns = ["barcode", "job_type", "sub_job_type", "notes"]
-                sample_data = [
-                    ["ABC123", "Receiving", "Quality Check", "ตัวอย่างข้อมูล"],
-                    ["DEF456", "Picking", "Packaging", "ตัวอย่างข้อมูล"]
-                ]
-                
-                if create_template_excel(file_path, columns, sample_data):
-                    messagebox.showinfo("สำเร็จ", f"บันทึก template เรียบร้อยแล้วที่: {file_path}")
-                else:
-                    messagebox.showerror("ผิดพลาด", "ไม่สามารถสร้าง template ได้")
-                    
+                # Use ImportService to generate template data
+                template_info = self.import_service.generate_template_data()
+
+                # Create DataFrame with sample data
+                df = pd.DataFrame(template_info['sample_data'], columns=template_info['columns'])
+
+                # Save to Excel
+                df.to_excel(file_path, index=False, sheet_name='Template')
+                messagebox.showinfo("สำเร็จ", f"บันทึก template เรียบร้อยแล้วที่: {file_path}")
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
     
     def validate_data(self):
         """ตรวจสอบข้อมูล"""
-        if self.import_data is None:
+        if self.import_data is None or self.import_data.empty:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกไฟล์ก่อน")
             return
-        
+
         try:
-            required_columns = ["barcode", "job_type"]
-            is_valid, errors = validate_import_data(self.import_data, required_columns)
-            
-            if is_valid:
-                messagebox.showinfo("สำเร็จ", "ข้อมูลถูกต้อง สามารถนำเข้าได้")
-                self.update_preview_status("ผ่าน")
+            # Convert DataFrame to list of dicts for ImportService
+            data_list = self.import_data.to_dict('records')
+
+            # Use ImportService to validate
+            result = self.import_service.validate_import_data(data_list)
+
+            if result['success']:
+                valid_count = result['data']['valid_count']
+                invalid_count = result['data']['invalid_count']
+
+                if invalid_count == 0:
+                    messagebox.showinfo("สำเร็จ", f"ข้อมูลถูกต้องทั้งหมด ({valid_count} รายการ)")
+                    self.update_preview_status("ผ่าน")
+                else:
+                    # Show errors
+                    errors = [r['error'] for r in result['data']['results'] if not r['valid']]
+                    error_message = "\n".join(errors[:10])  # Show first 10 errors
+                    if len(errors) > 10:
+                        error_message += f"\n... และอีก {len(errors) - 10} ข้อผิดพลาด"
+
+                    messagebox.showerror("ข้อผิดพลาด",
+                        f"พบข้อผิดพลาดในข้อมูล:\nถูกต้อง: {valid_count} | ผิดพลาด: {invalid_count}\n\n{error_message}")
+                    self.update_preview_status("ไม่ผ่าน")
             else:
-                error_message = "\n".join(errors[:10])  # แสดง 10 ข้อผิดพลาดแรก
-                if len(errors) > 10:
-                    error_message += f"\n... และอีก {len(errors) - 10} ข้อผิดพลาด"
-                
-                messagebox.showerror("ข้อผิดพลาด", f"พบข้อผิดพลาดในข้อมูล:\n{error_message}")
-                self.update_preview_status("ไม่ผ่าน")
-                
+                messagebox.showerror("ผิดพลาด", result['message'])
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการตรวจสอบ: {str(e)}")
     
@@ -179,67 +200,33 @@ class ImportTab:
     
     def import_data_to_db(self):
         """นำเข้าข้อมูลลงฐานข้อมูล"""
-        if self.import_data is None:
+        if self.import_data is None or self.import_data.empty:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกไฟล์ก่อน")
             return
-        
+
         if not messagebox.askyesno("ยืนยัน", "คุณต้องการนำเข้าข้อมูลหรือไม่?"):
             return
-        
+
         try:
-            success_count = 0
-            error_count = 0
-            
-            for index, row in self.import_data.iterrows():
-                try:
-                    barcode = str(row.get('barcode', '')).strip()
-                    job_type = str(row.get('job_type', '')).strip()
-                    sub_job_type = str(row.get('sub_job_type', '')).strip() if pd.notna(row.get('sub_job_type')) else None
-                    notes = str(row.get('notes', '')).strip() if pd.notna(row.get('notes')) else ''
-                    
-                    if not barcode or not job_type:
-                        error_count += 1
-                        continue
-                    
-                    # ดึง Job Type ID
-                    query = "SELECT id FROM job_types WHERE name = ?"
-                    job_result = self.db_manager.execute_query(query, (job_type,))
-                    
-                    if not job_result:
-                        error_count += 1
-                        continue
-                    
-                    job_type_id = job_result[0]['id']
-                    sub_job_type_id = None
-                    
-                    # ดึง Sub Job Type ID ถ้ามี
-                    if sub_job_type:
-                        query = "SELECT id FROM sub_job_types WHERE name = ? AND main_job_id = ?"
-                        sub_result = self.db_manager.execute_query(query, (sub_job_type, job_type_id))
-                        if sub_result:
-                            sub_job_type_id = sub_result[0]['id']
-                    
-                    # บันทึกข้อมูล
-                    query = """
-                        INSERT INTO scan_records (barcode, job_type_id, sub_job_type_id, scan_date, scanned_by, status, notes)
-                        VALUES (?, ?, ?, GETDATE(), ?, 'Active', ?)
-                    """
-                    self.db_manager.execute_non_query(query, (
-                        barcode, job_type_id, sub_job_type_id, self.db_manager.current_user, notes
-                    ))
-                    
-                    success_count += 1
-                    
-                except Exception as e:
-                    error_count += 1
-                    print(f"Error importing row {index + 1}: {str(e)}")
-            
-            messagebox.showinfo("เสร็จสิ้น", f"นำเข้าข้อมูลเสร็จสิ้น\nสำเร็จ: {success_count} รายการ\nผิดพลาด: {error_count} รายการ")
-            
-            # เรียก callback
-            if self.on_import_completed:
-                self.on_import_completed()
-                
+            # Convert DataFrame to list of dicts
+            data_list = self.import_data.to_dict('records')
+
+            # Use ImportService to import scans
+            result = self.import_service.import_scans(data_list)
+
+            if result['success']:
+                success_count = result['data']['success_count']
+                error_count = result['data']['error_count']
+
+                messagebox.showinfo("เสร็จสิ้น",
+                    f"นำเข้าข้อมูลเสร็จสิ้น\nสำเร็จ: {success_count} รายการ\nผิดพลาด: {error_count} รายการ")
+
+                # Call callback
+                if self.on_import_completed:
+                    self.on_import_completed()
+            else:
+                messagebox.showerror("ผิดพลาด", result['message'])
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการนำเข้าข้อมูล: {str(e)}")
     

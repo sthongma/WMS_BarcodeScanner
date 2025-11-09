@@ -7,24 +7,29 @@ UI component for database settings
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
+from ..tabs.base_tab import BaseTab
 
 
-class DatabaseSettingsTab:
+class DatabaseSettingsTab(BaseTab):
     """แท็บการตั้งค่าฐานข้อมูล"""
-    
-    def __init__(self, parent: ttk.Frame, db_manager, on_settings_changed: Callable = None):
-        self.parent = parent
-        self.db_manager = db_manager
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        db_manager: Any,
+        repositories: Dict[str, Any],
+        services: Dict[str, Any],
+        on_settings_changed: Optional[Callable] = None
+    ):
         self.on_settings_changed = on_settings_changed
-        
-        self.setup_ui()
+        super().__init__(parent, db_manager, repositories, services)
         self.load_settings()
-    
-    def setup_ui(self):
+
+    def build_ui(self):
         """สร้าง UI"""
-        # สร้าง frame หลัก
-        main_frame = ttk.Frame(self.parent)
+        # Use the frame provided by BaseTab
+        main_frame = ttk.Frame(self.frame)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
@@ -81,7 +86,7 @@ class DatabaseSettingsTab:
     
     def load_settings(self):
         """โหลดการตั้งค่าปัจจุบัน"""
-        config = self.db_manager.config_manager.get_config()
+        config = self.db.config_manager.get_config()
         
         self.server_entry.delete(0, tk.END)
         self.server_entry.insert(0, config.get("server", ""))
@@ -121,9 +126,9 @@ class DatabaseSettingsTab:
             }
             
             # อัปเดตการเชื่อมต่อ
-            if self.db_manager.update_connection(new_config):
+            if self.db.update_connection(new_config):
                 # ทดสอบการเชื่อมต่อ
-                if self.db_manager.test_connection():
+                if self.db.test_connection():
                     messagebox.showinfo("สำเร็จ", "การเชื่อมต่อฐานข้อมูลสำเร็จ")
                 else:
                     messagebox.showerror("ผิดพลาด", "ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
@@ -144,7 +149,7 @@ class DatabaseSettingsTab:
                 "password": self.password_entry.get()
             }
             
-            if self.db_manager.update_connection(new_config):
+            if self.db.update_connection(new_config):
                 messagebox.showinfo("สำเร็จ", "บันทึกการตั้งค่าเรียบร้อยแล้ว")
                 if self.on_settings_changed:
                     self.on_settings_changed()
@@ -157,7 +162,7 @@ class DatabaseSettingsTab:
     def reset_settings(self):
         """รีเซ็ตการตั้งค่า"""
         if messagebox.askyesno("ยืนยัน", "คุณต้องการรีเซ็ตการตั้งค่าเป็นค่าเริ่มต้นหรือไม่?"):
-            if self.db_manager.config_manager.reset_to_default():
+            if self.db.config_manager.reset_to_default():
                 self.load_settings()
                 messagebox.showinfo("สำเร็จ", "รีเซ็ตการตั้งค่าเรียบร้อยแล้ว")
             else:

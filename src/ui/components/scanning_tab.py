@@ -7,25 +7,30 @@ UI component for barcode scanning
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 from datetime import datetime
+from ..tabs.base_tab import BaseTab
 
 
-class ScanningTab:
+class ScanningTab(BaseTab):
     """แท็บการสแกนบาร์โค้ด"""
-    
-    def __init__(self, parent: ttk.Frame, db_manager, on_scan_completed: Callable = None):
-        self.parent = parent
-        self.db_manager = db_manager
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        db_manager: Any,
+        repositories: Dict[str, Any],
+        services: Dict[str, Any],
+        on_scan_completed: Optional[Callable] = None
+    ):
         self.on_scan_completed = on_scan_completed
-        
-        self.setup_ui()
+        super().__init__(parent, db_manager, repositories, services)
         self.refresh_job_types()
-    
-    def setup_ui(self):
+
+    def build_ui(self):
         """สร้าง UI"""
-        # สร้าง frame หลัก
-        main_frame = ttk.Frame(self.parent)
+        # Use the frame provided by BaseTab
+        main_frame = ttk.Frame(self.frame)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
@@ -94,15 +99,15 @@ class ScanningTab:
     def refresh_job_types(self):
         """รีเฟรชรายการ Job Types"""
         try:
-            query = "SELECT id, name FROM job_types WHERE is_active = 1 ORDER BY name"
-            results = self.db_manager.execute_query(query)
-            
+            # Use JobTypeRepository instead of direct SQL
+            results = self.job_type_repo.get_all_job_types()
+
             job_types = [row['name'] for row in results]
             self.job_type_combo['values'] = job_types
-            
+
             if job_types:
                 self.job_type_combo.set(job_types[0])
-                
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลด Job Types: {str(e)}")
     
@@ -111,27 +116,25 @@ class ScanningTab:
         selected_job = self.job_type_var.get()
         if not selected_job:
             return
-        
+
         try:
-            # ดึง Job Type ID
-            query = "SELECT id FROM job_types WHERE name = ?"
-            result = self.db_manager.execute_query(query, (selected_job,))
-            
-            if result:
-                job_type_id = result[0]['id']
-                
-                # ดึง Sub Job Types
-                query = "SELECT id, name FROM sub_job_types WHERE main_job_id = ? AND is_active = 1 ORDER BY name"
-                results = self.db_manager.execute_query(query, (job_type_id,))
-                
+            # Use JobTypeRepository to get job ID
+            job = self.job_type_repo.find_by_name(selected_job)
+
+            if job:
+                job_type_id = job['id']
+
+                # Use SubJobRepository to get sub jobs
+                results = self.sub_job_repo.get_by_main_job(job_type_id, active_only=True)
+
                 sub_job_types = [row['name'] for row in results]
                 self.sub_job_type_combo['values'] = sub_job_types
-                
+
                 if sub_job_types:
                     self.sub_job_type_combo.set(sub_job_types[0])
                 else:
                     self.sub_job_type_combo.set("")
-                    
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลด Sub Job Types: {str(e)}")
     
@@ -140,82 +143,48 @@ class ScanningTab:
         barcode = self.barcode_entry.get().strip()
         job_type = self.job_type_var.get()
         sub_job_type = self.sub_job_type_var.get()
-        
-        if not barcode:
-            messagebox.showwarning("คำเตือน", "กรุณากรอกบาร์โค้ด")
-            return
-        
-        if not job_type:
-            messagebox.showwarning("คำเตือน", "กรุณาเลือก Job Type")
-            return
-        
+
         try:
-            # ตรวจสอบว่าบาร์โค้ดซ้ำหรือไม่
-            query = """
-                SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
-                JOIN job_types j ON s.job_type_id = j.id
-                LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
-                WHERE s.barcode = ? AND s.status = 'Active'
-                ORDER BY s.scan_date DESC
-            """
-            existing_records = self.db_manager.execute_query(query, (barcode,))
-            
-            if existing_records:
-                self.show_duplicate_warning(barcode, existing_records[0])
-                return
-            
-            # ดึง Job Type ID
-            query = "SELECT id FROM job_types WHERE name = ?"
-            job_result = self.db_manager.execute_query(query, (job_type,))
-            
-            if not job_result:
-                messagebox.showerror("ผิดพลาด", "ไม่พบ Job Type ที่เลือก")
-                return
-            
-            job_type_id = job_result[0]['id']
-            sub_job_type_id = None
-            
-            # ดึง Sub Job Type ID ถ้ามี
-            if sub_job_type:
-                query = "SELECT id FROM sub_job_types WHERE name = ? AND main_job_id = ?"
-                sub_result = self.db_manager.execute_query(query, (sub_job_type, job_type_id))
-                if sub_result:
-                    sub_job_type_id = sub_result[0]['id']
-            
-            # บันทึกการสแกน
-            query = """
-                INSERT INTO scan_records (barcode, job_type_id, sub_job_type_id, scan_date, scanned_by, status)
-                VALUES (?, ?, ?, ?, ?, 'Active')
-            """
-            scan_date = datetime.now()
-            self.db_manager.execute_non_query(query, (
-                barcode, job_type_id, sub_job_type_id, scan_date, self.db_manager.current_user
-            ))
-            
-            # แสดงข้อความสำเร็จ
-            messagebox.showinfo("สำเร็จ", f"บันทึกการสแกนบาร์โค้ด: {barcode}")
-            
-            # ล้างข้อมูล
-            self.barcode_entry.delete(0, tk.END)
-            self.barcode_entry.focus_set()
-            
-            # รีเฟรชประวัติ
-            self.refresh_history()
-            
-            # เรียก callback
-            if self.on_scan_completed:
-                self.on_scan_completed()
-                
+            # Use ScanService to process the scan
+            result = self.scan_service.process_scan(
+                barcode=barcode,
+                job_type_name=job_type,
+                sub_job_type_name=sub_job_type
+            )
+
+            if result['success']:
+                # Show success message
+                messagebox.showinfo("สำเร็จ", result['message'])
+
+                # Clear and focus
+                self.barcode_entry.delete(0, tk.END)
+                self.barcode_entry.focus_set()
+
+                # Refresh history
+                self.refresh_history()
+
+                # Call callback
+                if self.on_scan_completed:
+                    self.on_scan_completed()
+            else:
+                # Check if this is a duplicate warning
+                if result.get('data') and 'duplicate_info' in result['data']:
+                    # Show duplicate warning dialog
+                    dup_info = result['data']['duplicate_info']
+                    self.show_duplicate_warning(barcode, dup_info)
+                else:
+                    # Show error message
+                    messagebox.showerror("ผิดพลาด", result['message'])
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถบันทึกการสแกน: {str(e)}")
     
     def show_duplicate_warning(self, barcode: str, existing_record: Dict):
         """แสดงคำเตือนเมื่อบาร์โค้ดซ้ำ"""
-        dialog = tk.Toplevel(self.parent)
+        dialog = tk.Toplevel(self.frame)
         dialog.title("บาร์โค้ดซ้ำ")
         dialog.geometry("500x300")
-        dialog.transient(self.parent)
+        dialog.transient(self.frame)
         dialog.grab_set()
         
         # สร้าง UI สำหรับ dialog
@@ -246,29 +215,20 @@ class ScanningTab:
         # ล้างข้อมูลเก่า
         for item in self.history_tree.get_children():
             self.history_tree.delete(item)
-        
+
         try:
-            # ดึงประวัติล่าสุด
-            query = """
-                SELECT s.*, j.name as job_type_name, sj.name as sub_job_type_name
-                FROM scan_records s
-                JOIN job_types j ON s.job_type_id = j.id
-                LEFT JOIN sub_job_types sj ON s.sub_job_type_id = sj.id
-                WHERE s.status = 'Active'
-                ORDER BY s.scan_date DESC
-                LIMIT 50
-            """
-            results = self.db_manager.execute_query(query)
-            
+            # Use ScanLogRepository to get recent scans
+            results = self.scan_log_repo.get_recent_scans(limit=50, include_job_info=True)
+
             for row in results:
                 scan_time = row['scan_date'].strftime("%Y-%m-%d %H:%M:%S") if row['scan_date'] else ""
-                sub_job = row['sub_job_type_name'] or ""
+                sub_job = row.get('sub_job_type_name') or ""
                 status = "สำเร็จ" if row['status'] == 'Active' else row['status']
-                
+
                 self.history_tree.insert("", tk.END, values=(
                     scan_time, row['barcode'], row['job_type_name'], sub_job, status
                 ))
-                
+
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลดประวัติ: {str(e)}")
     

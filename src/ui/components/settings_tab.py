@@ -7,23 +7,28 @@ UI component for general settings
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
+from ..tabs.base_tab import BaseTab
 
 
-class SettingsTab:
+class SettingsTab(BaseTab):
     """แท็บการตั้งค่าทั่วไป"""
-    
-    def __init__(self, parent: ttk.Frame, db_manager, on_settings_changed: Callable = None):
-        self.parent = parent
-        self.db_manager = db_manager
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        db_manager: Any,
+        repositories: Dict[str, Any],
+        services: Dict[str, Any],
+        on_settings_changed: Optional[Callable] = None
+    ):
         self.on_settings_changed = on_settings_changed
-        
-        self.setup_ui()
-    
-    def setup_ui(self):
+        super().__init__(parent, db_manager, repositories, services)
+
+    def build_ui(self):
         """สร้าง UI"""
-        # สร้าง frame หลัก
-        main_frame = ttk.Frame(self.parent)
+        # Use the frame provided by BaseTab
+        main_frame = ttk.Frame(self.frame)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
@@ -101,16 +106,15 @@ class SettingsTab:
         # ล้างข้อมูลเก่า
         for item in self.job_tree.get_children():
             self.job_tree.delete(item)
-        
+
         try:
-            # ดึงข้อมูลจากฐานข้อมูล
-            query = "SELECT id, name, description, is_active FROM job_types ORDER BY name"
-            results = self.db_manager.execute_query(query)
-            
+            # Use JobTypeRepository
+            results = self.job_type_repo.get_all_job_types(include_inactive=True)
+
             for row in results:
                 status = "Active" if row['is_active'] else "Inactive"
                 self.job_tree.insert("", tk.END, values=(
-                    row['id'], row['name'], row['description'], status
+                    row['id'], row['name'], row.get('description', ''), status
                 ))
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลดข้อมูล Job Types: {str(e)}")
@@ -120,35 +124,32 @@ class SettingsTab:
         # ล้างข้อมูลเก่า
         for item in self.dep_tree.get_children():
             self.dep_tree.delete(item)
-        
+
         try:
-            # ดึงข้อมูลจากฐานข้อมูล
-            query = """
-                SELECT j1.name as job_type, j2.name as dependent_job, 
-                       d.dependency_order, d.is_required
-                FROM scan_dependencies d
-                JOIN job_types j1 ON d.job_type_id = j1.id
-                JOIN job_types j2 ON d.dependent_job_type_id = j2.id
-                ORDER BY j1.name, d.dependency_order
-            """
-            results = self.db_manager.execute_query(query)
-            
-            for row in results:
-                required = "Yes" if row['is_required'] else "No"
-                self.dep_tree.insert("", tk.END, values=(
-                    row['job_type'], row['dependent_job'], 
-                    row['dependency_order'], required
-                ))
+            # Use DependencyService to get all dependencies
+            result = self.dependency_service.get_all_dependencies()
+
+            if result['success']:
+                for dep in result['data']['dependencies']:
+                    # Get job names from IDs
+                    job1 = self.job_type_repo.find_by_id(dep['job_type_id'])
+                    job2 = self.job_type_repo.find_by_id(dep['required_job_type_id'])
+
+                    if job1 and job2:
+                        self.dep_tree.insert("", tk.END, values=(
+                            job1['name'], job2['name'],
+                            "", "Yes"  # Simplified for now
+                        ))
         except Exception as e:
             messagebox.showerror("ผิดพลาด", f"ไม่สามารถโหลดข้อมูล Dependencies: {str(e)}")
     
     def add_job_type(self):
         """เพิ่ม Job Type"""
         # สร้าง dialog สำหรับเพิ่ม Job Type
-        dialog = tk.Toplevel(self.parent)
+        dialog = tk.Toplevel(self.frame)
         dialog.title("เพิ่ม Job Type")
         dialog.geometry("400x300")
-        dialog.transient(self.parent)
+        dialog.transient(self.frame)
         dialog.grab_set()
         
         # สร้าง UI สำหรับ dialog
@@ -166,22 +167,19 @@ class SettingsTab:
         def save_job_type():
             name = name_entry.get().strip()
             description = desc_entry.get().strip()
-            
+
             if not name:
                 messagebox.showerror("ผิดพลาด", "กรุณากรอกชื่อ Job Type")
                 return
-            
+
             try:
-                query = """
-                    INSERT INTO job_types (name, description, is_active, created_by)
-                    VALUES (?, ?, ?, ?)
-                """
-                self.db_manager.execute_non_query(query, (name, description, active_var.get(), self.db_manager.current_user))
-                
+                # Use JobTypeRepository
+                self.job_type_repo.create_job_type(name, description, active_var.get())
+
                 messagebox.showinfo("สำเร็จ", "เพิ่ม Job Type เรียบร้อยแล้ว")
                 dialog.destroy()
                 self.refresh_job_types()
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถเพิ่ม Job Type: {str(e)}")
         
@@ -200,10 +198,10 @@ class SettingsTab:
         job_id = item['values'][0]
         
         # สร้าง dialog สำหรับแก้ไข
-        dialog = tk.Toplevel(self.parent)
+        dialog = tk.Toplevel(self.frame)
         dialog.title("แก้ไข Job Type")
         dialog.geometry("400x300")
-        dialog.transient(self.parent)
+        dialog.transient(self.frame)
         dialog.grab_set()
         
         # สร้าง UI สำหรับ dialog
@@ -223,23 +221,23 @@ class SettingsTab:
         def save_changes():
             name = name_entry.get().strip()
             description = desc_entry.get().strip()
-            
+
             if not name:
                 messagebox.showerror("ผิดพลาด", "กรุณากรอกชื่อ Job Type")
                 return
-            
+
             try:
-                query = """
-                    UPDATE job_types 
-                    SET name = ?, description = ?, is_active = ?, modified_by = ?
-                    WHERE id = ?
-                """
-                self.db_manager.execute_non_query(query, (name, description, active_var.get(), self.db_manager.current_user, job_id))
-                
+                # Use JobTypeRepository to update
+                self.job_type_repo.update(job_id, {
+                    'name': name,
+                    'description': description,
+                    'is_active': active_var.get()
+                })
+
                 messagebox.showinfo("สำเร็จ", "แก้ไข Job Type เรียบร้อยแล้ว")
                 dialog.destroy()
                 self.refresh_job_types()
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถแก้ไข Job Type: {str(e)}")
         
@@ -259,12 +257,12 @@ class SettingsTab:
         
         if messagebox.askyesno("ยืนยัน", f"คุณต้องการลบ Job Type '{job_name}' หรือไม่?"):
             try:
-                query = "DELETE FROM job_types WHERE id = ?"
-                self.db_manager.execute_non_query(query, (job_id,))
-                
+                # Use JobTypeRepository to delete
+                self.job_type_repo.delete_job_type(job_id)
+
                 messagebox.showinfo("สำเร็จ", "ลบ Job Type เรียบร้อยแล้ว")
                 self.refresh_job_types()
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถลบ Job Type: {str(e)}")
     
