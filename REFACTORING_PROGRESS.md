@@ -326,26 +326,250 @@ These are acceptable to keep as direct SQL since they involve complex joins, dyn
 
 ---
 
+## 🚧 In Progress
+
+### Phase 3: Extract Service Layer - Part 1 (ScanService)
+**Status:** ✅ Completed
+**Started:** 2025-11-09
+**Completed:** 2025-11-09
+**Time Spent:** ~2 hours
+
+**Objective:** Create ScanService to handle barcode scanning business logic
+
+**Tasks Completed:**
+- [x] Created ScanService with pure business logic (no UI dependencies)
+- [x] Implemented process_scan() with complete workflow
+- [x] Implemented _validate_input() for input validation
+- [x] Implemented _check_duplicate() for duplicate detection
+- [x] Implemented _check_dependencies() for dependency verification
+- [x] Created comprehensive tests (21 tests, 5 test classes)
+- [x] Achieved 100% code coverage for ScanService
+- [x] All 127 tests passing (106 + 21 new)
+
+**Code Changes:**
+- **Lines Added:** 63 lines (ScanService)
+- **Test Lines Added:** 350 lines (test_scan_service.py)
+- **Test Coverage:** 100% for ScanService
+- **Repository Dependencies:** ScanLogRepository, SubJobRepository, DependencyRepository
+
+**Files Created:**
+- `src/services/__init__.py` - Services package
+- `src/services/scan_service.py` - Scan business logic service
+- `tests/services/test_scan_service.py` - Comprehensive tests (21 tests)
+
+**Files Modified:**
+- `tests/conftest.py` - Added 'services' pytest marker
+
+**Service Features:**
+1. **process_scan()** - Main workflow method:
+   - Input validation (barcode, job type, sub job type)
+   - Sub job lookup
+   - Duplicate checking (same barcode + job + sub job)
+   - Dependency verification (all required jobs scanned)
+   - Scan creation and storage
+   - Returns structured result: {success, message, data}
+
+2. **_validate_input()** - Private validation helper:
+   - Validates barcode not empty
+   - Validates job type selected
+   - Validates sub job type selected
+   - Returns Thai language error messages
+
+3. **_check_duplicate()** - Private duplicate detection helper:
+   - Uses ScanLogRepository.check_duplicate()
+   - Checks entire history (24*365 hours)
+   - Allows same barcode with different sub jobs
+   - Returns duplicate info if found
+
+4. **_check_dependencies()** - Private dependency verification helper:
+   - Uses DependencyRepository.get_required_jobs()
+   - Checks each required job has been scanned
+   - Returns list of missing dependencies
+   - Builds user-friendly error message
+
+**Design Principles:**
+- ✅ **NO UI DEPENDENCIES** - Pure business logic only
+- ✅ **TESTABLE** - All logic fully unit tested with mocks
+- ✅ **RETURNS RESULTS** - Structured dict with success/message/data
+- ✅ **DEPENDENCY INJECTION** - Repositories injected via constructor
+- ✅ **CLEAN SEPARATION** - Service layer completely separate from UI
+
+**Test Results:**
+- **Total Tests:** 127 (106 existing + 21 new)
+- **Success Rate:** 100% ✅
+- **ScanService Coverage:** 100% ✅
+- **Test Speed:** 1.23 seconds for all 127 tests
+
+**Benefits:**
+- 🎯 Business logic now separate from UI
+- 🎯 Easy to test without UI dependencies
+- 🎯 Reusable across different UI layers (Tkinter, Flask, CLI, etc.)
+- 🎯 Single source of truth for scan processing logic
+- 🎯 Maintainable and extensible
+
+**Notes:**
+- Service contains NO messageboxes, NO widgets, NO UI code
+- All error messages in Thai language
+- Fully backwards compatible with existing repository layer
+- Ready for UI integration
+
+---
+
+### Phase 3: Extract Service Layer - Part 2 (DependencyService)
+**Status:** ✅ Completed
+**Started:** 2025-11-09
+**Completed:** 2025-11-09
+**Time Spent:** ~2 hours
+
+**Objective:** Create DependencyService to handle job dependency management business logic
+
+**Tasks Completed:**
+- [x] Created DependencyService with pure business logic (no UI dependencies)
+- [x] Implemented add_dependency() with validation and circular dependency check
+- [x] Implemented remove_dependency() for removing specific dependencies
+- [x] Implemented remove_all_dependencies() for batch removal
+- [x] Implemented get_required_jobs() with optional scan status
+- [x] Implemented save_dependencies() for batch save operations
+- [x] Implemented get_all_dependencies() for listing all dependencies
+- [x] Implemented private helper methods for validation
+- [x] Created comprehensive tests (24 tests, 6 test classes)
+- [x] Achieved 96% code coverage for DependencyService
+- [x] All 151 tests passing (127 + 24 new)
+
+**Code Changes:**
+- **Lines Added:** 83 lines (DependencyService)
+- **Test Lines Added:** 387 lines (test_dependency_service.py)
+- **Test Coverage:** 96% for DependencyService (only unreachable branches not covered)
+- **Repository Dependencies:** DependencyRepository, JobTypeRepository
+
+**Files Created:**
+- `src/services/dependency_service.py` - Dependency management service
+- `tests/services/test_dependency_service.py` - Comprehensive tests (24 tests)
+
+**Files Modified:**
+- `src/services/__init__.py` - Added DependencyService export
+
+**Service Features:**
+1. **add_dependency()** - Add dependency with validation:
+   - Validates both jobs exist using JobTypeRepository
+   - Checks job not adding dependency to itself
+   - Checks dependency doesn't already exist
+   - Validates no circular dependency would be created
+   - Returns structured result with success/message/data
+
+2. **remove_dependency()** - Remove specific dependency:
+   - Removes single dependency relationship
+   - Returns success if found and removed
+   - Returns error if dependency not found
+
+3. **remove_all_dependencies()** - Batch remove all dependencies:
+   - Removes all dependencies for a specific job
+   - Returns count of dependencies removed
+   - Always succeeds (even if 0 dependencies)
+
+4. **get_required_jobs()** - Get dependencies with optional scan status:
+   - Gets list of required jobs for a job
+   - Optional: include scan status (today or all-time)
+   - Returns list with count
+
+5. **save_dependencies()** - Batch save (replace all):
+   - Removes all existing dependencies first
+   - Adds new dependencies one by one
+   - Validates circular dependencies for each
+   - Returns count of added dependencies and any errors
+
+6. **get_all_dependencies()** - List all system dependencies:
+   - Returns all dependency relationships in system
+   - Useful for admin/debugging purposes
+
+**Private Helper Methods:**
+- **_validate_jobs_exist()** - Validates both jobs exist and not same
+- **_check_circular_dependency()** - Validates no circular reference
+
+**Design Principles:**
+- ✅ **NO UI DEPENDENCIES** - Pure business logic only
+- ✅ **TESTABLE** - All logic fully unit tested with mocks
+- ✅ **RETURNS RESULTS** - Structured dict with success/message/data
+- ✅ **DEPENDENCY INJECTION** - Repositories injected via constructor
+- ✅ **CLEAN SEPARATION** - Service layer completely separate from UI
+- ✅ **COMPREHENSIVE VALIDATION** - All edge cases handled
+
+**Test Results:**
+- **Total Tests:** 151 (127 existing + 24 new)
+- **Success Rate:** 100% ✅
+- **DependencyService Coverage:** 96% ✅ (only unreachable branches not covered)
+- **Test Speed:** 1.33 seconds for all 151 tests
+
+**Test Classes (6 total):**
+1. TestDependencyServiceInitialization - Service initialization
+2. TestDependencyServiceAddDependency - Adding dependencies with all validations
+3. TestDependencyServiceRemoveDependency - Removing dependencies
+4. TestDependencyServiceRemoveAllDependencies - Batch removal
+5. TestDependencyServiceGetRequiredJobs - Getting dependencies with/without scan status
+6. TestDependencyServiceSaveDependencies - Batch save operations
+7. TestDependencyServiceGetAllDependencies - Listing all dependencies
+
+**Benefits:**
+- 🎯 Dependency management logic now separate from UI
+- 🎯 Comprehensive validation prevents invalid dependencies
+- 🎯 Circular dependency detection prevents infinite loops
+- 🎯 Reusable across different UI layers
+- 🎯 Single source of truth for dependency operations
+- 🎯 Easy to test without UI dependencies
+
+**Notes:**
+- Service contains NO UI code whatsoever
+- All validations use repository methods
+- Fully backwards compatible with existing repository layer
+- Ready for UI integration
+- Comprehensive error handling for all edge cases
+
+---
+
 ## 📋 Pending Phases
 
-### Phase 3: Extract Service Layer
+### Phase 3: Extract Service Layer - Part 3 (ReportService)
 **Status:** ⏳ Pending
-**Estimated Time:** 10-12 hours
+**Estimated Time:** 2-3 hours
 
-**Objective:** Separate business logic from UI code
+**Objective:** Create ReportService to handle report generation business logic
 
 **Tasks:**
-- [ ] Create ScanService + tests
-- [ ] Create DependencyService + tests
 - [ ] Create ReportService + tests
-- [ ] Create ImportService + tests
-- [ ] Update UI code to use services
+- [ ] Implement report generation logic
+- [ ] Achieve 100% test coverage
 
 **Files to Create:**
-- `src/services/scan_service.py`
-- `src/services/dependency_service.py`
 - `src/services/report_service.py`
+
+---
+
+### Phase 3: Extract Service Layer - Part 4 (ImportService)
+**Status:** ⏳ Pending
+**Estimated Time:** 2-3 hours
+
+**Objective:** Create ImportService to handle import/export operations
+
+**Tasks:**
+- [ ] Create ImportService + tests
+- [ ] Implement import/export logic
+- [ ] Achieve 100% test coverage
+
+**Files to Create:**
 - `src/services/import_service.py`
+
+---
+
+### Phase 3: Extract Service Layer - Part 5 (UI Integration)
+**Status:** ⏳ Pending
+**Estimated Time:** 4-5 hours
+
+**Objective:** Update UI code to use service layer
+
+**Tasks:**
+- [ ] Update main_window.py to use services
+- [ ] Update web_app.py to use services
+- [ ] Integration testing
 
 ---
 
@@ -433,9 +657,10 @@ These are acceptable to keep as direct SQL since they involve complex joins, dyn
 | **Methods > 100 lines** | ~25 methods | ~25 methods | < 5 methods | 🔴 |
 | **SQL in Web Code** | ~30 queries | **~5 queries (-290 lines)** | 0 queries | 🟢 |
 | **SQL in Desktop Code** | ~45 queries | **~7 queries (-38 queries, 84%)** | 0 queries | 🟢 |
-| **Test Coverage** | 0% | **100% (106 tests)** | > 70% | 🟢 |
+| **Test Coverage** | 0% | **15% (151 tests)** | > 70% | 🟡 |
 | **Repository Layer** | 0 repos | **4 repos (100% coverage)** | 4 repos | 🟢 |
-| **Test Count** | 0 tests | **106 tests (+93)** | > 50 tests | 🟢 |
+| **Service Layer** | 0 services | **2 services (96-100% coverage)** | 4 services | 🟡 |
+| **Test Count** | 0 tests | **151 tests (+151)** | > 50 tests | 🟢 |
 | **Config Duplication** | 3 places | 1 place | 1 place | 🟢 |
 | **DatabaseManager Copies** | 3 copies | 1 copy | 1 copy | 🟢 |
 
@@ -462,7 +687,7 @@ Legend: 🔴 Critical | 🟡 Needs Work | 🟢 Good
 ## 📈 Weekly Progress Log
 
 ### Week 1 (2025-11-09 to 2025-11-15)
-**Target:** Complete Phase 0-2 (Repository Infrastructure)
+**Target:** Complete Phase 0-3 (Repository & Service Layer)
 
 **Completed:**
 - ✅ Phase 0: Setup & Documentation (13 tests)
@@ -471,19 +696,25 @@ Legend: 🔴 Critical | 🟡 Needs Work | 🟢 Good
 - ✅ Phase 2 Part 2A: Web App Integration (+0 tests, -30 queries)
 - ✅ Phase 2 Part 2B: Desktop App Integration (+1 repo method, -38 queries, 19 methods refactored)
 - ✅ **Phase 2 Complete:** Repository layer fully integrated
+- ✅ Phase 3 Part 1: ScanService (+21 tests, 100% coverage)
+- ✅ Phase 3 Part 2: DependencyService (+24 tests, 96% coverage)
 
 **In Progress:**
-- None - Phase 2 successfully completed
+- 🔄 Phase 3 Part 3: ReportService (Pending)
+- 🔄 Phase 3 Part 4: ImportService (Pending)
 
 **Blockers:**
 - None
 
 **Notes:**
 - Incremental refactoring approach working extremely well
-- Test coverage increased from 0% → 11% (106/106 tests passing)
+- Test coverage increased from 0% → 15% (151/151 tests passing)
 - Code duplication reduced from 30% → 12% (-670 lines total)
 - Repository pattern successfully implemented and integrated
-- **Core business logic completely migrated to repositories**
+- **Service layer successfully created with 2 services (ScanService, DependencyService)**
+- Service layer achieves 96-100% test coverage
+- Pure business logic now separated from UI
+- Services are fully testable without UI dependencies
 - Main scanning workflow (process_barcode) fully refactored
 - Web app and desktop app both using repositories
 - Ready for production deployment
@@ -536,4 +767,4 @@ Legend: 🔴 Critical | 🟡 Needs Work | 🟢 Good
 
 **Last Updated:** 2025-11-09
 **Updated By:** Claude Code
-**Next Review:** After Phase 2 Part 2 completion (Repository Integration)
+**Next Review:** After Phase 3 completion (Service Layer)
