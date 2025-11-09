@@ -30,6 +30,13 @@ from ..services import (
     ImportService
 )
 
+# Import dialogs
+from .dialogs import (
+    DuplicateWarningDialog,
+    SubJobEditDialog,
+    EditScanDialog
+)
+
 # Import login window
 try:
     from .login_window import LoginWindow
@@ -957,83 +964,16 @@ class WMSScannerApp:
     
     def show_sub_job_edit_dialog(self, sub_job_id, current_data):
         """Show dialog for editing sub job type"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("แก้ไขประเภทงานย่อย")
-        dialog.geometry("400x220")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # Center the dialog
-        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100))
-        
-        # Main frame
-        main_frame = ttk.Frame(dialog, padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Sub job name
-        name_frame = ttk.Frame(main_frame)
-        name_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(name_frame, text="ชื่อประเภทงานย่อย:").pack(anchor=tk.W)
-        name_entry = ttk.Entry(name_frame, width=40)
-        name_entry.pack(fill=tk.X, pady=2)
-        name_entry.insert(0, current_data['sub_job_name'])
-        
-        # Description
-        desc_frame = ttk.Frame(main_frame)
-        desc_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(desc_frame, text="คำอธิบาย:").pack(anchor=tk.W)
-        desc_entry = ttk.Entry(desc_frame, width=40)
-        desc_entry.pack(fill=tk.X, pady=2)
-        desc_entry.insert(0, current_data['description'] or "")
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=20)
-        
-        def save_changes():
-            new_name = name_entry.get().strip()
-            new_desc = desc_entry.get().strip()
-            
-            if not new_name:
-                messagebox.showwarning("คำเตือน", "กรุณาใส่ชื่อประเภทงานย่อย")
-                return
-            
-            try:
-                # Use SubJobRepository instead of direct SQL
-                # Check for duplicate name (excluding current record)
-                if self.sub_job_repo.duplicate_exists(
-                    main_job_id=self.current_selected_main_job_id,
-                    sub_job_name=new_name,
-                    exclude_id=sub_job_id
-                ):
-                    messagebox.showwarning("คำเตือน", "ชื่อประเภทงานย่อยนี้มีอยู่แล้ว")
-                    return
-
-                # Update database using SubJobRepository
-                self.sub_job_repo.update_sub_job(
-                    sub_job_id=sub_job_id,
-                    sub_job_name=new_name,
-                    description=new_desc
-                )
-
-                messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
-                dialog.destroy()
-
-                # Refresh list
-                self.refresh_sub_job_list()
-
-            except Exception as e:
-                messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
-        
-        def cancel_edit():
-            dialog.destroy()
-        
-        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.LEFT, padx=5)
-        
-        # Focus on name entry
-        name_entry.focus_set()
-        name_entry.select_range(0, tk.END)
+        # Use SubJobEditDialog
+        dialog = SubJobEditDialog(
+            parent=self.root,
+            sub_job_repo=self.sub_job_repo,
+            sub_job_id=sub_job_id,
+            main_job_id=self.current_selected_main_job_id,
+            current_data=current_data,
+            on_save_callback=self.refresh_sub_job_list
+        )
+        dialog.show()
     
     def on_main_job_change(self, event=None):
         """Handle main job type change in scanning tab"""
@@ -1355,73 +1295,23 @@ class WMSScannerApp:
     
     def show_duplicate_info(self, barcode, job_type, sub_job_type, existing_record):
         """Show detailed duplicate barcode information dialog - no scanning allowed"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("ไม่อนุญาตให้สแกนซ้ำ")
-        dialog.geometry("500x200")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # Center the dialog
-        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
-        
-        # Main frame
-        main_frame = ttk.Frame(dialog, padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Format scan date
-        scan_date = existing_record['scan_date']
-        if scan_date:
-            formatted_date = scan_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            formatted_date = "ไม่ทราบ"
-        
-        # Warning message with details
-        warning_text = f"⚠️ ไม่อนุญาตให้สแกนซ้ำ ⚠️\n\n"
-        warning_text += f"เลขพัสดุ: {barcode}\n"
-        warning_text += f"ประเภทงานหลัก: {job_type}\n"
-        warning_text += f"ประเภทงานย่อย: {sub_job_type}\n"
-        warning_text += f"สแกนไปแล้วเมื่อ: {formatted_date}\n"
-        warning_text += f"โดยผู้ใช้: {existing_record['user_id']}\n\n"
-        warning_text += "กรุณาตรวจสอบเลขพัสดุอีกครั้ง"
-        
-        message_label = ttk.Label(main_frame, text=warning_text, 
-                                 justify=tk.CENTER, font=("Arial", 11))
-        message_label.pack(pady=20)
-        
-        # Button frame
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(pady=10)
-        
-        def close_dialog():
-            dialog.destroy()
-        
-        # Close button
-        close_btn = ttk.Button(button_frame, text="ปิด (Enter)", command=close_dialog)
-        close_btn.pack()
-        close_btn.focus_set()  # Set focus on button for Enter key
-        
-        # Bind Enter key to close dialog
-        dialog.bind('<Return>', lambda e: close_dialog())
-        dialog.bind('<Escape>', lambda e: close_dialog())
-        
-        # Auto-close after 3 seconds
-        dialog.after(3000, close_dialog)
-        
-        # Set focus back to barcode entry after dialog
         def focus_barcode_entry():
+            """Return focus to barcode entry after dialog closes"""
             try:
                 self.barcode_entry.focus_set()
             except:
                 pass
-        
-        # Schedule focus return after dialog closes
-        dialog.protocol("WM_DELETE_WINDOW", lambda: [close_dialog(), self.root.after(100, focus_barcode_entry)])
-        
-        # Wait for dialog to close
-        self.root.wait_window(dialog)
-        
-        # Ensure barcode entry gets focus back
-        self.root.after(100, focus_barcode_entry)
+
+        # Use DuplicateWarningDialog
+        dialog = DuplicateWarningDialog(
+            parent=self.root,
+            barcode=barcode,
+            job_type=job_type,
+            sub_job_type=sub_job_type,
+            existing_record=existing_record,
+            on_close_callback=lambda: self.root.after(100, focus_barcode_entry)
+        )
+        dialog.show()
     
     def search_history(self, event=None):
         """Search and display history"""
@@ -1718,182 +1608,17 @@ class WMSScannerApp:
     
     def show_edit_dialog(self, record_id, current_values):
         """Show dialog for editing scan record"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("แก้ไขข้อมูลการสแกน")
-        dialog.geometry("600x400")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # Center the dialog
-        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100))
-        
-        # Main frame
-        main_frame = ttk.Frame(dialog, padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # ID (readonly)
-        id_frame = ttk.Frame(main_frame)
-        id_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(id_frame, text="ID:", width=15).pack(side=tk.LEFT)
-        id_entry = ttk.Entry(id_frame, width=20, state="readonly")
-        id_entry.pack(side=tk.LEFT, padx=10)
-        id_entry.config(state="normal")
-        id_entry.insert(0, current_values[0])
-        id_entry.config(state="readonly")
-        
-        # Barcode
-        barcode_frame = ttk.Frame(main_frame)
-        barcode_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(barcode_frame, text="บาร์โค้ด:", width=15).pack(side=tk.LEFT)
-        barcode_entry = ttk.Entry(barcode_frame, width=30)
-        barcode_entry.pack(side=tk.LEFT, padx=10)
-        barcode_entry.insert(0, current_values[1])
-        
-        # Scan date (readonly - informative)
-        date_frame = ttk.Frame(main_frame)
-        date_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(date_frame, text="วันที่/เวลา:", width=15).pack(side=tk.LEFT)
-        date_entry = ttk.Entry(date_frame, width=30, state="readonly")
-        date_entry.pack(side=tk.LEFT, padx=10)
-        date_entry.config(state="normal")
-        date_entry.insert(0, current_values[2])
-        date_entry.config(state="readonly")
-        
-        # Main job type
-        main_job_frame = ttk.Frame(main_frame)
-        main_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(main_job_frame, text="ประเภทงานหลัก:", width=15).pack(side=tk.LEFT)
-        main_job_var = tk.StringVar()
-        main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="readonly", width=25)
-        main_job_combo.pack(side=tk.LEFT, padx=10)
-        
-        # Sub job type
-        sub_job_frame = ttk.Frame(main_frame)
-        sub_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", width=15).pack(side=tk.LEFT)
-        sub_job_var = tk.StringVar()
-        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=25)
-        sub_job_combo.pack(side=tk.LEFT, padx=10)
-        
-        # Notes
-        notes_frame = ttk.Frame(main_frame)
-        notes_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(notes_frame, text="หมายเหตุ:", width=15).pack(side=tk.LEFT)
-        notes_entry = ttk.Entry(notes_frame, width=40)
-        notes_entry.pack(side=tk.LEFT, padx=10)
-        if len(current_values) > 5:
-            notes_entry.insert(0, current_values[5] or "")
-        
-        # User (readonly - informative)
-        user_frame = ttk.Frame(main_frame)
-        user_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(user_frame, text="ผู้ใช้:", width=15).pack(side=tk.LEFT)
-        user_entry = ttk.Entry(user_frame, width=30, state="readonly")
-        user_entry.pack(side=tk.LEFT, padx=10)
-        user_entry.config(state="normal")
-        user_entry.insert(0, current_values[6] if len(current_values) > 6 else current_values[4])
-        user_entry.config(state="readonly")
-        
-        # Load job types for combo
-        try:
-            job_types = list(self.job_types_data.keys())
-            main_job_combo['values'] = job_types
-            main_job_var.set(current_values[3])  # Main job name
-            
-            # Bind main job change to update sub jobs
-            def on_main_job_change_edit(event=None):
-                selected_main_job = main_job_var.get()
-                main_job_id = self.job_types_data.get(selected_main_job)
-
-                if main_job_id:
-                    try:
-                        # Use SubJobRepository to load sub jobs for selected main job
-                        results = self.sub_job_repo.get_by_main_job(main_job_id, active_only=True)
-                        sub_job_names = [row['sub_job_name'] for row in results]
-                        sub_job_combo['values'] = sub_job_names
-
-                        # Clear current sub job selection if main job changed
-                        if event:  # Only clear if this was triggered by user change
-                            sub_job_var.set('')
-                    except Exception as e:
-                        print(f"Error loading sub jobs in edit dialog: {str(e)}")
-                        sub_job_combo['values'] = []
-            
-            main_job_combo.bind('<<ComboboxSelected>>', on_main_job_change_edit)
-            
-            # Load initial sub jobs and set current sub job
-            on_main_job_change_edit()  # Load sub jobs for current main job
-            if len(current_values) > 4:
-                sub_job_var.set(current_values[4] or "")  # Sub job name
-            
-        except Exception as e:
-            print(f"Error setting up edit dialog: {str(e)}")
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=20)
-        
-        def save_changes():
-            new_barcode = barcode_entry.get().strip()
-            new_main_job = main_job_var.get()
-            new_sub_job = sub_job_var.get()
-            new_notes = notes_entry.get().strip()
-            
-            if not new_barcode:
-                messagebox.showwarning("คำเตือน", "กรุณาใส่บาร์โค้ด")
-                return
-            
-            if not new_main_job:
-                messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลัก")
-                return
-            
-            if not new_sub_job:
-                messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อย")
-                return
-            
-            try:
-                # Get job IDs
-                new_main_job_id = self.job_types_data.get(new_main_job, 0)
-
-                # Use SubJobRepository to get sub job ID
-                sub_job_data = self.sub_job_repo.find_by_name(new_main_job_id, new_sub_job)
-
-                if not sub_job_data:
-                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
-                    return
-
-                new_sub_job_id = sub_job_data['id']
-
-                # Use ScanLogRepository to update database
-                self.scan_log_repo.update(
-                    record_id,
-                    {
-                        'barcode': new_barcode,
-                        'job_type': new_main_job,
-                        'job_id': new_main_job_id,
-                        'sub_job_id': new_sub_job_id,
-                        'notes': new_notes
-                    }
-                )
-                
-                messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
-                dialog.destroy()
-                
-                # Refresh the history table
-                self.refresh_scanning_history()
-                
-            except Exception as e:
-                messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
-        
-        def cancel_edit():
-            dialog.destroy()
-        
-        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.LEFT, padx=5)
-        
-        # Focus on barcode entry
-        barcode_entry.focus_set()
-        barcode_entry.select_range(0, tk.END)
+        # Use EditScanDialog
+        dialog = EditScanDialog(
+            parent=self.root,
+            job_types_data=self.job_types_data,
+            sub_job_repo=self.sub_job_repo,
+            scan_log_repo=self.scan_log_repo,
+            record_id=record_id,
+            current_values=current_values,
+            on_save_callback=self.refresh_scanning_history
+        )
+        dialog.show()
     
     def export_report(self):
         """Export current report data to Excel with summary"""
