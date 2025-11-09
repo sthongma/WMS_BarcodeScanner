@@ -13,12 +13,15 @@ from .connection_config import ConnectionConfig
 
 class DatabaseManager:
     """จัดการการเชื่อมต่อและดำเนินการกับฐานข้อมูล"""
-    
+
+    # Config file constant for backwards compatibility
+    CONFIG_FILE = "config/sql_config.json"
+
     def __init__(self, connection_info: Optional[Dict[str, Any]] = None):
         self.config_manager = ConnectionConfig()
         self.connection_string = ""
         self.current_user = ""
-        
+
         if connection_info:
             # ใช้ข้อมูลการเชื่อมต่อจาก login
             self.config_manager.config = connection_info['config']
@@ -28,6 +31,16 @@ class DatabaseManager:
             # ใช้การตั้งค่าจากไฟล์
             self.connection_string = self.config_manager.get_connection_string()
             self.current_user = self.config_manager.get_current_user()
+
+    @property
+    def config(self) -> Optional[Dict[str, Any]]:
+        """Get config for backwards compatibility"""
+        return self.config_manager.config
+
+    @config.setter
+    def config(self, value: Dict[str, Any]):
+        """Set config for backwards compatibility"""
+        self.config_manager.config = value
     
     def test_connection(self) -> bool:
         """ทดสอบการเชื่อมต่อฐานข้อมูล"""
@@ -115,4 +128,41 @@ class DatabaseManager:
             return False
         except Exception as e:
             messagebox.showerror("Error", f"เกิดข้อผิดพลาดในการอัพเดทการเชื่อมต่อ: {str(e)}")
-            return False 
+            return False
+
+    # ========================================================================
+    # Convenience methods for backwards compatibility with main_window.py
+    # ========================================================================
+
+    def load_config(self) -> bool:
+        """โหลดการตั้งค่าจากไฟล์ (delegates to config_manager)"""
+        result = self.config_manager.load_config()
+        if result:
+            # Update connection string after loading config
+            self.update_connection_string()
+        return result
+
+    def save_config(self) -> bool:
+        """บันทึกการตั้งค่าลงไฟล์ (delegates to config_manager)"""
+        return self.config_manager.save_config()
+
+    def get_config(self) -> Dict[str, Any]:
+        """รับการตั้งค่าปัจจุบัน (delegates to config_manager)"""
+        return self.config_manager.get_config()
+
+    def update_config(self, new_config: Dict[str, Any]) -> bool:
+        """อัพเดทการตั้งค่าใหม่ (alias for update_connection)"""
+        return self.update_connection(new_config)
+
+    def reset_to_default(self) -> bool:
+        """รีเซ็ตการตั้งค่าเป็นค่าเริ่มต้น (delegates to config_manager)"""
+        result = self.config_manager.reset_to_default()
+        if result:
+            # Update connection string after reset
+            self.update_connection_string()
+        return result
+
+    def update_connection_string(self):
+        """อัพเดท connection string ตามการตั้งค่า"""
+        self.connection_string = self.config_manager.get_connection_string()
+        self.current_user = self.config_manager.get_current_user() 

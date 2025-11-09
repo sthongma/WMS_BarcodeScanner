@@ -26,80 +26,25 @@ CORS(app)
 # Global database manager
 db_manager = None
 
-def load_database_config():
-    """โหลดการตั้งค่าฐานข้อมูลจากไฟล์ config"""
-    try:
-        config_path = os.path.join('config', 'sql_config.json')
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-            
-            # ตรวจสอบว่ามีข้อมูลที่จำเป็นครบหรือไม่
-            required_fields = ['server', 'database']
-            for field in required_fields:
-                if field not in config:
-                    print(f"❌ ไม่พบข้อมูล {field} ในไฟล์ config")
-                    return None
-            
-            print(f"✅ โหลด config สำเร็จ: {config['server']}/{config['database']}")
-            return config
-        else:
-            print(f"⚠️ ไม่พบไฟล์ config: {config_path}")
-            return None
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการโหลด config: {e}")
-        return None
-
-def create_connection_string(config):
-    """สร้าง connection string จาก config"""
-    try:
-        server = config.get('server', '')
-        database = config.get('database', '')
-        auth_type = config.get('auth_type', 'SQL')
-        
-        if auth_type == 'Windows':
-            return f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes"
-        else:
-            username = config.get('username', '')
-            password = config.get('password', '')
-            return f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}"
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการสร้าง connection string: {e}")
-        return None
-
 def initialize_database():
     """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
     global db_manager
     try:
-        config = load_database_config()
-        if config:
-            connection_string = create_connection_string(config)
-            if connection_string:
-                print(f"🔗 กำลังเชื่อมต่อ: {config['server']}/{config['database']}")
-                
-                # สร้าง connection_info สำหรับ DatabaseManager
-                connection_info = {
-                    'config': config,
-                    'connection_string': connection_string,
-                    'current_user': config.get('username', 'system')
-                }
-                
-                db_manager = DatabaseManager(connection_info)
-                if db_manager.test_connection():
-                    print("✅ เชื่อมต่อฐานข้อมูลสำเร็จ")
-                    
-                    # ตรวจสอบและสร้างตารางที่จำเป็น
-                    ensure_tables_exist()
-                    
-                    return True
-                else:
-                    print("❌ การทดสอบการเชื่อมต่อล้มเหลว")
-                    return False
-            else:
-                print("❌ ไม่สามารถสร้าง connection string ได้")
-                return False
+        print("🔗 กำลังเชื่อมต่อฐานข้อมูล...")
+
+        # สร้าง DatabaseManager (จะโหลด config จากไฟล์โดยอัตโนมัติ)
+        db_manager = DatabaseManager()
+
+        if db_manager.test_connection():
+            config = db_manager.get_config()
+            print(f"✅ เชื่อมต่อฐานข้อมูลสำเร็จ: {config.get('server', '')}/{config.get('database', '')}")
+
+            # ตรวจสอบและสร้างตารางที่จำเป็น
+            ensure_tables_exist()
+
+            return True
         else:
-            print("❌ ไม่สามารถโหลดการตั้งค่าฐานข้อมูลได้")
+            print("❌ การทดสอบการเชื่อมต่อล้มเหลว")
             return False
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: {e}")
