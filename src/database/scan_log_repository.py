@@ -257,7 +257,8 @@ class ScanLogRepository(BaseRepository):
     def get_today_summary_count(
         self,
         job_id: int,
-        sub_job_id: Optional[int] = None
+        sub_job_id: Optional[int] = None,
+        notes_filter: Optional[str] = None
     ) -> int:
         """
         Get count of scans for today
@@ -265,6 +266,7 @@ class ScanLogRepository(BaseRepository):
         Args:
             job_id: Job type ID
             sub_job_id: Optional sub job type ID
+            notes_filter: Optional notes filter (LIKE search)
 
         Returns:
             Count of scans today
@@ -276,7 +278,7 @@ class ScanLogRepository(BaseRepository):
                 WHERE job_id = ? AND sub_job_id = ?
                 AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
             """
-            params = (job_id, sub_job_id)
+            params = [job_id, sub_job_id]
         else:
             query = """
                 SELECT COUNT(*) as total_count
@@ -284,9 +286,14 @@ class ScanLogRepository(BaseRepository):
                 WHERE job_id = ?
                 AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
             """
-            params = (job_id,)
+            params = [job_id]
 
-        results = self.db.execute_query(query, params)
+        # Add notes filter if specified
+        if notes_filter:
+            query = query.rstrip() + " AND notes LIKE ?"
+            params.append(f"%{notes_filter}%")
+
+        results = self.db.execute_query(query, tuple(params))
         return results[0]['total_count'] if results else 0
 
     def get_count_by_job(

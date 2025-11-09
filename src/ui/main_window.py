@@ -1009,31 +1009,25 @@ class WMSScannerApp:
     def on_main_job_change(self, event=None):
         """Handle main job type change in scanning tab"""
         main_job_name = self.current_job_type.get()
-        
+
         if not main_job_name:
             self.sub_job_combo['values'] = []
             self.current_sub_job_type.set('')
             return
-        
+
         # Get main job ID
         main_job_id = self.job_types_data.get(main_job_name)
         if not main_job_id:
             return
-        
+
         try:
-            # Load sub job types for selected main job
-            query = """
-                SELECT sub_job_name 
-                FROM sub_job_types 
-                WHERE main_job_id = ? AND is_active = 1
-                ORDER BY sub_job_name
-            """
-            results = self.db.execute_query(query, (main_job_id,))
-            
+            # Use SubJobRepository to load sub job types for selected main job
+            results = self.sub_job_repo.get_by_main_job(main_job_id, active_only=True)
+
             # Update sub job combo
             sub_job_names = [row['sub_job_name'] for row in results]
             self.sub_job_combo['values'] = sub_job_names
-            
+
             # Clear current selection
             self.current_sub_job_type.set('')
             
@@ -1101,37 +1095,34 @@ class WMSScannerApp:
         # Clear existing checkboxes
         for widget in self.dependencies_frame.winfo_children():
             widget.destroy()
-        
+
         self.dependencies_vars.clear()
-        
+
         if not self.current_selected_job:
             return
-        
+
         try:
-            # Get all job types except current selected
-            all_jobs = self.db.execute_query("SELECT id, job_name FROM job_types WHERE id != ? ORDER BY job_name", 
-                                           (self.current_selected_job,))
-            
-            # Get current dependencies
-            current_deps = self.db.execute_query(
-                "SELECT required_job_id FROM job_dependencies WHERE job_id = ?", 
-                (self.current_selected_job,)
-            )
+            # Use JobTypeRepository to get all job types except current selected
+            all_jobs_list = self.job_type_repo.get_all_job_types()
+            all_jobs = [job for job in all_jobs_list if job['id'] != self.current_selected_job]
+
+            # Use DependencyRepository to get current dependencies
+            current_deps = self.dependency_repo.get_required_jobs(self.current_selected_job)
             required_ids = [row['required_job_id'] for row in current_deps]
-            
+
             # Create checkboxes
             for job in all_jobs:
                 var = tk.BooleanVar()
                 var.set(job['id'] in required_ids)
                 self.dependencies_vars[job['id']] = var
-                
+
                 checkbox = ttk.Checkbutton(
-                    self.dependencies_frame, 
+                    self.dependencies_frame,
                     text=f"{job['job_name']} (ID: {job['id']})",
                     variable=var
                 )
                 checkbox.pack(anchor=tk.W, pady=2)
-                
+
         except Exception as e:
             print(f"Error refreshing dependencies: {str(e)}")
     
@@ -1476,17 +1467,16 @@ class WMSScannerApp:
     def refresh_report_job_types(self):
         """Refresh job types for report selection"""
         try:
-            # Get job types
-            query = "SELECT id, job_name FROM job_types ORDER BY job_name"
-            results = self.db.execute_query(query)
-            
+            # Use JobTypeRepository to get all job types
+            results = self.job_type_repo.get_all_job_types()
+
             job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['job_name']}" for row in results]
             self.report_job_type_combo['values'] = job_types
-            
+
             # Store job types data for easier access
             self.report_job_types_data = {f"{row['id']} - {row['job_name']}": row['id'] for row in results}
             self.report_job_types_data["ทั้งหมด"] = None
-            
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานหลักได้: {str(e)}")
     
@@ -1494,48 +1484,37 @@ class WMSScannerApp:
         """Handle job type change in report"""
         selected_job_type = self.report_job_type_var.get()
         job_type_id = self.report_job_types_data.get(selected_job_type)
-        
+
         # Clear sub job type selection
         self.report_sub_job_type_var.set("")
         self.report_sub_job_type_combo['values'] = []
-        
+
         if job_type_id:
             try:
-                # Get sub job types for selected job type
-                query = """
-                    SELECT id, sub_job_name 
-                    FROM sub_job_types 
-                    WHERE main_job_id = ? AND is_active = 1 
-                    ORDER BY sub_job_name
-                """
-                results = self.db.execute_query(query, (job_type_id,))
-                
+                # Use SubJobRepository to get sub jobs for selected job type
+                results = self.sub_job_repo.get_by_main_job(job_type_id, active_only=True)
+
                 sub_job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['sub_job_name']}" for row in results]
                 self.report_sub_job_type_combo['values'] = sub_job_types
-                
+
                 # Store sub job types data
                 self.report_sub_job_types_data = {f"{row['id']} - {row['sub_job_name']}": row['id'] for row in results}
                 self.report_sub_job_types_data["ทั้งหมด"] = None
-                
+
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดรายการงานรองได้: {str(e)}")
         else:
             # If "ทั้งหมด" is selected, load all sub job types
             try:
-                query = """
-                    SELECT id, sub_job_name 
-                    FROM sub_job_types 
-                    WHERE is_active = 1 
-                    ORDER BY sub_job_name
-                """
-                results = self.db.execute_query(query)
-                
+                # Use SubJobRepository to get all active sub jobs
+                results = self.sub_job_repo.get_all_active()
+
                 sub_job_types = ["ทั้งหมด"] + [f"{row['id']} - {row['sub_job_name']}" for row in results]
                 self.report_sub_job_type_combo['values'] = sub_job_types
-                
+
                 self.report_sub_job_types_data = {f"{row['id']} - {row['sub_job_name']}": row['id'] for row in results}
                 self.report_sub_job_types_data["ทั้งหมด"] = None
-                
+
             except Exception as e:
                 self.report_sub_job_types_data = {"ทั้งหมด": None}
     
@@ -1733,16 +1712,16 @@ class WMSScannerApp:
         job_type = values[3]
         
         # Confirm deletion
-        if messagebox.askyesno("ยืนยัน", 
+        if messagebox.askyesno("ยืนยัน",
                               f"ต้องการลบข้อมูลการสแกนหรือไม่?\n\nID: {record_id}\nบาร์โค้ด: {barcode}\nประเภทงาน: {job_type}"):
             try:
-                # Delete from database
-                self.db.execute_non_query("DELETE FROM scan_logs WHERE id = ?", (record_id,))
+                # Use ScanLogRepository to delete from database
+                self.scan_log_repo.delete(record_id)
                 messagebox.showinfo("สำเร็จ", "ลบข้อมูลเรียบร้อยแล้ว")
-                
+
                 # Refresh the history table
                 self.refresh_scanning_history()
-                
+
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบข้อมูลได้: {str(e)}")
     
@@ -1834,19 +1813,14 @@ class WMSScannerApp:
             def on_main_job_change_edit(event=None):
                 selected_main_job = main_job_var.get()
                 main_job_id = self.job_types_data.get(selected_main_job)
-                
+
                 if main_job_id:
                     try:
-                        query = """
-                            SELECT sub_job_name 
-                            FROM sub_job_types 
-                            WHERE main_job_id = ? AND is_active = 1
-                            ORDER BY sub_job_name
-                        """
-                        results = self.db.execute_query(query, (main_job_id,))
+                        # Use SubJobRepository to load sub jobs for selected main job
+                        results = self.sub_job_repo.get_by_main_job(main_job_id, active_only=True)
                         sub_job_names = [row['sub_job_name'] for row in results]
                         sub_job_combo['values'] = sub_job_names
-                        
+
                         # Clear current sub job selection if main job changed
                         if event:  # Only clear if this was triggered by user change
                             sub_job_var.set('')
@@ -1889,24 +1863,26 @@ class WMSScannerApp:
             try:
                 # Get job IDs
                 new_main_job_id = self.job_types_data.get(new_main_job, 0)
-                
-                # Get sub job ID
-                sub_job_query = """
-                    SELECT id FROM sub_job_types 
-                    WHERE main_job_id = ? AND sub_job_name = ? AND is_active = 1
-                """
-                sub_job_result = self.db.execute_query(sub_job_query, (new_main_job_id, new_sub_job))
-                
-                if not sub_job_result:
+
+                # Use SubJobRepository to get sub job ID
+                sub_job_data = self.sub_job_repo.find_by_name(new_main_job_id, new_sub_job)
+
+                if not sub_job_data:
                     messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
                     return
-                
-                new_sub_job_id = sub_job_result[0]['id']
-                
-                # Update database
-                self.db.execute_non_query(
-                    "UPDATE scan_logs SET barcode = ?, job_type = ?, job_id = ?, sub_job_id = ?, notes = ? WHERE id = ?",
-                    (new_barcode, new_main_job, new_main_job_id, new_sub_job_id, new_notes, record_id)
+
+                new_sub_job_id = sub_job_data['id']
+
+                # Use ScanLogRepository to update database
+                self.scan_log_repo.update(
+                    record_id,
+                    {
+                        'barcode': new_barcode,
+                        'job_type': new_main_job,
+                        'job_id': new_main_job_id,
+                        'sub_job_id': new_sub_job_id,
+                        'notes': new_notes
+                    }
                 )
                 
                 messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
@@ -2014,23 +1990,21 @@ class WMSScannerApp:
             # Get job types data for template
             job_types_data = []
             sub_job_types_data = []
-            
+
             try:
-                # Get job types with IDs
-                job_results = self.db.execute_query("SELECT id, job_name FROM job_types ORDER BY job_name")
+                # Use JobTypeRepository to get job types with IDs
+                job_results = self.job_type_repo.get_all_job_types()
                 for job in job_results:
                     job_types_data.append(f"{job['id']} - {job['job_name']}")
-                
-                # Get sub job types with IDs
-                sub_job_results = self.db.execute_query("""
-                    SELECT sjt.id, sjt.sub_job_name, jt.job_name as main_job_name, sjt.main_job_id
-                    FROM sub_job_types sjt
-                    JOIN job_types jt ON sjt.main_job_id = jt.id
-                    WHERE sjt.is_active = 1
-                    ORDER BY jt.job_name, sjt.sub_job_name
-                """)
+
+                # Use SubJobRepository to get all active sub jobs
+                # Then get job names for each
+                sub_job_results = self.sub_job_repo.get_all_active()
                 for sub_job in sub_job_results:
-                    sub_job_types_data.append(f"{sub_job['id']} - {sub_job['sub_job_name']} (งานหลัก: {sub_job['main_job_name']})")
+                    # Get main job name
+                    main_job = self.job_type_repo.find_by_id(sub_job['main_job_id'])
+                    main_job_name = main_job['job_name'] if main_job else "Unknown"
+                    sub_job_types_data.append(f"{sub_job['id']} - {sub_job['sub_job_name']} (งานหลัก: {main_job_name})")
                     
             except Exception as e:
                 print(f"Error loading job types: {str(e)}")
@@ -2230,20 +2204,19 @@ ID_ประเภทงานย่อย: 10
         # Add current job types with IDs
         try:
             info_text += "\n\n=== รายการประเภทงานหลัก ===\n"
-            job_results = self.db.execute_query("SELECT id, job_name FROM job_types ORDER BY id")
+            # Use JobTypeRepository to get all job types
+            job_results = self.job_type_repo.get_all_job_types()
             for job in job_results:
                 info_text += f"ID {job['id']}: {job['job_name']}\n"
-            
+
             info_text += "\n=== รายการประเภทงานย่อย ===\n"
-            sub_job_results = self.db.execute_query("""
-                SELECT sjt.id, sjt.sub_job_name, jt.job_name as main_job_name
-                FROM sub_job_types sjt
-                JOIN job_types jt ON sjt.main_job_id = jt.id
-                WHERE sjt.is_active = 1
-                ORDER BY sjt.id
-            """)
+            # Use SubJobRepository to get all active sub jobs
+            sub_job_results = self.sub_job_repo.get_all_active()
             for sub_job in sub_job_results:
-                info_text += f"ID {sub_job['id']}: {sub_job['sub_job_name']} (งานหลัก: {sub_job['main_job_name']})\n"
+                # Get main job name
+                main_job = self.job_type_repo.find_by_id(sub_job['main_job_id'])
+                main_job_name = main_job['job_name'] if main_job else "Unknown"
+                info_text += f"ID {sub_job['id']}: {sub_job['sub_job_name']} (งานหลัก: {main_job_name})\n"
                 
         except Exception as e:
             info_text += f"\n\nไม่สามารถโหลดรายการประเภทงานได้: {str(e)}"
@@ -2570,63 +2543,38 @@ ID_ประเภทงานย่อย: 10
             job_type_name = self.current_job_type.get()
             sub_job_type_name = self.current_sub_job_type.get()
             notes_filter = self.notes_var.get().strip()
-            
+
             # If no job type selected, clear summary
             if not job_type_name:
                 self.clear_summary()
                 return
-            
-            # Get job type ID
-            job_result = self.db.execute_query("SELECT id FROM job_types WHERE job_name = ?", (job_type_name,))
-            if not job_result:
+
+            # Use JobTypeRepository to get job type ID
+            job_data = self.job_type_repo.find_by_name(job_type_name)
+            if not job_data:
                 self.clear_summary()
                 return
-            
-            job_type_id = job_result[0]['id']
+
+            job_type_id = job_data['id']
             sub_job_id = None
-            
-            # Get sub job type ID if selected
+
+            # Use SubJobRepository to get sub job type ID if selected
             if sub_job_type_name:
-                sub_result = self.db.execute_query(
-                    "SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ?", 
-                    (sub_job_type_name, job_type_id)
-                )
-                if sub_result:
-                    sub_job_id = sub_result[0]['id']
-            
-            # Build query for today's count
-            if sub_job_id:
-                # With sub job type
-                count_query = """
-                    SELECT COUNT(*) as total_count
-                    FROM scan_logs
-                    WHERE job_id = ? 
-                    AND sub_job_id = ?
-                    AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
-                """
-                params = [job_type_id, sub_job_id]
-            else:
-                # Without sub job type - count all for this job type
-                count_query = """
-                    SELECT COUNT(*) as total_count
-                    FROM scan_logs
-                    WHERE job_id = ? 
-                    AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)
-                """
-                params = [job_type_id]
-            
-            # Add notes filter if specified
-            if notes_filter:
-                count_query += " AND notes LIKE ?"
-                params.append(f"%{notes_filter}%")
-            
-            result = self.db.execute_query(count_query, tuple(params))
-            total_count = result[0]['total_count'] if result else 0
-            
+                sub_job_data = self.sub_job_repo.find_by_name(job_type_id, sub_job_type_name)
+                if sub_job_data:
+                    sub_job_id = sub_job_data['id']
+
+            # Use ScanLogRepository to get today's count with optional notes filter
+            total_count = self.scan_log_repo.get_today_summary_count(
+                job_id=job_type_id,
+                sub_job_id=sub_job_id,
+                notes_filter=notes_filter if notes_filter else None
+            )
+
             # Update summary display
-            self.update_summary_display(job_type_name, sub_job_type_name or "ไม่มี", 
+            self.update_summary_display(job_type_name, sub_job_type_name or "ไม่มี",
                                       notes_filter or None, total_count)
-            
+
         except Exception as e:
             print(f"Error loading today summary: {str(e)}")
             self.clear_summary()
