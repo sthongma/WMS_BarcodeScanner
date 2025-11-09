@@ -1,0 +1,28 @@
+# WMS Barcode Scanner - Development & Testing Dependencies
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing Framework
+pytest>=7.4.0
+pytest-cov>=4.1.0          # Code coverage reports
+pytest-mock>=3.11.1        # Mocking support
+pytest-xdist>=3.3.1        # Parallel test execution
+
+# Code Quality
+black>=23.7.0              # Code formatter
+flake8>=6.1.0              # Linting
+mypy>=1.5.0                # Static type checking
+isort>=5.12.0              # Import sorting
+
+# Development Tools
+ipython>=8.14.0            # Better Python shell
+ipdb>=0.13.13              # Debugger
+
+# Test Data & Mocking
+faker>=19.3.0              # Generate fake test data
+freezegun>=1.2.2           # Mock datetime
+responses>=0.23.1          # Mock HTTP requests
+
+# Documentation
+sphinx>=7.1.0              # Documentation generator (optional)
