@@ -222,6 +222,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "database: mark test as database test"
     )
+    config.addinivalue_line(
+        "markers", "services: mark test as service layer test"
+    )
 
 
 # ============================================================================
