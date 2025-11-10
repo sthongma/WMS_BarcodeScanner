@@ -8,6 +8,7 @@ Displays a warning when a duplicate barcode is detected
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Any, Optional, Callable
+from ... import constants
 
 
 class DuplicateWarningDialog:
@@ -51,7 +52,7 @@ class DuplicateWarningDialog:
         # Create dialog
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("ไม่อนุญาตให้สแกนซ้ำ")
-        self.dialog.geometry("500x200")
+        self.dialog.geometry(constants.DIALOG_DUPLICATE_WARNING_SIZE)
         self.dialog.transient(parent)
         self.dialog.grab_set()
 
@@ -81,7 +82,7 @@ class DuplicateWarningDialog:
         scan_date = self.existing_record.get('scan_date')
         if scan_date:
             try:
-                formatted_date = scan_date.strftime("%Y-%m-%d %H:%M:%S")
+                formatted_date = scan_date.strftime(constants.DATETIME_FORMAT)
             except AttributeError:
                 # If scan_date is already a string
                 formatted_date = str(scan_date)
@@ -101,7 +102,7 @@ class DuplicateWarningDialog:
             main_frame,
             text=warning_text,
             justify=tk.CENTER,
-            font=("Arial", 11)
+            font=constants.FONT_REGULAR_SMALL
         )
         message_label.pack(pady=20)
 
@@ -124,7 +125,7 @@ class DuplicateWarningDialog:
 
     def setup_auto_close(self):
         """Setup auto-close after 3 seconds"""
-        self.dialog.after(3000, self.close)
+        self.dialog.after(constants.DUPLICATE_WARNING_AUTO_CLOSE_MS, self.close)
 
         # Setup close callback
         self.dialog.protocol("WM_DELETE_WINDOW", self.close)

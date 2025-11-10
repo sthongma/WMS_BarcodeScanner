@@ -1,0 +1,10 @@
+# SQL Server Configuration Example
+# Copy this file to sql_config.json and fill in your details
+
+{
+    "server": "YOUR_SERVER_NAME",
+    "database": "YOUR_DATABASE_NAME",
+    "auth_type": "SQL",
+    "username": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD"
+}

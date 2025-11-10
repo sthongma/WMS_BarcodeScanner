@@ -147,3 +147,4 @@ wms_user_setup.sql
 # SQL analysis reports (temporary)
 SQL_QUERIES_REPORT.txt
 SQL_QUERIES_SUMMARY.json
+config/sql_config.json

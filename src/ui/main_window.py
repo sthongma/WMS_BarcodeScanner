@@ -10,6 +10,9 @@ from tkinter import ttk, messagebox
 import sys
 from typing import Dict, Optional, Any
 
+# Import constants
+from .. import constants
+
 # Import database manager and repositories
 from ..database.database_manager import DatabaseManager
 from ..database import (
@@ -27,8 +30,8 @@ from ..services import (
     ImportService
 )
 
-# Import tab components
-from .components import (
+# Import UI tabs
+from .tabs import (
     DatabaseSettingsTab,
     ScanningTab,
     ImportTab,
@@ -52,7 +55,7 @@ class WMSScannerApp:
     def __init__(self, root, connection_info: Optional[Dict[str, Any]] = None):
         self.root = root
         self.root.title("WMS EP Asia Group Co., Ltd.")
-        self.root.geometry("1200x900")
+        self.root.geometry(constants.WINDOW_MAIN_SIZE)
         self.root.resizable(False, False)
 
         # Initialize database manager with connection info
@@ -123,7 +126,7 @@ class WMSScannerApp:
             services=services,
             on_scan_completed=self.on_scan_completed
         )
-        self.notebook.add(self.scanning_tab.frame, text="หน้าจอหลัก")
+        self.notebook.add(self.scanning_tab.frame, text=constants.TAB_SCANNING)
 
         # Tab 2: History
         self.history_tab = HistoryTab(
@@ -133,7 +136,7 @@ class WMSScannerApp:
             services=services,
             on_history_updated=None
         )
-        self.notebook.add(self.history_tab.frame, text="ประวัติการสแกน")
+        self.notebook.add(self.history_tab.frame, text=constants.TAB_HISTORY)
 
         # Tab 3: Reports
         self.reports_tab = ReportsTab(
@@ -143,7 +146,7 @@ class WMSScannerApp:
             services=services,
             on_report_generated=None
         )
-        self.notebook.add(self.reports_tab.frame, text="รายงาน")
+        self.notebook.add(self.reports_tab.frame, text=constants.TAB_REPORTS)
 
         # Tab 4: Import
         self.import_tab = ImportTab(
@@ -153,7 +156,7 @@ class WMSScannerApp:
             services=services,
             on_import_completed=self.on_import_completed
         )
-        self.notebook.add(self.import_tab.frame, text="นำเข้าข้อมูล")
+        self.notebook.add(self.import_tab.frame, text=constants.TAB_IMPORT)
 
         # Tab 5: Settings (Job Types Management)
         self.settings_tab = SettingsTab(
@@ -163,7 +166,7 @@ class WMSScannerApp:
             services=services,
             on_settings_changed=self.on_settings_changed
         )
-        self.notebook.add(self.settings_tab.frame, text="จัดการประเภทงานหลัก")
+        self.notebook.add(self.settings_tab.frame, text=constants.TAB_JOB_SETTINGS)
 
         # Tab 6: Sub Job Settings
         self.sub_job_settings_tab = SubJobSettingsTab(
@@ -173,7 +176,7 @@ class WMSScannerApp:
             services=services,
             on_sub_job_updated=self.on_sub_job_updated
         )
-        self.notebook.add(self.sub_job_settings_tab.frame, text="จัดการประเภทงานย่อย")
+        self.notebook.add(self.sub_job_settings_tab.frame, text=constants.TAB_SUB_JOB_SETTINGS)
 
         # Bind tab change event
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
@@ -184,11 +187,11 @@ class WMSScannerApp:
             selected_tab = event.widget.tab('current')['text']
 
             # Refresh scanning tab when selected
-            if selected_tab == "หน้าจอหลัก":
+            if selected_tab == constants.TAB_SCANNING:
                 self.root.after(100, self.scanning_tab.refresh_history)
 
             # Refresh history tab when selected
-            elif selected_tab == "ประวัติการสแกน":
+            elif selected_tab == constants.TAB_HISTORY:
                 self.root.after(100, self.history_tab.refresh_history)
 
         except Exception as e:

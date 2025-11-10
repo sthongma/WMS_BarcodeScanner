@@ -8,6 +8,7 @@ Handles business logic for job dependency management
 from typing import Dict, List, Optional, Any
 from ..database.dependency_repository import DependencyRepository
 from ..database.job_type_repository import JobTypeRepository
+from .. import constants
 
 
 class DependencyService:
@@ -306,7 +307,7 @@ class DependencyService:
         if not job:
             return {
                 'success': False,
-                'message': f'Job with ID {job_id} not found',
+                'message': constants.ERROR_JOB_NOT_FOUND.format(job_id),
                 'data': {}
             }
 
@@ -315,7 +316,7 @@ class DependencyService:
         if not required_job:
             return {
                 'success': False,
-                'message': f'Required job with ID {required_job_id} not found',
+                'message': constants.ERROR_JOB_NOT_FOUND.format(required_job_id),
                 'data': {}
             }
 

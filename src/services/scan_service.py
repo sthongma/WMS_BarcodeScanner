@@ -9,6 +9,7 @@ from typing import Dict, Optional, Any
 from ..database.scan_log_repository import ScanLogRepository
 from ..database.sub_job_repository import SubJobRepository
 from ..database.dependency_repository import DependencyRepository
+from .. import constants
 
 
 class ScanService:
@@ -81,7 +82,7 @@ class ScanService:
         if not sub_job_data:
             return {
                 'success': False,
-                'message': 'ไม่พบประเภทงานย่อยที่เลือก',
+                'message': constants.ERROR_INVALID_SUB_JOB,
                 'data': {}
             }
 
@@ -110,7 +111,7 @@ class ScanService:
 
             return {
                 'success': True,
-                'message': 'สแกนสำเร็จ',
+                'message': constants.SUCCESS_SCAN,
                 'data': {
                     'barcode': barcode,
                     'job_type': job_type_name,
@@ -121,7 +122,7 @@ class ScanService:
         except Exception as e:
             return {
                 'success': False,
-                'message': f'ไม่สามารถบันทึกข้อมูลได้: {str(e)}',
+                'message': constants.ERROR_SAVE_DATA.format(str(e)),
                 'data': {}
             }
 
@@ -145,21 +146,21 @@ class ScanService:
         if not barcode or not barcode.strip():
             return {
                 'success': False,
-                'message': 'กรุณาใส่บาร์โค้ด',
+                'message': constants.ERROR_EMPTY_BARCODE,
                 'data': {}
             }
 
         if not job_type_name or not job_type_name.strip():
             return {
                 'success': False,
-                'message': 'กรุณาเลือกประเภทงานหลักก่อน',
+                'message': constants.ERROR_NO_JOB_TYPE,
                 'data': {}
             }
 
         if not sub_job_type_name or not sub_job_type_name.strip():
             return {
                 'success': False,
-                'message': 'กรุณาเลือกประเภทงานย่อยก่อน',
+                'message': constants.ERROR_NO_SUB_JOB_TYPE,
                 'data': {}
             }
 
@@ -190,14 +191,14 @@ class ScanService:
             existing = self.scan_log_repo.check_duplicate(
                 barcode=barcode,
                 job_id=job_id,
-                hours=24*365  # Check entire history
+                hours=constants.DUPLICATE_CHECK_HOURS_FULL_HISTORY
             )
 
             # Check if the existing scan has the same sub_job_id
             if existing and existing.get('sub_job_id') == sub_job_id:
                 return {
                     'success': False,
-                    'message': 'พบข้อมูลซ้ำ',
+                    'message': constants.ERROR_DUPLICATE_BARCODE,
                     'data': {
                         'duplicate_info': existing
                     }
@@ -211,7 +212,7 @@ class ScanService:
         except Exception as e:
             return {
                 'success': False,
-                'message': f'ไม่สามารถตรวจสอบข้อมูลซ้ำได้: {str(e)}',
+                'message': constants.ERROR_CHECK_DUPLICATE.format(str(e)),
                 'data': {}
             }
 
@@ -251,7 +252,7 @@ class ScanService:
                 duplicate = self.scan_log_repo.check_duplicate(
                     barcode=barcode,
                     job_id=required_job_id,
-                    hours=24*365  # Check entire history
+                    hours=constants.DUPLICATE_CHECK_HOURS_FULL_HISTORY
                 )
 
                 if duplicate is None:
@@ -263,7 +264,7 @@ class ScanService:
             if missing_dependencies:
                 # Build error message
                 missing_names = [dep['job_name'] for dep in missing_dependencies]
-                message = f"ไม่มีงาน {', '.join(missing_names)}"
+                message = constants.ERROR_MISSING_DEPENDENCIES + f" {', '.join(missing_names)}"
 
                 return {
                     'success': False,
@@ -282,6 +283,6 @@ class ScanService:
         except Exception as e:
             return {
                 'success': False,
-                'message': f'ไม่สามารถตรวจสอบ dependencies ได้: {str(e)}',
+                'message': constants.ERROR_CHECK_DEPENDENCIES.format(str(e)),
                 'data': {}
             }

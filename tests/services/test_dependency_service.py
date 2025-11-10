@@ -75,7 +75,7 @@ class TestDependencyServiceAddDependency:
         result = dependency_service.add_dependency(999, 2)
 
         assert result['success'] is False
-        assert 'not found' in result['message']
+        assert '999' in result['message']  # Check for ID in Thai error message
 
     def test_add_dependency_required_job_not_found(
         self, dependency_service, mock_job_type_repo
@@ -89,7 +89,7 @@ class TestDependencyServiceAddDependency:
         result = dependency_service.add_dependency(1, 999)
 
         assert result['success'] is False
-        assert 'not found' in result['message']
+        assert '999' in result['message']  # Check for ID in Thai error message
 
     def test_add_dependency_to_itself(
         self, dependency_service, mock_job_type_repo

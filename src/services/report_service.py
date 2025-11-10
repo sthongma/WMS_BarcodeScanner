@@ -10,6 +10,7 @@ from datetime import datetime
 from ..database.scan_log_repository import ScanLogRepository
 from ..database.job_type_repository import JobTypeRepository
 from ..database.sub_job_repository import SubJobRepository
+from .. import constants
 
 
 class ReportService:
@@ -73,13 +74,13 @@ class ReportService:
 
         # Step 2: Parse and format date
         try:
-            date_obj = datetime.strptime(report_date, '%Y-%m-%d')
-            start_date = date_obj.strftime('%Y-%m-%d')
-            end_date = date_obj.strftime('%Y-%m-%d')
+            date_obj = datetime.strptime(report_date, constants.DATE_FORMAT)
+            start_date = date_obj.strftime(constants.DATE_FORMAT)
+            end_date = date_obj.strftime(constants.DATE_FORMAT)
         except ValueError:
             return {
                 'success': False,
-                'message': 'รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)',
+                'message': constants.ERROR_INVALID_DATE_FORMAT,
                 'data': {}
             }
 
@@ -123,7 +124,7 @@ class ReportService:
 
             return {
                 'success': True,
-                'message': f'พบข้อมูล {total_scans} รายการ',
+                'message': constants.INFO_DATA_FOUND.format(total_scans),
                 'data': {
                     'report_date': report_date,
                     'job_id': job_id,
@@ -142,7 +143,7 @@ class ReportService:
         except Exception as e:
             return {
                 'success': False,
-                'message': f'ไม่สามารถสร้างรายงานได้: {str(e)}',
+                'message': constants.ERROR_CREATE_REPORT.format(str(e)),
                 'data': {}
             }
 
@@ -169,19 +170,19 @@ class ReportService:
         """
         # Step 1: Validate dates
         try:
-            start_obj = datetime.strptime(start_date, '%Y-%m-%d')
-            end_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            start_obj = datetime.strptime(start_date, constants.DATE_FORMAT)
+            end_obj = datetime.strptime(end_date, constants.DATE_FORMAT)
 
             if start_obj > end_obj:
                 return {
                     'success': False,
-                    'message': 'วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด',
+                    'message': constants.ERROR_DATE_RANGE_INVALID,
                     'data': {}
                 }
         except ValueError:
             return {
                 'success': False,
-                'message': 'รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)',
+                'message': constants.ERROR_INVALID_DATE_FORMAT,
                 'data': {}
             }
 
@@ -228,7 +229,7 @@ class ReportService:
 
             return {
                 'success': True,
-                'message': f'พบข้อมูล {total_scans} รายการ',
+                'message': constants.INFO_DATA_FOUND.format(total_scans),
                 'data': {
                     'start_date': start_date,
                     'end_date': end_date,
@@ -248,7 +249,7 @@ class ReportService:
         except Exception as e:
             return {
                 'success': False,
-                'message': f'ไม่สามารถสร้างรายงานได้: {str(e)}',
+                'message': constants.ERROR_CREATE_REPORT.format(str(e)),
                 'data': {}
             }
 
@@ -275,7 +276,7 @@ class ReportService:
         if not date_str or not date_str.strip():
             return {
                 'success': False,
-                'message': 'กรุณาระบุวันที่',
+                'message': constants.ERROR_NO_DATE,
                 'data': {}
             }
 
@@ -284,7 +285,7 @@ class ReportService:
         if not job_info:
             return {
                 'success': False,
-                'message': f'ไม่พบงานหลักที่มี ID {job_id}',
+                'message': constants.ERROR_JOB_NOT_FOUND.format(job_id),
                 'data': {}
             }
 
@@ -294,7 +295,7 @@ class ReportService:
             if not sub_job_info:
                 return {
                     'success': False,
-                    'message': f'ไม่พบงานย่อยที่มี ID {sub_job_id}',
+                    'message': constants.ERROR_SUB_JOB_NOT_FOUND.format(sub_job_id),
                     'data': {}
                 }
 
@@ -302,7 +303,7 @@ class ReportService:
             if sub_job_info['main_job_id'] != job_id:
                 return {
                     'success': False,
-                    'message': 'งานย่อยไม่ตรงกับงานหลักที่เลือก',
+                    'message': constants.ERROR_SUB_JOB_MISMATCH,
                     'data': {}
                 }
 

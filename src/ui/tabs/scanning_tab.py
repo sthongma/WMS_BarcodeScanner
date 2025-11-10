@@ -10,6 +10,7 @@ from tkinter import ttk, messagebox
 from typing import Dict, Any, Callable, Optional
 from datetime import datetime
 from ..tabs.base_tab import BaseTab
+from ... import constants
 
 
 class ScanningTab(BaseTab):
@@ -34,46 +35,46 @@ class ScanningTab(BaseTab):
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # หัวข้อ
-        title_label = ttk.Label(main_frame, text="สแกนบาร์โค้ด", font=("Arial", 14, "bold"))
+        title_label = ttk.Label(main_frame, text="สแกนบาร์โค้ด", font=constants.FONT_TITLE)
         title_label.pack(pady=(0, 20))
-        
+
         # Frame สำหรับการสแกน
-        scan_frame = ttk.LabelFrame(main_frame, text="การสแกน")
+        scan_frame = ttk.LabelFrame(main_frame, text=constants.SECTION_SCANNING)
         scan_frame.pack(fill=tk.X, pady=(0, 20))
-        
+
         # เลือก Job Type
-        ttk.Label(scan_frame, text="Job Type:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(scan_frame, text=constants.LABEL_JOB_TYPE).grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
         self.job_type_var = tk.StringVar()
-        self.job_type_combo = ttk.Combobox(scan_frame, textvariable=self.job_type_var, 
-                                          state="readonly", width=30)
+        self.job_type_combo = ttk.Combobox(scan_frame, textvariable=self.job_type_var,
+                                          state=constants.WIDGET_STATE_READONLY, width=constants.COMBOBOX_WIDTH)
         self.job_type_combo.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
         self.job_type_combo.bind("<<ComboboxSelected>>", self.on_job_type_change)
-        
+
         # เลือก Sub Job Type
-        ttk.Label(scan_frame, text="Sub Job Type:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(scan_frame, text=constants.LABEL_SUB_JOB_TYPE).grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
         self.sub_job_type_var = tk.StringVar()
-        self.sub_job_type_combo = ttk.Combobox(scan_frame, textvariable=self.sub_job_type_var, 
-                                              state="readonly", width=30)
+        self.sub_job_type_combo = ttk.Combobox(scan_frame, textvariable=self.sub_job_type_var,
+                                              state=constants.WIDGET_STATE_READONLY, width=constants.COMBOBOX_WIDTH)
         self.sub_job_type_combo.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
-        
+
         # Barcode Entry
-        ttk.Label(scan_frame, text="Barcode:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
-        self.barcode_entry = ttk.Entry(scan_frame, width=40, font=("Arial", 12))
+        ttk.Label(scan_frame, text=constants.LABEL_BARCODE).grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.barcode_entry = ttk.Entry(scan_frame, width=constants.ENTRY_FIELD_WIDTH, font=constants.FONT_REGULAR)
         self.barcode_entry.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
         self.barcode_entry.bind("<Return>", self.process_barcode)
         self.barcode_entry.focus_set()
-        
+
         # ปุ่มสแกน
-        scan_button = ttk.Button(scan_frame, text="สแกน", command=self.process_barcode)
+        scan_button = ttk.Button(scan_frame, text=constants.BUTTON_SCAN, command=self.process_barcode)
         scan_button.grid(row=2, column=2, padx=5, pady=5)
-        
+
         # Frame สำหรับประวัติการสแกน
-        history_frame = ttk.LabelFrame(main_frame, text="ประวัติการสแกนล่าสุด")
+        history_frame = ttk.LabelFrame(main_frame, text=constants.SECTION_SCAN_HISTORY)
         history_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
-        
+
         # Treeview สำหรับประวัติ
-        columns = ("เวลา", "Barcode", "Job Type", "Sub Job Type", "สถานะ")
-        self.history_tree = ttk.Treeview(history_frame, columns=columns, show="headings", height=10)
+        columns = constants.COLUMNS_SCANNING_HISTORY
+        self.history_tree = ttk.Treeview(history_frame, columns=columns, show="headings", height=constants.TREEVIEW_HEIGHT_STANDARD)
         
         for col in columns:
             self.history_tree.heading(col, text=col)
@@ -90,8 +91,8 @@ class ScanningTab(BaseTab):
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(pady=10)
         
-        ttk.Button(button_frame, text="ล้างข้อมูล", command=self.clear_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="รีเฟรช", command=self.refresh_history).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text=constants.BUTTON_CLEAR, command=self.clear_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text=constants.BUTTON_REFRESH, command=self.refresh_history).pack(side=tk.LEFT, padx=5)
         
         # โหลดประวัติเริ่มต้น
         self.refresh_history()
@@ -218,12 +219,12 @@ class ScanningTab(BaseTab):
 
         try:
             # Use ScanLogRepository to get recent scans
-            results = self.scan_log_repo.get_recent_scans(limit=50, include_job_info=True)
+            results = self.scan_log_repo.get_recent_scans(limit=constants.RECENT_SCANS_LIMIT, include_job_info=True)
 
             for row in results:
-                scan_time = row['scan_date'].strftime("%Y-%m-%d %H:%M:%S") if row['scan_date'] else ""
+                scan_time = row['scan_date'].strftime(constants.DATETIME_FORMAT) if row['scan_date'] else ""
                 sub_job = row.get('sub_job_type_name') or ""
-                status = "สำเร็จ" if row['status'] == 'Active' else row['status']
+                status = constants.STATUS_SUCCESS if row['status'] == 'Active' else row['status']
 
                 self.history_tree.insert("", tk.END, values=(
                     scan_time, row['barcode'], row['job_type_name'], sub_job, status

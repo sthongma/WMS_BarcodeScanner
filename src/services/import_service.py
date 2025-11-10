@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 from ..database.job_type_repository import JobTypeRepository
 from ..database.sub_job_repository import SubJobRepository
 from ..database.scan_log_repository import ScanLogRepository
+from .. import constants
 
 
 class ImportService:
@@ -64,13 +65,13 @@ class ImportService:
             - data (dict): Detailed validation results
         """
         if required_columns is None:
-            required_columns = ['barcode', 'main_job_id', 'sub_job_id']
+            required_columns = constants.REQUIRED_IMPORT_COLUMNS
 
         # Check if data is empty
         if not data:
             return {
                 'success': False,
-                'message': 'ไม่มีข้อมูลให้นำเข้า',
+                'message': constants.ERROR_NO_IMPORT_DATA,
                 'data': {
                     'valid_rows': 0,
                     'invalid_rows': 0,
@@ -98,7 +99,7 @@ class ImportService:
 
         return {
             'success': all_valid,
-            'message': f'ตรวจสอบข้อมูลเสร็จสิ้น: ถูกต้อง {valid_count} แถว, ผิดพลาด {invalid_count} แถว',
+            'message': constants.SUCCESS_VALIDATION_COMPLETE.format(valid_count, invalid_count),
             'data': {
                 'valid_rows': valid_count,
                 'invalid_rows': invalid_count,
@@ -126,7 +127,7 @@ class ImportService:
             Dictionary with validation result
         """
         if required_columns is None:
-            required_columns = ['barcode', 'main_job_id', 'sub_job_id']
+            required_columns = constants.REQUIRED_IMPORT_COLUMNS
 
         result = {
             'valid': True,
@@ -245,7 +246,7 @@ class ImportService:
         if not validated_rows:
             return {
                 'success': False,
-                'message': 'ไม่มีข้อมูลที่ถูกต้องให้นำเข้า',
+                'message': constants.ERROR_NO_VALID_DATA,
                 'data': {
                     'imported_count': 0,
                     'failed_count': 0,
@@ -306,7 +307,7 @@ class ImportService:
 
         return {
             'success': success,
-            'message': f'นำเข้าข้อมูลเสร็จสิ้น: สำเร็จ {imported_count} แถว, ล้มเหลว {failed_count} แถว',
+            'message': constants.SUCCESS_IMPORT_COMPLETE.format(imported_count, failed_count),
             'data': {
                 'imported_count': imported_count,
                 'failed_count': failed_count,
@@ -333,12 +334,7 @@ class ImportService:
             template_info = {
                 'job_types': job_types,
                 'sub_jobs': sub_jobs,
-                'columns': [
-                    {'name': 'barcode', 'thai_name': 'บาร์โค้ด', 'required': True},
-                    {'name': 'main_job_id', 'thai_name': 'ID_ประเภทงานหลัก', 'required': True},
-                    {'name': 'sub_job_id', 'thai_name': 'ID_ประเภทงานย่อย', 'required': True},
-                    {'name': 'notes', 'thai_name': 'หมายเหตุ', 'required': False}
-                ],
+                'columns': constants.TEMPLATE_COLUMNS,
                 'sample_data': [
                     {
                         'barcode': 'BC001',

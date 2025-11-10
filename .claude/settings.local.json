@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit:*)"
+      "Bash(if [ -f \"test_report_fixed.py\" ])",
+      "Bash(then rm test_report_fixed.py)",
+      "Bash(else echo \"test_report_fixed.py not found\")",
+      "Bash(fi)",
+      "Bash(echo:*)",
+      "Bash(config/sql_config.json.example)",
+      "Bash(.gitignore)",
+      "Bash(if [ -f \"SQL_QUERIES_REPORT.txt\" ])",
+      "Bash(then mv SQL_QUERIES_REPORT.txt docs/internal/)",
+      "Bash(if [ -f \"SQL_QUERIES_SUMMARY.json\" ])",
+      "Bash(then mv SQL_QUERIES_SUMMARY.json docs/internal/)",
+      "Bash(src/web/__init__.py)",
+      "Bash(if [ -d \"tests/repositories\" ])",
+      "Bash(then rm -rf tests/repositories)",
+      "Bash(else echo \"tests/repositories not empty or doesn''t exist\")",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
