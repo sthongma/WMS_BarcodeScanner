@@ -95,6 +95,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
+.env.*.local
 .venv
 env/
 venv/
@@ -148,3 +150,8 @@ wms_user_setup.sql
 SQL_QUERIES_REPORT.txt
 SQL_QUERIES_SUMMARY.json
 config/sql_config.json
+
+# Docker
+docker-compose.override.yml
+.dockerignore.local
+logs/

@@ -16,7 +16,10 @@
       "Bash(if [ -d \"tests/repositories\" ])",
       "Bash(then rm -rf tests/repositories)",
       "Bash(else echo \"tests/repositories not empty or doesn''t exist\")",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(git add:*)",
+      "Bash(git update-index:*)"
     ],
     "deny": [],
     "ask": []

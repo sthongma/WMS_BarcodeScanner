@@ -73,28 +73,151 @@ WMS_BarcodeScanner/
 └── run.py                       # จุดเริ่มต้นโปรแกรม
 ```
 
+## 🚀 Quick Start
+
+### Desktop Application (Native)
+```bash
+# Windows
+scripts\setup_venv.bat
+.venv\Scripts\activate
+python run.py
+
+# Linux/Mac
+bash scripts/setup_venv.sh
+source .venv/bin/activate
+python run.py
+```
+
+### Web Application (Docker)
+```bash
+# Development
+cp .env.example .env
+# Edit .env with your database settings
+scripts/docker-run-dev.sh    # Linux/Mac
+scripts\docker-run-dev.bat   # Windows
+
+# Production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
 ## การติดตั้ง
 
-1. **ติดตั้ง Python 3.8+**
-2. **ติดตั้ง Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **ติดตั้ง ODBC Driver for SQL Server**
-4. **ตั้งค่าฐานข้อมูล**:
-   - แก้ไขไฟล์ `config/sql_config.json`
-   - ระบุ Server, Database, และข้อมูลการเข้าสู่ระบบ
+### 🖥️ Desktop Application Setup
+
+#### ข้อกำหนดระบบ
+- Python 3.8 หรือสูงกว่า
+- SQL Server ODBC Driver 17
+- Windows / Linux / macOS
+
+#### การติดตั้งด้วย Virtual Environment (แนะนำ)
+
+**Windows:**
+```bash
+# 1. Setup virtual environment
+scripts\setup_venv.bat
+
+# 2. Activate environment
+.venv\Scripts\activate
+# หรือ
+scripts\activate_dev.bat
+
+# 3. Configure database
+copy config\sql_config.json.example config\sql_config.json
+# แก้ไข config\sql_config.json ด้วยข้อมูล database ของคุณ
+
+# 4. Run application
+python run.py
+```
+
+**Linux/Mac:**
+```bash
+# 1. Setup virtual environment
+bash scripts/setup_venv.sh
+
+# 2. Activate environment
+source .venv/bin/activate
+# หรือ
+source scripts/activate_dev.sh
+
+# 3. Configure database
+cp config/sql_config.json.example config/sql_config.json
+# แก้ไข config/sql_config.json ด้วยข้อมูล database ของคุณ
+
+# 4. Run application
+python run.py
+```
+
+#### การติดตั้งแบบ Manual
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Configure database
+cp config/sql_config.json.example config/sql_config.json
+
+# 3. Run application
+python run.py
+```
+
+### 🐳 Web Application Setup (Docker)
+
+#### ข้อกำหนดระบบ
+- Docker Desktop / Docker Engine
+- Docker Compose
+- SQL Server (external)
+
+#### Quick Start
+```bash
+# 1. Create environment file
+cp .env.example .env
+
+# 2. Edit .env with your database configuration
+# Required: DB_SERVER, DB_DATABASE, DB_USERNAME, DB_PASSWORD
+
+# 3. Run development environment
+bash scripts/docker-run-dev.sh    # Linux/Mac
+scripts\docker-run-dev.bat        # Windows
+
+# Or run production environment
+bash scripts/docker-run-prod.sh   # Linux/Mac
+scripts\docker-run-prod.bat       # Windows
+```
+
+#### Manual Docker Commands
+```bash
+# Build image
+docker build -t wms-barcode-scanner-web:latest .
+
+# Run development (with hot-reload)
+docker-compose up
+
+# Run production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Stop containers
+docker-compose down
+```
+
+#### การเข้าถึง Web Application
+- Development: http://localhost:5000
+- สำหรับ Android: http://[YOUR_IP_ADDRESS]:5000
+
+📖 ดูเอกสารเพิ่มเติม: [Docker Setup Guide](docs/DOCKER_SETUP.md)
 
 ## การใช้งาน
 
 ### 🖥️ Desktop Application
 ```bash
+# With virtual environment
+source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate     # Windows
 python run.py
 ```
 
-### 📱 Web Application (สำหรับ Android)
+### 📱 Web Application (Docker)
 ```bash
-python web_app.py
+# Already running if you used docker-run-*.sh/bat
+# Or access: http://localhost:5000
 ```
 
 ### การสแกนบาร์โค้ด

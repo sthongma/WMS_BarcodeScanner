@@ -12,6 +12,15 @@ from flask_cors import CORS
 import json
 from datetime import datetime
 import threading
+from typing import Optional
+
+# Load environment variables from .env file (if available)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip loading .env file
+    pass
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -31,8 +40,17 @@ from src.services import (
 from src.models.data_models import ScanRecord
 
 app = Flask(__name__)
-app.secret_key = 'wms_scanner_secret_key_2024'
-CORS(app)
+
+# Configuration from environment variables with fallback to defaults
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'wms_scanner_secret_key_2024')
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_SIZE', '10')) * 1024 * 1024  # MB to bytes
+
+# CORS configuration
+cors_origins = os.getenv('CORS_ORIGINS', '*')
+if cors_origins == '*':
+    CORS(app)
+else:
+    CORS(app, origins=cors_origins.split(','))
 
 # Global database manager, repositories, and services
 db_manager = None
@@ -44,6 +62,52 @@ scan_service = None
 dependency_service = None
 report_service = None
 
+def get_database_config() -> Optional[dict]:
+    """
+    Get database configuration from environment variables or config file.
+    Priority: Environment Variables > config/sql_config.json
+    """
+    # Try to get config from environment variables first
+    db_server = os.getenv('DB_SERVER')
+    db_database = os.getenv('DB_DATABASE')
+    db_auth_type = os.getenv('DB_AUTH_TYPE', 'SQL')
+
+    if db_server and db_database:
+        print("📋 Using database configuration from environment variables")
+        config = {
+            'server': db_server,
+            'database': db_database,
+            'auth_type': db_auth_type
+        }
+
+        if db_auth_type == 'SQL':
+            db_username = os.getenv('DB_USERNAME')
+            db_password = os.getenv('DB_PASSWORD')
+            if not db_username or not db_password:
+                print("⚠️ DB_USERNAME or DB_PASSWORD not set in environment variables")
+                return None
+            config['username'] = db_username
+            config['password'] = db_password
+
+        # Build connection string
+        driver = os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
+        if db_auth_type == 'SQL':
+            connection_string = f"DRIVER={{{driver}}};SERVER={db_server};DATABASE={db_database};UID={db_username};PWD={db_password}"
+            current_user = db_username
+        else:
+            connection_string = f"DRIVER={{{driver}}};SERVER={db_server};DATABASE={db_database};Trusted_Connection=yes"
+            current_user = os.getenv('USERNAME', 'Windows User')
+
+        return {
+            'config': config,
+            'connection_string': connection_string,
+            'current_user': current_user
+        }
+
+    # Fallback to config file (legacy method)
+    print("📋 Trying to load database configuration from config/sql_config.json")
+    return None
+
 def initialize_database():
     """เริ่มต้นการเชื่อมต่อฐานข้อมูล"""
     global db_manager, job_type_repo, sub_job_repo, scan_log_repo, dependency_repo
@@ -51,8 +115,11 @@ def initialize_database():
     try:
         print("🔗 กำลังเชื่อมต่อฐานข้อมูล...")
 
-        # สร้าง DatabaseManager (จะโหลด config จากไฟล์โดยอัตโนมัติ)
-        db_manager = DatabaseManager()
+        # Try to get config from environment variables first
+        connection_info = get_database_config()
+
+        # สร้าง DatabaseManager (จะโหลด config จากไฟล์โดยอัตโนมัติถ้าไม่มี connection_info)
+        db_manager = DatabaseManager(connection_info) if connection_info else DatabaseManager()
 
         if db_manager.test_connection():
             config = db_manager.get_config()
@@ -450,6 +517,23 @@ def get_scan_history():
     except Exception as e:
         return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'})
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Docker/Kubernetes"""
+    try:
+        # Basic health check - just return 200 if app is running
+        return jsonify({
+            'status': 'healthy',
+            'service': 'wms-barcode-scanner-web',
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 503
+
 @app.route('/api/status')
 def get_status():
     """API สำหรับตรวจสอบสถานะการเชื่อมต่อ"""
@@ -691,17 +775,25 @@ if __name__ == '__main__':
     # สร้างโฟลเดอร์ templates ถ้ายังไม่มี
     os.makedirs('templates', exist_ok=True)
     os.makedirs('static', exist_ok=True)
-    
+
+    # Get Flask configuration from environment variables
+    flask_host = os.getenv('FLASK_HOST', '0.0.0.0')
+    flask_port = int(os.getenv('FLASK_PORT', '5000'))
+    flask_debug = os.getenv('FLASK_DEBUG', '0') == '1'
+    flask_env = os.getenv('FLASK_ENV', 'development')
+
     print("🚀 เริ่มต้น WMS Barcode Scanner Web Application")
-    print("📱 สามารถเข้าถึงได้ที่: http://localhost:5000")
-    print("📱 สำหรับ Android: http://[IP_ADDRESS]:5000")
+    print(f"🌍 Environment: {flask_env}")
+    print(f"📱 สามารถเข้าถึงได้ที่: http://localhost:{flask_port}")
+    print(f"📱 สำหรับ Android: http://[IP_ADDRESS]:{flask_port}")
     print("💡 ใช้ IP Address ของเครื่องนี้แทน [IP_ADDRESS]")
-    
+    print(f"🔧 Debug mode: {'ON' if flask_debug else 'OFF'}")
+
     # เริ่มต้นการเชื่อมต่อฐานข้อมูล
     print("🔗 กำลังเชื่อมต่อฐานข้อมูล...")
     if initialize_database():
         print("✅ พร้อมใช้งาน - ฐานข้อมูลเชื่อมต่อสำเร็จ")
     else:
         print("⚠️ แอปพลิเคชันจะทำงานในโหมด Offline")
-    
-    app.run(host='0.0.0.0', port=5000, debug=True) 
+
+    app.run(host=flask_host, port=flask_port, debug=flask_debug) 

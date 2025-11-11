@@ -1,0 +1,39 @@
+# ===================================================================
+# WMS Barcode Scanner - Docker Compose Production Configuration
+# ===================================================================
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ===================================================================
+
+version: '3.8'
+
+services:
+  wms-web:
+    # Production environment variables
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # Production restart policy
+    restart: always
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Only mount logs volume (not source code)
+    volumes:
+      - ./logs:/app/logs
+
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

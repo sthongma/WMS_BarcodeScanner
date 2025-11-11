@@ -8,8 +8,10 @@ Entry point for running the application
 import sys
 import os
 
-# Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Ensure the project root is in Python path (not src/)
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from src.main import main
 

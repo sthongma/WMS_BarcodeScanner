@@ -1,0 +1,102 @@
+# ===================================================================
+# Docker Ignore - Exclude files from Docker build context
+# ===================================================================
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+*.virtualenv
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+coverage.xml
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+pytest.ini
+
+# Development dependencies
+requirements-dev.txt
+
+# Database setup (not needed in container)
+wms_setup_db.sql
+
+# Scripts (some may not be needed in container)
+scripts/
+*.bat
+*.sh
+
+# Logs (will be mounted as volume)
+logs/
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# OS files
+Thumbs.db
+*.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Config (will use environment variables)
+config/sql_config.json
+config/*.json
+!config/*.json.example
+
+# Assets that Desktop app uses but Web app doesn't need
+# Uncomment if you want to exclude specific assets
+# assets/icons/
+# assets/images/
+
+# Desktop app specific files (not needed for web app)
+run.py
+run_wms_scanner.bat
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

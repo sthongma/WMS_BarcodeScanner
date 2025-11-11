@@ -1,63 +1,67 @@
 @echo off
 chcp 65001 >nul
-title WMS Barcode Scanner
+title WMS Barcode Scanner - Desktop Application
 
 echo ========================================
-echo    WMS Barcode Scanner Application
+echo    WMS Barcode Scanner - Desktop App
 echo ========================================
 echo.
 
-:: ตรวจสอบว่า Python ติดตั้งแล้วหรือไม่
-python --version >nul 2>&1
+REM Check if virtual environment exists
+if not exist ".venv" (
+    echo [WARNING] Virtual environment not found at .venv
+    echo.
+    echo Please run setup first:
+    echo   scripts\setup_venv.bat
+    echo.
+    set /p SETUP="Do you want to run setup now? (Y/n): "
+    if /i not "%SETUP%"=="n" (
+        echo.
+        echo Running setup...
+        call scripts\setup_venv.bat
+        if errorlevel 1 (
+            echo.
+            echo [ERROR] Setup failed
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo.
+        echo [ERROR] Cannot run without virtual environment
+        pause
+        exit /b 1
+    )
+)
+
+echo [INFO] Activating virtual environment...
+call .venv\Scripts\activate.bat
+
 if errorlevel 1 (
-    echo [ERROR] ไม่พบ Python ในระบบ
-    echo กรุณาติดตั้ง Python จาก https://www.python.org/downloads/
-    echo อย่าลืมเลือก "Add Python to PATH" ตอนติดตั้ง
+    echo [ERROR] Failed to activate virtual environment
     pause
     exit /b 1
 )
 
-echo [INFO] พบ Python ในระบบแล้ว
+echo [INFO] Virtual environment activated
 echo.
 
-:: ตรวจสอบว่าไฟล์ requirements.txt มีอยู่หรือไม่
-if not exist "requirements.txt" (
-    echo [ERROR] ไม่พบไฟล์ requirements.txt
-    echo กรุณาตรวจสอบว่าไฟล์อยู่ในโฟลเดอร์ที่ถูกต้อง
-    pause
-    exit /b 1
-)
-
-:: ตรวจสอบว่าไฟล์ run.py มีอยู่หรือไม่
+REM Check if run.py exists
 if not exist "run.py" (
-    echo [ERROR] ไม่พบไฟล์ run.py
-    echo กรุณาตรวจสอบว่าไฟล์อยู่ในโฟลเดอร์ที่ถูกต้อง
+    echo [ERROR] run.py not found
+    echo Please make sure you're in the correct directory
     pause
     exit /b 1
 )
 
-echo [INFO] กำลังตรวจสอบและติดตั้ง dependencies...
+echo [INFO] Starting WMS Barcode Scanner Desktop Application...
 echo.
 
-:: ติดตั้ง dependencies
-pip install -r requirements.txt
-if errorlevel 1 (
-    echo [ERROR] ไม่สามารถติดตั้ง dependencies ได้
-    echo กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองใหม่อีกครั้ง
-    pause
-    exit /b 1
-)
+REM Run the application
+python run.py
+
+REM Deactivate virtual environment when done
+deactivate
 
 echo.
-echo [INFO] Dependencies ติดตั้งเสร็จแล้ว
-echo [INFO] กำลังเริ่มโปรแกรม WMS Barcode Scanner ในพื้นหลัง...
-echo [INFO] โปรแกรมจะทำงานในพื้นหลัง
-echo [INFO] สามารถปิดโปรแกรมได้จาก Task Manager หรือ System Tray
-echo.
-
-:: รันโปรแกรมแบบซ่อนหน้าต่าง
-start /min python run.py
-
-echo [INFO] โปรแกรมเริ่มทำงานแล้วในพื้นหลัง
-timeout /t 1 /nobreak >nul
-exit
+echo [INFO] Application closed
+pause

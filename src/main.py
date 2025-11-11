@@ -12,11 +12,9 @@ from tkinter import messagebox
 from typing import Optional, Dict, Any
 from PIL import Image, ImageTk
 
-# Add src directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from ui.login_window import LoginWindow
-from ui.main_window import WMSScannerApp
+# Use relative imports (run.py handles path setup)
+from .ui.login_window import LoginWindow
+from .ui.main_window import WMSScannerApp
 
 
 def set_app_icon(root):
