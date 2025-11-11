@@ -1,0 +1,64 @@
+{
+  "version": "1.0.0",
+  "description": "การตั้งค่าเสียงสำหรับระบบ WMS Barcode Scanner",
+  "last_modified": "2025-11-11T00:00:00Z",
+
+  "global_settings": {
+    "enabled": true,
+    "default_volume": 0.8,
+    "allow_overlap": false,
+    "description": "การตั้งค่าเสียงทั่วไป - enabled: เปิด/ปิดเสียงทั้งหมด, allow_overlap: อนุญาตให้เล่นเสียงทับซ้อนกันได้"
+  },
+
+  "default_sounds": {
+    "success": {
+      "file": "/static/sounds/success.mp3",
+      "description": "เสียงเมื่อสแกนสำเร็จ",
+      "volume": 0.8,
+      "enabled": true
+    },
+    "error": {
+      "file": "/static/error_2.mp3",
+      "description": "เสียงเมื่อเกิดข้อผิดพลาด",
+      "volume": 0.8,
+      "enabled": true
+    },
+    "duplicate": {
+      "file": "/static/sounds/duplicate.mp3",
+      "description": "เสียงเมื่อพบบาร์โค้ดซ้ำ",
+      "volume": 0.8,
+      "enabled": true
+    },
+    "warning": {
+      "file": "/static/sounds/warning.mp3",
+      "description": "เสียงเตือน",
+      "volume": 0.8,
+      "enabled": true
+    }
+  },
+
+  "event_priorities": {
+    "description": "ลำดับความสำคัญของ event (ใช้เมื่อมีหลาย event พร้อมกัน)",
+    "error": 3,
+    "duplicate": 2,
+    "warning": 1,
+    "success": 0
+  },
+
+  "sound_fallback": {
+    "description": "ลำดับการค้นหาเสียง: 1. Sub-job specific -> 2. Main-job specific -> 3. Default",
+    "enable_cascade": true
+  },
+
+  "available_sounds": {
+    "description": "รายการไฟล์เสียงที่มีในระบบ",
+    "files": [
+      "/static/error_2.mp3",
+      "/static/error_3.mp3",
+      "/static/error_4.mp3",
+      "/static/sounds/success.mp3",
+      "/static/sounds/duplicate.mp3",
+      "/static/sounds/warning.mp3"
+    ]
+  }
+}

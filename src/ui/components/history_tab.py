@@ -218,52 +218,160 @@ class HistoryTab:
         """แสดง dialog สำหรับแก้ไข"""
         dialog = tk.Toplevel(self.parent)
         dialog.title("แก้ไขรายการสแกน")
-        dialog.geometry("400x300")
+        dialog.geometry("500x400")
         dialog.transient(self.parent)
         dialog.grab_set()
-        
-        # สร้าง UI สำหรับ dialog
-        ttk.Label(dialog, text="Barcode:").pack(pady=5)
-        barcode_entry = ttk.Entry(dialog, width=40)
+
+        # Main frame
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Information label
+        info_label = ttk.Label(main_frame, text="หมายเหตุ: สามารถแก้ไขได้เฉพาะงานรองและหมายเหตุเท่านั้น",
+                              foreground="red", font=("Arial", 9, "italic"))
+        info_label.pack(pady=(0, 10))
+
+        # ID (readonly)
+        id_frame = ttk.Frame(main_frame)
+        id_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(id_frame, text="ID:", width=15).pack(side=tk.LEFT)
+        id_entry = ttk.Entry(id_frame, width=20, state="readonly")
+        id_entry.pack(side=tk.LEFT, padx=10)
+        id_entry.config(state="normal")
+        id_entry.insert(0, current_values[0])
+        id_entry.config(state="readonly")
+
+        # Barcode (readonly - cannot edit)
+        barcode_frame = ttk.Frame(main_frame)
+        barcode_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(barcode_frame, text="บาร์โค้ด:", width=15).pack(side=tk.LEFT)
+        barcode_entry = ttk.Entry(barcode_frame, width=30, state="readonly")
+        barcode_entry.pack(side=tk.LEFT, padx=10)
+        barcode_entry.config(state="normal")
         barcode_entry.insert(0, current_values[2])
-        barcode_entry.pack(pady=5)
-        
-        ttk.Label(dialog, text="หมายเหตุ:").pack(pady=5)
-        notes_entry = ttk.Entry(dialog, width=40)
-        notes_entry.insert(0, current_values[7])
-        notes_entry.pack(pady=5)
-        
+        barcode_entry.config(state="readonly")
+
+        # Scan date (readonly)
+        date_frame = ttk.Frame(main_frame)
+        date_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(date_frame, text="วันที่/เวลา:", width=15).pack(side=tk.LEFT)
+        date_entry = ttk.Entry(date_frame, width=30, state="readonly")
+        date_entry.pack(side=tk.LEFT, padx=10)
+        date_entry.config(state="normal")
+        date_entry.insert(0, current_values[1])
+        date_entry.config(state="readonly")
+
+        # Main job type (readonly - cannot edit)
+        main_job_frame = ttk.Frame(main_frame)
+        main_job_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(main_job_frame, text="ประเภทงานหลัก:", width=15).pack(side=tk.LEFT)
+        main_job_var = tk.StringVar(value=current_values[3])
+        main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="disabled", width=25)
+        main_job_combo.pack(side=tk.LEFT, padx=10)
+
+        # Sub job type (CAN BE EDITED)
+        sub_job_frame = ttk.Frame(main_frame)
+        sub_job_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", width=15).pack(side=tk.LEFT)
+        sub_job_var = tk.StringVar()
+        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=25)
+        sub_job_combo.pack(side=tk.LEFT, padx=10)
+
+        # Notes
+        notes_frame = ttk.Frame(main_frame)
+        notes_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(notes_frame, text="หมายเหตุ:", width=15).pack(side=tk.LEFT)
+        notes_entry = ttk.Entry(notes_frame, width=40)
+        notes_entry.pack(side=tk.LEFT, padx=10)
+        notes_entry.insert(0, current_values[7] or "")
+
+        # Load sub job types for the current main job
+        try:
+            main_job_name = current_values[3]
+            # Get main_job_id from job_types
+            query = "SELECT id FROM job_types WHERE job_name = ?"
+            results = self.db_manager.execute_query(query, (main_job_name,))
+
+            if results:
+                main_job_id = results[0]['id']
+                # Load sub job types
+                sub_query = """
+                    SELECT sub_job_name
+                    FROM sub_job_types
+                    WHERE main_job_id = ? AND is_active = 1
+                    ORDER BY sub_job_name
+                """
+                sub_results = self.db_manager.execute_query(sub_query, (main_job_id,))
+                sub_job_names = [row['sub_job_name'] for row in sub_results]
+                sub_job_combo['values'] = sub_job_names
+
+                # Set current sub job
+                sub_job_var.set(current_values[4] or "")
+        except Exception as e:
+            print(f"Error loading sub jobs in edit dialog: {str(e)}")
+
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=20)
+
         def save_changes():
-            barcode = barcode_entry.get().strip()
-            notes = notes_entry.get().strip()
-            
-            if not barcode:
-                messagebox.showerror("ผิดพลาด", "กรุณากรอก Barcode")
+            new_sub_job_name = sub_job_var.get().strip()
+            new_notes = notes_entry.get().strip()
+
+            if not new_sub_job_name:
+                messagebox.showwarning("คำเตือน", "กรุณาเลือกงานรอง")
                 return
-            
+
             try:
+                main_job_name = main_job_var.get()
+                # Get main_job_id
+                query = "SELECT id FROM job_types WHERE job_name = ?"
+                results = self.db_manager.execute_query(query, (main_job_name,))
+
+                if not results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลงานหลัก")
+                    return
+
+                main_job_id = results[0]['id']
+
+                # Get sub_job_id
+                sub_query = """
+                    SELECT id FROM sub_job_types
+                    WHERE sub_job_name = ? AND main_job_id = ? AND is_active = 1
+                """
+                sub_results = self.db_manager.execute_query(sub_query, (new_sub_job_name, main_job_id))
+
+                if not sub_results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลงานรอง")
+                    return
+
+                new_sub_job_id = sub_results[0]['id']
+
                 # Use ScanService to update (records audit log)
                 from services.scan_service import ScanService
                 scan_service = ScanService()
                 result = scan_service.update_scan_record(
                     record_id=int(record_id),
-                    barcode=barcode,
-                    notes=notes if notes else None,
+                    sub_job_id=new_sub_job_id,
+                    notes=new_notes if new_notes else None,
                     user_id=self.db_manager.current_user
                 )
-                
+
                 if result.get('success'):
                     messagebox.showinfo("สำเร็จ", result.get('message', "แก้ไขรายการเรียบร้อยแล้ว"))
                     dialog.destroy()
                     self.refresh_history()
                 else:
                     messagebox.showerror("ผิดพลาด", result.get('message', 'ไม่สามารถแก้ไขรายการได้'))
-                
+
             except Exception as e:
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถแก้ไขรายการ: {str(e)}")
-        
-        ttk.Button(dialog, text="บันทึก", command=save_changes).pack(pady=10)
-        ttk.Button(dialog, text="ยกเลิก", command=dialog.destroy).pack(pady=5)
+
+        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="ยกเลิก", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+        # Focus on sub job combo
+        sub_job_combo.focus_set()
     
     def delete_record(self):
         """ลบรายการ"""

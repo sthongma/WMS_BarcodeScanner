@@ -15,4 +15,8 @@ flask-cors>=4.0.0
 qrcode[pil]>=7.4.0
 
 # Utilities
-typing-extensions>=4.0.0 
+typing-extensions>=4.0.0
+python-dotenv>=1.0.0
+
+# Sound (for Desktop App)
+pygame>=2.5.0 

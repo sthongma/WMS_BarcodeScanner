@@ -4,18 +4,22 @@
     "tabs_history_reports": true,
     "tabs_import": true,
     "tabs_settings": true,
-    "tabs_sub_job_settings": true
+    "tabs_sub_job_settings": true,
+    "tabs_sound_settings": true,
+    "tabs_notifications": true
   },
   "tab_names": {
     "tabs_scan": "หน้าจอหลัก",
     "tabs_history_reports": "ประวัติและรายงาน",
     "tabs_import": "นำเข้าข้อมูล",
     "tabs_settings": "จัดการประเภทงานหลัก",
-    "tabs_sub_job_settings": "จัดการประเภทงานย่อย"
+    "tabs_sub_job_settings": "จัดการประเภทงานย่อย",
+    "tabs_sound_settings": "การตั้งค่าเสียง",
+    "tabs_notifications": "จัดการแจ้งเตือน"
   },
   "metadata": {
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "การตั้งค่าการแสดงแท็บต่างๆ ในระบบ WMS Barcode Scanner",
-    "last_modified": "2025-08-31T00:00:00Z"
+    "last_modified": "2025-11-11T00:00:00Z"
   }
 }

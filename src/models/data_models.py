@@ -135,6 +135,49 @@ class ScanDependency:
     created_by: str = ""
 
 
+@dataclass
+class SoundSetting:
+    """โมเดลสำหรับการตั้งค่าเสียง"""
+    id: Optional[int] = None
+    job_id: Optional[int] = None  # NULL = default sound สำหรับทุก job
+    sub_job_id: Optional[int] = None  # NULL = ใช้เสียงของ main job
+    event_type: str = "success"  # success, error, duplicate, warning
+    sound_file: str = ""  # path to sound file
+    is_enabled: bool = True
+    volume: float = 1.0  # 0.0 - 1.0
+    created_date: Optional[datetime] = None
+    modified_date: Optional[datetime] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """แปลงเป็น dictionary"""
+        return {
+            "id": self.id,
+            "job_id": self.job_id,
+            "sub_job_id": self.sub_job_id,
+            "event_type": self.event_type,
+            "sound_file": self.sound_file,
+            "is_enabled": self.is_enabled,
+            "volume": self.volume,
+            "created_date": self.created_date.isoformat() if self.created_date else None,
+            "modified_date": self.modified_date.isoformat() if self.modified_date else None
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SoundSetting':
+        """สร้างจาก dictionary"""
+        return cls(
+            id=data.get("id"),
+            job_id=data.get("job_id"),
+            sub_job_id=data.get("sub_job_id"),
+            event_type=data.get("event_type", "success"),
+            sound_file=data.get("sound_file", ""),
+            is_enabled=data.get("is_enabled", True),
+            volume=data.get("volume", 1.0),
+            created_date=datetime.fromisoformat(data["created_date"]) if data.get("created_date") else None,
+            modified_date=datetime.fromisoformat(data["modified_date"]) if data.get("modified_date") else None
+        )
+
+
 class ScanHistory:
     """คลาสสำหรับจัดการประวัติการสแกน"""
     

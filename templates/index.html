@@ -700,6 +700,184 @@
             }
         }
 
+        /* ===== Notification Popup Styles ===== */
+        /* Modal Notification */
+        .modal-notification-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-notification-content {
+            background-color: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+            border: 3px solid;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-notification-content.success { border-color: #28a745; }
+        .modal-notification-content.error { border-color: #dc3545; }
+        .modal-notification-content.warning { border-color: #ffc107; }
+        .modal-notification-content.duplicate { border-color: #ffc107; }
+
+        .modal-notification-icon {
+            font-size: 48px;
+            display: block;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .modal-notification-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .modal-notification-message {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            text-align: center;
+            white-space: pre-wrap;
+        }
+
+        .modal-notification-close-btn {
+            display: block;
+            width: 100%;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .modal-notification-content.success .modal-notification-close-btn { background-color: #28a745; }
+        .modal-notification-content.error .modal-notification-close-btn { background-color: #dc3545; }
+        .modal-notification-content.warning .modal-notification-close-btn,
+        .modal-notification-content.duplicate .modal-notification-close-btn { background-color: #ffc107; color: #212529; }
+
+        .modal-notification-close-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Toast Notification */
+        #toast-notification-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9998;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 10px;
+        }
+
+        .toast-notification {
+            background-color: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            min-width: 350px;
+            max-width: 450px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: slideInRight 0.3s ease-out;
+            position: relative;
+            border-left: 4px solid;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(450px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(450px); opacity: 0; }
+        }
+
+        .toast-notification.success { border-left-color: #28a745; }
+        .toast-notification.error { border-left-color: #dc3545; }
+        .toast-notification.warning { border-left-color: #ffc107; }
+        .toast-notification.duplicate { border-left-color: #ffc107; }
+
+        .toast-notification-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .toast-notification-icon-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast-notification-icon {
+            font-size: 24px;
+        }
+
+        .toast-notification-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .toast-notification-close {
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .toast-notification-close:hover {
+            opacity: 1;
+        }
+
+        .toast-notification-message {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #555;
+            margin: 0;
+        }
+
+        .toast-notification-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 0 0 0 8px;
+        }
+
     </style>
 </head>
 <body>
@@ -839,24 +1017,101 @@
             currentAudio: null,
             audioQueue: [],
             isPlaying: false,
-            
-            playErrorSound: function() {
+            soundSettings: {},
+            soundEnabled: true,
+
+            /**
+             * เล่นเสียงจาก sound object ที่ได้จาก SoundService
+             * @param {Object} soundObj - object ที่มี sound_file, volume, is_enabled
+             */
+            playSound: function(soundObj) {
+                if (!soundObj || !soundObj.sound_file || !soundObj.is_enabled || !this.soundEnabled) {
+                    return;
+                }
+
                 // Stop any currently playing audio
                 if (this.currentAudio && !this.currentAudio.paused) {
                     this.currentAudio.pause();
                     this.currentAudio.currentTime = 0;
                 }
-                
-                // Select random error sound
+
+                // สร้าง audio element ใหม่
+                this.currentAudio = new Audio(soundObj.sound_file);
+                this.currentAudio.volume = soundObj.volume || 0.8;
+                this.currentAudio.play().catch(e => {
+                    console.warn('Audio play failed:', e);
+                });
+            },
+
+            /**
+             * เล่นเสียงจาก path โดยตรง (backward compatible)
+             * @param {string} soundPath - path ของไฟล์เสียง
+             * @param {number} volume - ระดับเสียง (0.0-1.0)
+             */
+            playSoundFile: function(soundPath, volume = 0.8) {
+                if (!this.soundEnabled) return;
+
+                // Stop any currently playing audio
+                if (this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+
+                this.currentAudio = new Audio(soundPath);
+                this.currentAudio.volume = volume;
+                this.currentAudio.play().catch(e => {
+                    console.warn('Audio play failed:', e);
+                });
+            },
+
+            /**
+             * เล่นเสียง error (backward compatible)
+             */
+            playErrorSound: function() {
+                // ใช้เสียง error แบบสุ่มเหมือนเดิม (fallback)
                 const errorSounds = ['errorSound', 'errorSound2', 'errorSound3'];
                 const randomSound = errorSounds[Math.floor(Math.random() * errorSounds.length)];
-                this.currentAudio = document.getElementById(randomSound);
-                
-                if (this.currentAudio) {
+                const audioElement = document.getElementById(randomSound);
+
+                if (audioElement) {
+                    // Stop any currently playing audio
+                    if (this.currentAudio && !this.currentAudio.paused) {
+                        this.currentAudio.pause();
+                        this.currentAudio.currentTime = 0;
+                    }
+
+                    this.currentAudio = audioElement;
                     this.currentAudio.currentTime = 0;
                     this.currentAudio.play().catch(e => {
                         console.warn('Audio play failed:', e);
                     });
+                }
+            },
+
+            /**
+             * เล่นเสียง success
+             * @param {Object} soundObj - sound object จาก SoundService
+             */
+            playSuccessSound: function(soundObj) {
+                this.playSound(soundObj);
+            },
+
+            /**
+             * เล่นเสียง duplicate
+             * @param {Object} soundObj - sound object จาก SoundService
+             */
+            playDuplicateSound: function(soundObj) {
+                this.playSound(soundObj);
+            },
+
+            /**
+             * เปิด/ปิดเสียงทั้งหมด
+             * @param {boolean} enabled - true = เปิด, false = ปิด
+             */
+            setSoundEnabled: function(enabled) {
+                this.soundEnabled = enabled;
+                if (!enabled && this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.pause();
                 }
             }
         };
@@ -1042,6 +1297,142 @@
             });
         }
 
+        // === Notification Manager ===
+        const NotificationManager = {
+            getEventIcon: function(eventType) {
+                const icons = {
+                    'success': '✓',
+                    'error': '✗',
+                    'warning': '⚠',
+                    'duplicate': '⚠',
+                    'info': 'ℹ'
+                };
+                return icons[eventType] || 'ℹ';
+            },
+
+            showModal: function(notification) {
+                const overlay = document.getElementById('modal-notification');
+                const content = overlay.querySelector('.modal-notification-content');
+                const icon = overlay.querySelector('.modal-notification-icon');
+                const title = overlay.querySelector('.modal-notification-title');
+                const message = overlay.querySelector('.modal-notification-message');
+                const closeBtn = overlay.querySelector('.modal-notification-close-btn');
+
+                // Set content
+                icon.textContent = this.getEventIcon(notification.event_type);
+
+                // Build title HTML with barcode if available
+                let titleHTML = '';
+                if (notification.barcode) {
+                    titleHTML = `<div style="font-family: 'Courier New', monospace; font-size: 14px; margin-bottom: 8px;">Barcode: ${notification.barcode}</div>`;
+                }
+                titleHTML += notification.title;
+                title.innerHTML = titleHTML;
+
+                message.textContent = notification.message;
+
+                // Set style based on event type
+                content.className = `modal-notification-content ${notification.event_type}`;
+
+                // Show modal
+                overlay.style.display = 'flex';
+
+                // Close button handler
+                const closeHandler = () => {
+                    overlay.style.display = 'none';
+                    closeBtn.removeEventListener('click', closeHandler);
+                    overlay.removeEventListener('click', overlayClickHandler);
+                };
+
+                // Click overlay to close
+                const overlayClickHandler = (e) => {
+                    if (e.target === overlay) {
+                        closeHandler();
+                    }
+                };
+
+                closeBtn.addEventListener('click', closeHandler);
+                overlay.addEventListener('click', overlayClickHandler);
+
+                // ESC key to close
+                const escHandler = (e) => {
+                    if (e.key === 'Escape') {
+                        closeHandler();
+                        document.removeEventListener('keydown', escHandler);
+                    }
+                };
+                document.addEventListener('keydown', escHandler);
+            },
+
+            showToast: function(notification, duration = 5000) {
+                const container = document.getElementById('toast-notification-container');
+                const toast = document.createElement('div');
+                toast.className = `toast-notification ${notification.event_type}`;
+
+                // Build barcode and title HTML
+                let titleSectionHTML = '';
+                if (notification.barcode) {
+                    titleSectionHTML = `
+                        <div>
+                            <div style="font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 3px; font-weight: bold;">Barcode: ${notification.barcode}</div>
+                            <h4 class="toast-notification-title" style="margin: 0;">${notification.title}</h4>
+                        </div>
+                    `;
+                } else {
+                    titleSectionHTML = `<h4 class="toast-notification-title">${notification.title}</h4>`;
+                }
+
+                // Create toast HTML
+                toast.innerHTML = `
+                    <div class="toast-notification-header">
+                        <div class="toast-notification-icon-title">
+                            <span class="toast-notification-icon">${this.getEventIcon(notification.event_type)}</span>
+                            ${titleSectionHTML}
+                        </div>
+                    </div>
+                    <p class="toast-notification-message">${notification.message}</p>
+                    <div class="toast-notification-progress"></div>
+                `;
+
+                container.appendChild(toast);
+
+                const progressBar = toast.querySelector('.toast-notification-progress');
+
+                // Progress animation
+                if (duration > 0) {
+                    progressBar.style.width = '100%';
+                    progressBar.style.transition = `width ${duration}ms linear`;
+                    setTimeout(() => {
+                        progressBar.style.width = '0%';
+                    }, 10);
+                }
+
+                // Close toast function
+                const closeToast = () => {
+                    toast.style.animation = 'slideOutRight 0.3s ease-out';
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                };
+
+                // Click to close
+                toast.addEventListener('click', closeToast);
+
+                // Auto close
+                if (duration > 0) {
+                    setTimeout(closeToast, duration);
+                }
+            },
+
+            show: function(notification) {
+                if (notification.popup_type === 'modal') {
+                    this.showModal(notification);
+                } else {
+                    this.showToast(notification);
+                }
+            }
+        };
+
         // Scan barcode - ทำงานเหมือน Desktop App
         async function scanBarcode() {
             const barcode = document.getElementById('barcode').value.trim();
@@ -1067,9 +1458,9 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
-                        barcode, 
-                        job_type_id: jobTypeId, 
+                    body: JSON.stringify({
+                        barcode,
+                        job_type_id: jobTypeId,
                         sub_job_type_id: subJobTypeId,
                         note: note
                     })
@@ -1084,21 +1475,49 @@
 
                 if (data.success) {
                     showStatus('scanStatus', data.message, 'success');
+
+                    // เล่นเสียง success จาก backend
+                    if (data.sound) {
+                        audioManager.playSuccessSound(data.sound);
+                    }
+
                     document.getElementById('barcode').value = '';
                     document.getElementById('barcode').focus();
-                    
+
                     // เพิ่มรายการใหม่เข้าไปในประวัติทันที (ถ้ามีข้อมูล)
                     if (data.scan_data) {
                         addNewHistoryItem(data.scan_data);
                     }
-                    
+
                     // อัปเดทข้อมูลหลังจากสแกนสำเร็จ
                     batchDataUpdate();
+
+                    // แสดง notification popup ถ้ามี
+                    if (data.notification) {
+                        NotificationManager.show(data.notification);
+                    }
                 } else {
                     // ล้างช่อง barcode ไม่ว่าจะสำเร็จหรือไม่
                     document.getElementById('barcode').value = '';
                     document.getElementById('barcode').focus();
-                    
+
+                    // เล่นเสียงตามประเภทของ error
+                    if (data.sound) {
+                        if (data.duplicate) {
+                            audioManager.playDuplicateSound(data.sound);
+                        } else {
+                            audioManager.playSound(data.sound);
+                        }
+                    } else {
+                        // Fallback ถ้าไม่มี sound object จาก backend
+                        audioManager.playErrorSound();
+                    }
+
+                    // แสดง notification popup ถ้ามี (แม้ในกรณี error/duplicate)
+                    if (data.notification) {
+                        NotificationManager.show(data.notification);
+                    }
+
                     if (data.duplicate) {
                         const message = `${data.message}\n\nข้อมูลเดิม:\nเวลา: ${new Date(data.existing_record.scan_date).toLocaleString('th-TH')}\nJob Type: ${data.existing_record.job_type_name}\nSub Job Type: ${data.existing_record.sub_job_type_name}\nผู้สแกน: ${data.existing_record.user_id}`;
                         showStatus('scanStatus', message, 'error');
@@ -1876,5 +2295,18 @@
     </script>
         </div> <!-- Close content -->
     </div> <!-- Close container -->
+
+    <!-- Modal Notification -->
+    <div id="modal-notification" class="modal-notification-overlay" style="display:none;">
+        <div class="modal-notification-content">
+            <span class="modal-notification-icon"></span>
+            <h3 class="modal-notification-title"></h3>
+            <p class="modal-notification-message"></p>
+            <button class="modal-notification-close-btn">ตรวจสอบแล้ว</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-notification-container"></div>
 </body>
 </html> 

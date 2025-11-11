@@ -93,7 +93,13 @@ class WMSScannerApp:
             
         if self.tab_config.is_tab_enabled('tabs_sub_job_settings'):
             self.create_sub_job_settings_tab()
-    
+
+        if self.tab_config.is_tab_enabled('tabs_sound_settings'):
+            self.create_sound_settings_tab()
+
+        if self.tab_config.is_tab_enabled('tabs_notifications'):
+            self.create_notifications_tab()
+
 
 
     def create_settings_tab(self):
@@ -254,7 +260,29 @@ class WMSScannerApp:
         # Store sub job data
         self.current_selected_main_job_id = None
         self.current_selected_sub_job_id = None
-    
+
+    def create_sound_settings_tab(self):
+        """Create sound settings tab"""
+        from ui.components.sound_settings_tab import SoundSettingsTab
+
+        sound_frame = ttk.Frame(self.notebook)
+        tab_name = self.tab_config.get_tab_name('tabs_sound_settings')
+        self.notebook.add(sound_frame, text=tab_name)
+
+        # Create sound settings component
+        self.sound_settings = SoundSettingsTab(sound_frame, self.db)
+
+    def create_notifications_tab(self):
+        """Create notifications management tab"""
+        from ui.components.notification_tab import NotificationTab
+
+        notification_frame = ttk.Frame(self.notebook)
+        tab_name = self.tab_config.get_tab_name('tabs_notifications')
+        self.notebook.add(notification_frame, text=tab_name)
+
+        # Create notification management component
+        self.notification_tab = NotificationTab(notification_frame, self.db, self.db.current_user or 'system')
+
     def create_scanning_tab(self):
         """Create scanning tab with left-right split layout"""
         scan_frame = ttk.Frame(self.notebook)
@@ -731,7 +759,7 @@ class WMSScannerApp:
                 values = self.history_tree.item(item)['values']
                 data.append({
                     'ID': values[0],
-                    'บาร์โค้ด': values[1],
+                    'บาร์โค้ด': str(values[1]),
                     'วันที่/เวลา': values[2],
                     'ประเภทงานหลัก': values[3],
                     'ประเภทงานย่อย': values[4],
@@ -1576,90 +1604,86 @@ class WMSScannerApp:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบประเภทงานได้: {str(e)}")
     
     def process_barcode(self, event=None):
-        """Process scanned barcode"""
+        """Process scanned barcode using ScanService"""
+        from services.scan_service import ScanService
+        from ui.components.notification_dialog import show_notification
+
         barcode = self.barcode_entry_var.get().strip()
         job_type = self.current_job_type.get()
         sub_job_type = self.current_sub_job_type.get()
         notes = self.notes_var.get().strip()
-        
+
         if not barcode:
             return
-        
+
         if not job_type:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลักก่อน")
             return
-        
+
         if not sub_job_type:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานย่อยก่อน")
             return
-        
-        # Check for duplicates in same main job + sub job combination - no duplicates allowed
+
         try:
             # Get job IDs
             main_job_id = self.job_types_data.get(job_type)
-            
+
             # Get sub job ID
             sub_job_query = """
-                SELECT id FROM sub_job_types 
+                SELECT id FROM sub_job_types
                 WHERE main_job_id = ? AND sub_job_name = ? AND is_active = 1
             """
             sub_job_result = self.db.execute_query(sub_job_query, (main_job_id, sub_job_type))
-            
+
             if not sub_job_result:
                 messagebox.showerror("ข้อผิดพลาด", "ไม่พบประเภทงานย่อยที่เลือก")
                 return
-            
+
             sub_job_id = sub_job_result[0]['id']
-            
-            # Check for existing scan with same barcode + main job + sub job combination
-            existing = self.db.execute_query(
-                "SELECT scan_date, user_id FROM scan_logs WHERE barcode = ? AND job_id = ? AND sub_job_id = ? ORDER BY scan_date DESC", 
-                (barcode, main_job_id, sub_job_id)
+
+            # Use ScanService to process scan
+            scan_service = ScanService("UI: MainWindow scan")
+            result = scan_service.process_scan(
+                barcode=barcode,
+                job_id=main_job_id,
+                sub_job_id=sub_job_id,
+                notes=notes,
+                user_id=self.db.current_user
             )
-            if existing:
-                # Clear barcode immediately when duplicate is detected
+
+            # Handle result
+            if result['success']:
+                # Clear input for next scan
                 self.barcode_entry_var.set("")
-                # Show duplicate warning with details - no option to continue
-                self.show_duplicate_info(barcode, job_type, sub_job_type, existing[0])
-                return
-        except Exception as e:
-            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถตรวจสอบข้อมูลซ้ำได้: {str(e)}")
-            return
-        
-        # Check dependencies validation AFTER duplicate check (using main job only)
-        if not self.check_dependencies(barcode, job_type):
-            return
-        
-        # Save barcode
-        try:
-            self.db.execute_non_query(
-                "INSERT INTO scan_logs (barcode, scan_date, job_type, user_id, job_id, sub_job_id, notes) VALUES (?, GETDATE(), ?, ?, ?, ?, ?)",
-                (barcode, job_type, self.db.current_user, main_job_id, sub_job_id, notes)
-            )
-            
-            # Get the ID of the newly inserted record
-            scan_id_result = self.db.execute_query("SELECT @@IDENTITY as scan_id")
-            scan_id = scan_id_result[0]['scan_id'] if scan_id_result else "N/A"
-            
-            # Update status
-            # current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # status_text = f"สแกนสำเร็จ | ID: {scan_id} | บาร์โค้ด: {barcode} | งานหลัก: {job_type} | งานย่อย: {sub_job_type}"
-            # if notes:
-            #     status_text += f" | หมายเหตุ: {notes}"
-            # status_text += f" | เวลา: {current_time}"
-            
-            # self.status_label.config(text=status_text, foreground="green")
-            
-            # Clear input for next scan
-            self.barcode_entry_var.set("")
-            # Keep job types and notes (user might want to scan multiple items with same settings)
-            
-            # Refresh scanning history table
-            self.refresh_scanning_history()
-            
-            # Update today summary
-            self.load_today_summary()
-            
+
+                # Refresh scanning history table
+                self.refresh_scanning_history()
+
+                # Update today summary
+                self.load_today_summary()
+
+                # Show notification popup if exists
+                if 'notification' in result:
+                    show_notification(self.root, result['notification'])
+
+            else:
+                # Show notification popup if exists (แม้ในกรณี error/duplicate)
+                if 'notification' in result:
+                    show_notification(self.root, result['notification'])
+
+                # Show error/duplicate message
+                if result.get('duplicate'):
+                    # Clear barcode immediately when duplicate is detected
+                    self.barcode_entry_var.set("")
+                    # Show duplicate info dialog
+                    existing_record = result.get('existing_record', {})
+                    messagebox.showwarning(
+                        "ข้อมูลซ้ำ",
+                        result['message'] + f"\n\nสแกนเมื่อ: {existing_record.get('scan_date', 'N/A')}\nโดย: {existing_record.get('user_id', 'N/A')}"
+                    )
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result['message'])
+
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถบันทึกข้อมูลได้: {str(e)}")
             self.status_label.config(text="เกิดข้อผิดพลาดในการบันทึก", foreground="red")
@@ -2160,7 +2184,7 @@ class WMSScannerApp:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Information label
-        info_label = ttk.Label(main_frame, text="หมายเหตุ: สามารถแก้ไขได้เฉพาะบาร์โค้ดและหมายเหตุเท่านั้น", 
+        info_label = ttk.Label(main_frame, text="หมายเหตุ: สามารถแก้ไขได้เฉพาะงานรองและหมายเหตุเท่านั้น",
                               foreground="red", font=("Arial", 9, "italic"))
         info_label.pack(pady=(0, 10))
         
@@ -2174,13 +2198,15 @@ class WMSScannerApp:
         id_entry.insert(0, current_values[0])
         id_entry.config(state="readonly")
         
-        # Barcode
+        # Barcode (readonly - cannot edit)
         barcode_frame = ttk.Frame(main_frame)
         barcode_frame.pack(fill=tk.X, pady=5)
         ttk.Label(barcode_frame, text="บาร์โค้ด:", width=15).pack(side=tk.LEFT)
-        barcode_entry = ttk.Entry(barcode_frame, width=30)
+        barcode_entry = ttk.Entry(barcode_frame, width=30, state="readonly")
         barcode_entry.pack(side=tk.LEFT, padx=10)
+        barcode_entry.config(state="normal")
         barcode_entry.insert(0, current_values[1])
+        barcode_entry.config(state="readonly")
         
         # Scan date (readonly - informative)
         date_frame = ttk.Frame(main_frame)
@@ -2199,13 +2225,13 @@ class WMSScannerApp:
         main_job_var = tk.StringVar()
         main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="disabled", width=25)
         main_job_combo.pack(side=tk.LEFT, padx=10)
-        
-        # Sub job type (disabled - cannot edit)
+
+        # Sub job type (CAN BE EDITED)
         sub_job_frame = ttk.Frame(main_frame)
         sub_job_frame.pack(fill=tk.X, pady=5)
         ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", width=15).pack(side=tk.LEFT)
         sub_job_var = tk.StringVar()
-        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="disabled", width=25)
+        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=25)
         sub_job_combo.pack(side=tk.LEFT, padx=10)
         
         # Notes
@@ -2272,24 +2298,45 @@ class WMSScannerApp:
         button_frame.pack(fill=tk.X, pady=20)
         
         def save_changes():
-            new_barcode = barcode_entry.get().strip()
+            new_sub_job_name = sub_job_var.get().strip()
             new_notes = notes_entry.get().strip()
-            
-            if not new_barcode:
-                messagebox.showwarning("คำเตือน", "กรุณาใส่บาร์โค้ด")
+
+            if not new_sub_job_name:
+                messagebox.showwarning("คำเตือน", "กรุณาเลือกงานรอง")
                 return
-            
+
             try:
+                # Get sub_job_id from sub_job_name
+                main_job_name = main_job_var.get()
+                main_job_id = self.job_types_data.get(main_job_name)
+
+                if not main_job_id:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลงานหลัก")
+                    return
+
+                # Query sub_job_id
+                query = """
+                    SELECT id FROM sub_job_types
+                    WHERE sub_job_name = ? AND main_job_id = ? AND is_active = 1
+                """
+                results = self.db.execute_query(query, (new_sub_job_name, main_job_id))
+
+                if not results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลงานรอง")
+                    return
+
+                new_sub_job_id = results[0]['id']
+
                 # Use ScanService to update (records audit log)
                 from services.scan_service import ScanService
                 scan_service = ScanService()
                 result = scan_service.update_scan_record(
                     record_id=int(record_id),
-                    barcode=new_barcode,
+                    sub_job_id=new_sub_job_id,
                     notes=new_notes if new_notes else None,
                     user_id=self.db.current_user
                 )
-                
+
                 if result.get('success'):
                     messagebox.showinfo("สำเร็จ", result.get('message', "แก้ไขข้อมูลเรียบร้อยแล้ว"))
                     dialog.destroy()
@@ -2297,7 +2344,7 @@ class WMSScannerApp:
                     self.refresh_scanning_history()
                 else:
                     messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถอัพเดทข้อมูลได้'))
-                
+
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
         
@@ -2306,10 +2353,9 @@ class WMSScannerApp:
         
         ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.LEFT, padx=5)
-        
-        # Focus on barcode entry
-        barcode_entry.focus_set()
-        barcode_entry.select_range(0, tk.END)
+
+        # Focus on sub job combo
+        sub_job_combo.focus_set()
     
     def export_report(self):
         """Export current report data to Excel with summary"""

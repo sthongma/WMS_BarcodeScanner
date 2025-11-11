@@ -10,51 +10,120 @@ from datetime import datetime, date
 from database.database_manager import DatabaseManager
 from services.job_service import JobService
 from services.audit_service import AuditService
+from services.sound_service import SoundService
+from services.notification_service import NotificationService
 
 
 class ScanService:
     """บริการจัดการการสแกน"""
-    
+
     def __init__(self, context: str = "Service: ScanService"):
         self.db = DatabaseManager.get_instance(None, context)
         self.job_service = JobService("Service: JobService (via ScanService)")
         self.audit_service = AuditService("Service: AuditService (via ScanService)")
+        self.sound_service = SoundService("Service: SoundService (via ScanService)")
+        self.notification_service = NotificationService("Service: NotificationService (via ScanService)")
     
-    def process_scan(self, barcode: str, job_id: int, sub_job_id: Optional[int] = None, 
+    def process_scan(self, barcode: str, job_id: int, sub_job_id: Optional[int] = None,
                     notes: str = None, user_id: str = None) -> Dict[str, Any]:
         """ประมวลผลการสแกนบาร์โค้ด"""
         try:
             # Validate inputs
             if not barcode or not barcode.strip():
-                return {'success': False, 'message': 'บาร์โค้ดไม่สามารถเป็นค่าว่างได้'}
-            
+                error_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'error')
+                return {
+                    'success': False,
+                    'message': 'บาร์โค้ดไม่สามารถเป็นค่าว่างได้',
+                    'sound': error_sound
+                }
+
             if not job_id:
-                return {'success': False, 'message': 'กรุณาเลือกประเภทงาน'}
-            
+                error_sound = self.sound_service.get_sound_for_event(None, None, 'error')
+                return {
+                    'success': False,
+                    'message': 'กรุณาเลือกประเภทงาน',
+                    'sound': error_sound
+                }
+
             barcode = barcode.strip()
-            
+
             # Check job dependencies
             dep_result = self.job_service.check_job_dependencies(barcode, job_id)
             if not dep_result['success']:
+                error_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'error')
+                dep_result['sound'] = error_sound
                 return dep_result
-            
+
+            # Check for notification popup BEFORE duplicate check
+            # This ensures notification shows even for duplicate scans
+            notification = self.notification_service.get_notification_for_barcode(barcode)
+            notification_data = None
+            if notification:
+                notification_data = {
+                    'barcode': barcode,
+                    'title': notification['title'],
+                    'message': notification['message'],
+                    'event_type': notification['event_type'],
+                    'popup_type': notification['popup_type']
+                }
+
             # Check for duplicates
             dup_result = self.check_duplicate_scan(barcode, job_id, sub_job_id)
             if not dup_result['success']:
+                # Add notification if exists (so it shows even for duplicates)
+                if notification_data:
+                    # Override sound with notification event_type if notification exists
+                    notification_sound = self.sound_service.get_sound_for_event(
+                        job_id, sub_job_id, notification_data['event_type']
+                    )
+                    dup_result['sound'] = notification_sound
+                    dup_result['notification'] = notification_data
+                else:
+                    # Add duplicate sound only if no notification
+                    duplicate_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'duplicate')
+                    dup_result['sound'] = duplicate_sound
                 return dup_result
-            
+
             # Get job type name
             job_type_name = self.get_job_type_name(job_id)
             if not job_type_name:
-                return {'success': False, 'message': 'ไม่พบข้อมูลประเภทงาน'}
-            
+                error_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'error')
+                return {
+                    'success': False,
+                    'message': 'ไม่พบข้อมูลประเภทงาน',
+                    'sound': error_sound
+                }
+
             # Save scan record
             save_result = self.save_scan_record(barcode, job_id, sub_job_id, job_type_name, notes, user_id)
-            
+
+            # Add success sound if save was successful
+            if save_result.get('success'):
+                # Add notification if exists
+                if notification_data:
+                    # Override sound with notification event_type if notification exists
+                    notification_sound = self.sound_service.get_sound_for_event(
+                        job_id, sub_job_id, notification_data['event_type']
+                    )
+                    save_result['sound'] = notification_sound
+                    save_result['notification'] = notification_data
+                else:
+                    # Use success sound if no notification
+                    success_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'success')
+                    save_result['sound'] = success_sound
+            else:
+                error_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'error')
+                save_result['sound'] = error_sound
+
             return save_result
-            
+
         except Exception as e:
-            return {'success': False, 'message': f'เกิดข้อผิดพลาด: {str(e)}'}
+            error_sound = self.sound_service.get_sound_for_event(job_id, sub_job_id, 'error')
+            return {
+                'success': False,
+                'message': f'เกิดข้อผิดพลาด: {str(e)}',
+                'sound': error_sound
+            }
     
     def check_duplicate_scan(self, barcode: str, job_id: int, sub_job_id: Optional[int] = None) -> Dict[str, Any]:
         """ตรวจสอบการสแกนซ้ำ"""
@@ -393,7 +462,7 @@ class ScanService:
                     old_values=old_values,
                     new_values=new_values,
                     changed_by=audit_user,
-                    notes='แก้ไขเลขบาร์โค้ดหรือหมายเหตุ'
+                    notes='แก้ไขงานรองหรือหมายเหตุ'
                 )
                 
                 return {

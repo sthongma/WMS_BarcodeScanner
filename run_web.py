@@ -26,6 +26,8 @@ from routes.auth_routes import auth_bp
 from routes.job_routes import job_bp
 from routes.scan_routes import scan_bp
 from routes.report_routes import report_bp
+from routes.sound_routes import sound_bp
+from routes.notification_routes import notification_bp
 
 # Import web services
 from web.database_service import initialize_database
@@ -74,6 +76,8 @@ def register_blueprints(app: Flask):
     app.register_blueprint(job_bp)
     app.register_blueprint(scan_bp)
     app.register_blueprint(report_bp)
+    app.register_blueprint(sound_bp)
+    app.register_blueprint(notification_bp)
 
 
 def register_main_routes(app: Flask):
