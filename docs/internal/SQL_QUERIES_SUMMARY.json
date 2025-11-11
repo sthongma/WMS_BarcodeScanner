@@ -1,0 +1,112 @@
+{
+  "summary": {
+    "total_queries": 43,
+    "files_analyzed": [
+      "web_app.py",
+      "main_window.py"
+    ],
+    "query_types": {
+      "SELECT": 27,
+      "INSERT": 7,
+      "DELETE": 4,
+      "UPDATE": 1,
+      "CREATE_TABLE": 4,
+      "CREATE_INDEX": 6
+    }
+  },
+  "categories": {
+    "JobType": {
+      "count": 8,
+      "queries": [
+        "SELECT id, job_name FROM job_types ORDER BY job_name (3x)",
+        "SELECT job_name FROM job_types WHERE id = ? (1x)",
+        "CREATE TABLE job_types (1x)",
+        "INSERT INTO job_types (2x)",
+        "DELETE FROM job_types (1x)"
+      ],
+      "files": [
+        "web_app.py",
+        "main_window.py"
+      ]
+    },
+    "SubJob": {
+      "count": 10,
+      "queries": [
+        "SELECT sub_job_types by main_job_id (3x)",
+        "SELECT COUNT for duplicate check (1x)",
+        "SELECT sub job details (2x)",
+        "SELECT sub job by name (2x)",
+        "CREATE TABLE sub_job_types (1x)",
+        "INSERT into sub_job_types (2x)",
+        "UPDATE sub_job_types is_active (1x)"
+      ],
+      "files": [
+        "web_app.py",
+        "main_window.py"
+      ]
+    },
+    "ScanLog": {
+      "count": 17,
+      "queries": [
+        "SELECT recent history TOP 50 (2x)",
+        "SELECT duplicate barcode check (2x)",
+        "INSERT scan record (2x)",
+        "SELECT search history (1x)",
+        "SELECT report data - all variants (5x)",
+        "CREATE TABLE scan_logs (1x)",
+        "CREATE INDEX on scan_logs (6x)",
+        "DELETE scan record (1x)",
+        "SELECT @@IDENTITY (1x)"
+      ],
+      "files": [
+        "web_app.py",
+        "main_window.py"
+      ]
+    },
+    "Dependency": {
+      "count": 8,
+      "queries": [
+        "SELECT required jobs (2x)",
+        "SELECT COUNT required job scanned (2x)",
+        "DELETE dependencies (2x)",
+        "INSERT dependency (1x)",
+        "SELECT current dependencies (1x)",
+        "CREATE TABLE job_dependencies (1x)"
+      ],
+      "files": [
+        "web_app.py",
+        "main_window.py"
+      ]
+    },
+    "Summary": {
+      "count": 4,
+      "queries": [
+        "SELECT COUNT todays summary - with sub job (2x)",
+        "SELECT COUNT todays summary - main job only (2x)"
+      ],
+      "files": [
+        "web_app.py",
+        "main_window.py"
+      ]
+    }
+  },
+  "duplicates": [
+    "SELECT required jobs for dependencies",
+    "SELECT COUNT for required job scans",
+    "INSERT scan record",
+    "SELECT recent scan history",
+    "Check duplicate barcode",
+    "SELECT report data with sub job",
+    "SELECT report data main job only",
+    "Today score summary counts"
+  ],
+  "key_features": [
+    "All queries use parameterized statements (?)",
+    "Foreign key constraints on all tables",
+    "Soft delete via is_active flag",
+    "ON DELETE CASCADE for sub_job_types",
+    "6 indexes on scan_logs table",
+    "UNIQUE constraints on dependencies",
+    "GETDATE() for automatic timestamps"
+  ]
+}

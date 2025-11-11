@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import pandas as pd
 from database.database_manager import DatabaseManager
+import logging
 
 
 class NotificationService:
@@ -19,6 +20,8 @@ class NotificationService:
             self.db = db_manager
         else:
             self.db = DatabaseManager.get_instance(None, context)
+        # module logger - let the global logging configuration control verbosity
+        self.logger = logging.getLogger(__name__)
 
     def get_notification_for_barcode(self, barcode: str) -> Optional[Dict[str, Any]]:
         """
@@ -68,7 +71,7 @@ class NotificationService:
             return None
 
         except Exception as e:
-            print(f"Error getting notification for barcode {barcode}: {e}")
+            self.logger.exception(f"Error getting notification for barcode {barcode}: {e}")
             return None
 
     def get_all_notifications(self) -> List[Dict[str, Any]]:
@@ -94,9 +97,9 @@ class NotificationService:
                 ORDER BY created_date DESC
             """
 
-            print(f"[NotificationService] กำลังดึงข้อมูล notification จากฐานข้อมูล...")
+            self.logger.debug("[NotificationService] กำลังดึงข้อมูล notification จากฐานข้อมูล...")
             results = self.db.execute_query(query)
-            print(f"[NotificationService] ดึงข้อมูลสำเร็จ: พบ {len(results) if results else 0} รายการ")
+            self.logger.debug(f"[NotificationService] ดึงข้อมูลสำเร็จ: พบ {len(results) if results else 0} รายการ")
 
             notifications = []
             for row in results:
@@ -115,9 +118,7 @@ class NotificationService:
             return notifications
 
         except Exception as e:
-            print(f"[NotificationService] Error getting all notifications: {e}")
-            import traceback
-            traceback.print_exc()
+            self.logger.exception(f"[NotificationService] Error getting all notifications: {e}")
             return []
 
     def import_notifications(self, excel_file: str, user_id: str) -> Dict[str, Any]:
@@ -132,18 +133,18 @@ class NotificationService:
             Dict ผลลัพธ์การนำเข้า
         """
         try:
-            print(f"[NotificationService] เริ่มนำเข้าไฟล์: {excel_file}")
+            self.logger.info(f"[NotificationService] เริ่มนำเข้าไฟล์: {excel_file}")
 
             # อ่านไฟล์ Excel
             df = pd.read_excel(excel_file)
-            print(f"[NotificationService] อ่านไฟล์ Excel สำเร็จ: {len(df)} แถว")
+            self.logger.debug(f"[NotificationService] อ่านไฟล์ Excel สำเร็จ: {len(df)} แถว")
 
             # ตรวจสอบ columns ที่จำเป็น
             required_columns = ['barcode', 'event_type', 'popup_type', 'title', 'message']
             missing_columns = [col for col in required_columns if col not in df.columns]
 
             if missing_columns:
-                print(f"[NotificationService] ขาด columns: {missing_columns}")
+                self.logger.warning(f"[NotificationService] ขาด columns: {missing_columns}")
                 return {
                     'success': False,
                     'message': f'ไฟล์ Excel ต้องมี columns: {", ".join(missing_columns)}'
@@ -151,7 +152,7 @@ class NotificationService:
 
             # ลบแถวที่ข้อมูลว่าง
             df = df.dropna(subset=required_columns)
-            print(f"[NotificationService] หลังลบแถวว่าง: {len(df)} แถว")
+            self.logger.debug(f"[NotificationService] หลังลบแถวว่าง: {len(df)} แถว")
 
             if df.empty:
                 return {
@@ -186,10 +187,10 @@ class NotificationService:
                 }
 
             # ล้างข้อมูลเก่าทั้งหมด
-            print(f"[NotificationService] กำลังลบข้อมูลเก่าทั้งหมด...")
+            self.logger.debug(f"[NotificationService] กำลังลบข้อมูลเก่าทั้งหมด...")
             truncate_query = "TRUNCATE TABLE notification_data"
             self.db.execute_non_query(truncate_query)
-            print(f"[NotificationService] ลบข้อมูลเก่าเสร็จสิ้น")
+            self.logger.debug(f"[NotificationService] ลบข้อมูลเก่าเสร็จสิ้น")
 
             # นำเข้าข้อมูลใหม่
             insert_query = """
@@ -201,7 +202,7 @@ class NotificationService:
             inserted_count = 0
             errors = []
 
-            print(f"[NotificationService] กำลังนำเข้าข้อมูล {len(df)} รายการ...")
+            self.logger.info(f"[NotificationService] กำลังนำเข้าข้อมูล {len(df)} รายการ...")
             for index, row in df.iterrows():
                 try:
                     self.db.execute_non_query(
@@ -217,12 +218,12 @@ class NotificationService:
                     )
                     inserted_count += 1
                     if inserted_count % 10 == 0:
-                        print(f"[NotificationService] นำเข้าแล้ว {inserted_count} รายการ...")
+                        self.logger.debug(f"[NotificationService] นำเข้าแล้ว {inserted_count} รายการ...")
                 except Exception as e:
                     errors.append(f"แถว {index + 2}: {str(e)}")
-                    print(f"[NotificationService] ข้อผิดพลาดแถว {index + 2}: {e}")
+                    self.logger.error(f"[NotificationService] ข้อผิดพลาดแถว {index + 2}: {e}")
 
-            print(f"[NotificationService] นำเข้าเสร็จสิ้น: {inserted_count} รายการ")
+            self.logger.info(f"[NotificationService] นำเข้าเสร็จสิ้น: {inserted_count} รายการ")
 
             if errors:
                 return {
@@ -237,9 +238,7 @@ class NotificationService:
             }
 
         except Exception as e:
-            print(f"[NotificationService] เกิดข้อผิดพลาดในการนำเข้า: {e}")
-            import traceback
-            traceback.print_exc()
+            self.logger.exception(f"[NotificationService] เกิดข้อผิดพลาดในการนำเข้า: {e}")
             return {
                 'success': False,
                 'message': f'เกิดข้อผิดพลาดในการนำเข้า: {str(e)}'
@@ -256,10 +255,10 @@ class NotificationService:
             Dict ผลลัพธ์การลบ
         """
         try:
-            print(f"[NotificationService] กำลังลบ notification ID: {notification_id}")
+            self.logger.debug(f"[NotificationService] กำลังลบ notification ID: {notification_id}")
             query = "DELETE FROM notification_data WHERE id = ?"
             self.db.execute_non_query(query, (notification_id,))
-            print(f"[NotificationService] ลบ notification ID {notification_id} สำเร็จ")
+            self.logger.info(f"[NotificationService] ลบ notification ID {notification_id} สำเร็จ")
 
             return {
                 'success': True,
@@ -267,7 +266,7 @@ class NotificationService:
             }
 
         except Exception as e:
-            print(f"[NotificationService] เกิดข้อผิดพลาดในการลบ: {e}")
+            self.logger.exception(f"[NotificationService] เกิดข้อผิดพลาดในการลบ: {e}")
             return {
                 'success': False,
                 'message': f'เกิดข้อผิดพลาดในการลบ: {str(e)}'
@@ -281,10 +280,10 @@ class NotificationService:
             Dict ผลลัพธ์การลบ
         """
         try:
-            print(f"[NotificationService] กำลังล้างข้อมูล notification ทั้งหมด...")
+            self.logger.debug(f"[NotificationService] กำลังล้างข้อมูล notification ทั้งหมด...")
             query = "TRUNCATE TABLE notification_data"
             self.db.execute_non_query(query)
-            print(f"[NotificationService] ล้างข้อมูล notification ทั้งหมดสำเร็จ")
+            self.logger.info(f"[NotificationService] ล้างข้อมูล notification ทั้งหมดสำเร็จ")
 
             return {
                 'success': True,
@@ -292,7 +291,7 @@ class NotificationService:
             }
 
         except Exception as e:
-            print(f"[NotificationService] เกิดข้อผิดพลาดในการล้างข้อมูล: {e}")
+            self.logger.exception(f"[NotificationService] เกิดข้อผิดพลาดในการล้างข้อมูล: {e}")
             return {
                 'success': False,
                 'message': f'เกิดข้อผิดพลาดในการล้างข้อมูล: {str(e)}'
