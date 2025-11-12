@@ -1607,6 +1607,7 @@ class WMSScannerApp:
         """Process scanned barcode using ScanService"""
         from services.scan_service import ScanService
         from ui.components.notification_dialog import show_notification
+        from utils.sound_manager import get_sound_manager
 
         barcode = self.barcode_entry_var.get().strip()
         job_type = self.current_job_type.get()
@@ -1625,6 +1626,9 @@ class WMSScannerApp:
             return
 
         try:
+            # Get sound manager instance
+            sound_manager = get_sound_manager()
+
             # Get job IDs
             main_job_id = self.job_types_data.get(job_type)
 
@@ -1650,6 +1654,10 @@ class WMSScannerApp:
                 notes=notes,
                 user_id=self.db.current_user
             )
+
+            # Play sound if available
+            if 'sound' in result and result['sound']:
+                sound_manager.play_sound(result['sound'])
 
             # Handle result
             if result['success']:

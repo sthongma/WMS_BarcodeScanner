@@ -66,7 +66,11 @@ def scan_barcode():
         if result['success']:
             logger.info(f"✅ สแกนสำเร็จ: {barcode}")
         else:
-            logger.warning(f"❌ สแกนล้มเหลว: {result['message']}")
+            # แยกกรณีสแกนซ้ำออกจาก error ทั่วไป เพื่อไม่ให้เตือนแรงเกินไปใน log
+            if result.get('duplicate'):
+                logger.info(f"🔁 สแกนซ้ำ: {result['message']}")
+            else:
+                logger.warning(f"❌ สแกนล้มเหลว: {result['message']}")
         
         return jsonify(result)
         

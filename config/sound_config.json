@@ -18,7 +18,7 @@
       "enabled": true
     },
     "error": {
-      "file": "/static/error_2.mp3",
+      "file": "/static/sounds/error.mp3",
       "description": "เสียงเมื่อเกิดข้อผิดพลาด",
       "volume": 0.8,
       "enabled": true
@@ -39,9 +39,9 @@
 
   "event_priorities": {
     "description": "ลำดับความสำคัญของ event (ใช้เมื่อมีหลาย event พร้อมกัน)",
-    "error": 3,
-    "duplicate": 2,
-    "warning": 1,
+    "error": 1,
+    "duplicate": 3,
+    "warning": 2,
     "success": 0
   },
 
@@ -53,10 +53,8 @@
   "available_sounds": {
     "description": "รายการไฟล์เสียงที่มีในระบบ",
     "files": [
-      "/static/error_2.mp3",
-      "/static/error_3.mp3",
-      "/static/error_4.mp3",
       "/static/sounds/success.mp3",
+      "/static/sounds/error.mp3",
       "/static/sounds/duplicate.mp3",
       "/static/sounds/warning.mp3"
     ]

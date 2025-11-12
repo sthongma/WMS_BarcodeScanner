@@ -881,9 +881,12 @@
     </style>
 </head>
 <body>
-    <audio id="errorSound" src="/static/error_4.mp3" preload="auto"></audio>
-    <audio id="errorSound2" src="/static/error_2.mp3" preload="auto"></audio>
-    <audio id="errorSound3" src="/static/error_3.mp3" preload="auto"></audio>
+    <!-- Audio elements for sounds (ใช้สำหรับ fallback เท่านั้น) -->
+    <audio id="successSound" src="/static/sounds/success.mp3" preload="auto"></audio>
+    <audio id="errorSound" src="/static/sounds/error.mp3" preload="auto"></audio>
+    <audio id="duplicateSound" src="/static/sounds/duplicate.mp3" preload="auto"></audio>
+    <audio id="warningSound" src="/static/sounds/warning.mp3" preload="auto"></audio>
+    
     <div class="container">
         <div class="header">
             <div class="header-right">
@@ -1065,13 +1068,11 @@
             },
 
             /**
-             * เล่นเสียง error (backward compatible)
+             * เล่นเสียง error (fallback เมื่อไม่มี sound object จาก backend)
              */
             playErrorSound: function() {
-                // ใช้เสียง error แบบสุ่มเหมือนเดิม (fallback)
-                const errorSounds = ['errorSound', 'errorSound2', 'errorSound3'];
-                const randomSound = errorSounds[Math.floor(Math.random() * errorSounds.length)];
-                const audioElement = document.getElementById(randomSound);
+                // ใช้เสียง error จาก audio element
+                const audioElement = document.getElementById('errorSound');
 
                 if (audioElement) {
                     // Stop any currently playing audio
@@ -1510,7 +1511,16 @@
                         }
                     } else {
                         // Fallback ถ้าไม่มี sound object จาก backend
-                        audioManager.playErrorSound();
+                        if (data.duplicate) {
+                            // ใช้ duplicate sound fallback สำหรับการสแกนซ้ำ
+                            const duplicateAudio = document.getElementById('duplicateSound');
+                            if (duplicateAudio) {
+                                duplicateAudio.currentTime = 0;
+                                duplicateAudio.play().catch(e => console.warn('Duplicate sound failed:', e));
+                            }
+                        } else {
+                            audioManager.playErrorSound();
+                        }
                     }
 
                     // แสดง notification popup ถ้ามี (แม้ในกรณี error/duplicate)
@@ -1520,7 +1530,8 @@
 
                     if (data.duplicate) {
                         const message = `${data.message}\n\nข้อมูลเดิม:\nเวลา: ${new Date(data.existing_record.scan_date).toLocaleString('th-TH')}\nJob Type: ${data.existing_record.job_type_name}\nSub Job Type: ${data.existing_record.sub_job_type_name}\nผู้สแกน: ${data.existing_record.user_id}`;
-                        showStatus('scanStatus', message, 'error');
+                        // ปิดเสียง error ซ้ำ เพราะเล่นเสียง duplicate ไปแล้ว
+                        showStatus('scanStatus', message, 'error', { suppressSound: true });
                     } else {
                         showStatus('scanStatus', data.message, 'error');
                     }
@@ -1847,7 +1858,7 @@
         // Show status message with fixed height container
         function showStatus(elementId, message, type, options = {}) {
             const element = document.getElementById(elementId);
-            const { showAnimation = true, isNewScan = false } = options;
+            const { showAnimation = true, isNewScan = false, suppressSound = false } = options;
             
             // สำหรับ scanStatus ใช้ status bar แบบคงที่
             if (elementId === 'scanStatus') {
@@ -1864,7 +1875,8 @@
                 
                 element.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
                 
-                if (type === 'error') {
+                if (type === 'error' && !suppressSound) {
+                    // เล่นเสียง error เฉพาะเมื่อไม่ได้ระบุให้ปิดเสียง (เช่น เคส duplicate ที่เล่นเสียงไปแล้ว)
                     audioManager.playErrorSound();
                 }
                 
