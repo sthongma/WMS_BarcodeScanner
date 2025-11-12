@@ -271,17 +271,51 @@ class HistoryController:
             values = self.history_tree.item(selected_item, 'values')
             record_id = values[0]
             barcode = values[1]
+            job_type_name = values[3]  # ชื่อประเภทงานหลัก
+            sub_job_type_name = values[4]  # เผื่อใช้ในอนาคต
             
             # Confirm deletion
             if messagebox.askyesno("ยืนยันการลบ", f"ต้องการลบข้อมูลบาร์โค้ด {barcode} หรือไม่?"):
-                # Delete from database
-                query = "DELETE FROM scan_logs WHERE id = ?"
-                self.db.execute_non_query(query, (record_id,))
+                try:
+                    # ดึง job_id ของเรคอร์ดที่จะลบ
+                    job_query = "SELECT job_id FROM scan_logs WHERE id = ?"
+                    job_results = self.db.execute_query(job_query, (record_id,))
+                    if not job_results:
+                        messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลที่ต้องการลบ")
+                        return
+                    current_job_id = job_results[0]['job_id']
+
+                    # ตรวจสอบว่ามีงานที่ตามหลัง (dependent jobs) ถูกสแกนแล้วสำหรับบาร์โค้ดนี้หรือไม่
+                    # โครงสร้าง: job_dependencies(job_id, required_job_id) => งาน job_id ต้องมี required_job_id มาก่อน
+                    # ดังนั้นงานที่ 'ตามหลัง' งานนี้ คือแถวที่ required_job_id = current_job_id
+                    depend_query = """
+                        SELECT COUNT(*) AS count
+                        FROM scan_logs sl
+                        WHERE sl.barcode = ? AND sl.job_id IN (
+                            SELECT jd.job_id FROM job_dependencies jd WHERE jd.required_job_id = ?
+                        )
+                    """
+                    depend_results = self.db.execute_query(depend_query, (barcode, current_job_id))
+                    if depend_results and depend_results[0]['count'] > 0:
+                        messagebox.showwarning(
+                            "ไม่สามารถลบได้",
+                            "มีงานถัดไปที่สแกนหลังจากงานนี้แล้ว จึงไม่สามารถลบได้ (มีการพึ่งพาข้อมูล)"
+                        )
+                        return
+
+                    # หากไม่มีงานถัดไป ให้ลบได้ ผ่าน Service (เพื่อให้มี audit log)
+                    from services.scan_service import ScanService
+                    scan_service = ScanService()
+                    result = scan_service.delete_scan_record(int(record_id), user_id=self.db.current_user)
+                    if not result.get('success'):
+                        messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถลบข้อมูลได้'))
+                        return
                 
-                # Remove from tree
-                self.history_tree.delete(selected_item)
-                
-                messagebox.showinfo("สำเร็จ", "ลบข้อมูลเรียบร้อยแล้ว")
+                    # Remove from tree
+                    self.history_tree.delete(selected_item)
+                    messagebox.showinfo("สำเร็จ", result.get('message', 'ลบข้อมูลเรียบร้อยแล้ว'))
+                except Exception as inner_e:
+                    messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการลบ: {str(inner_e)}")
                 
         except IndexError:
             messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่ต้องการลบ")

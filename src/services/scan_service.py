@@ -501,6 +501,28 @@ class ScanService:
                 }
             
             old_record = old_data[0]
+
+            # ตรวจสอบว่ามีงานที่ตามหลัง (dependent jobs) สำหรับบาร์โค้ดนี้หรือไม่
+            # โครงสร้าง: job_dependencies(job_id, required_job_id)
+            # ถ้าพบว่ามีการสแกนงานที่ job_id ∈ (SELECT job_id FROM job_dependencies WHERE required_job_id = old_record.job_id)
+            # และใช้ barcode เดียวกัน ให้บล็อกการลบ
+            try:
+                dep_check_query = """
+                    SELECT COUNT(*) AS count
+                    FROM scan_logs sl
+                    WHERE sl.barcode = ? AND sl.job_id IN (
+                        SELECT jd.job_id FROM job_dependencies jd WHERE jd.required_job_id = ?
+                    )
+                """
+                dep_result = self.db.execute_query(dep_check_query, (old_record['barcode'], old_record['job_id']))
+                if dep_result and dep_result[0]['count'] > 0:
+                    return {
+                        'success': False,
+                        'message': 'ไม่สามารถลบได้ เนื่องจากมีงานถัดไปที่อ้างอิงงานนี้อยู่'
+                    }
+            except Exception as dep_err:
+                # หากตรวจสอบไม่สำเร็จ (เช่น ไม่มีตาราง job_dependencies) ให้ถือว่าไม่มีการพึ่งพาและอนุญาตให้ลบต่อไป
+                pass
             
             # Create old values dict for audit
             old_values = {
