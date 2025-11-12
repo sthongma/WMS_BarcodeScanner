@@ -11,6 +11,7 @@ from typing import Dict, Any, Callable, List
 import pandas as pd
 from services.notification_service import NotificationService
 from utils.file_utils import create_template_excel
+import logging
 
 
 class NotificationTab:
@@ -22,6 +23,8 @@ class NotificationTab:
         self.current_user = current_user
         self.notification_service = NotificationService("UI: NotificationTab", db_manager)
         self.import_data = None
+        # module logger - UI components use module logger
+        self.logger = logging.getLogger(__name__)
 
         self.setup_ui()
         self.load_notifications()
@@ -114,7 +117,7 @@ class NotificationTab:
 
         # ดึงข้อมูลจาก service
         notifications = self.notification_service.get_all_notifications()
-        print(f"[NotificationTab] โหลดข้อมูล: พบ {len(notifications)} รายการ")
+        self.logger.debug(f"[NotificationTab] โหลดข้อมูล: พบ {len(notifications)} รายการ")
 
         # แสดงข้อมูลใน treeview
         for notif in notifications:
@@ -145,7 +148,7 @@ class NotificationTab:
 
     def import_excel(self):
         """นำเข้าข้อมูลจาก Excel"""
-        print("[NotificationTab] เริ่มกระบวนการนำเข้า Excel")
+        self.logger.info("[NotificationTab] เริ่มกระบวนการนำเข้า Excel")
 
         file_path = filedialog.askopenfilename(
             title="เลือกไฟล์ Excel",
@@ -156,10 +159,10 @@ class NotificationTab:
         )
 
         if not file_path:
-            print("[NotificationTab] ผู้ใช้ยกเลิกการเลือกไฟล์")
+            self.logger.debug("[NotificationTab] ผู้ใช้ยกเลิกการเลือกไฟล์")
             return
 
-        print(f"[NotificationTab] เลือกไฟล์: {file_path}")
+        self.logger.info(f"[NotificationTab] เลือกไฟล์: {file_path}")
 
         # ยืนยันการนำเข้า (จะล้างข้อมูลเก่าทั้งหมด)
         confirm = messagebox.askyesno(
@@ -168,19 +171,19 @@ class NotificationTab:
         )
 
         if not confirm:
-            print("[NotificationTab] ผู้ใช้ยกเลิกการนำเข้า")
+            self.logger.debug("[NotificationTab] ผู้ใช้ยกเลิกการนำเข้า")
             return
 
         try:
-            print("[NotificationTab] เรียก import_notifications...")
+            self.logger.debug("[NotificationTab] เรียก import_notifications...")
             # นำเข้าผ่าน service
             result = self.notification_service.import_notifications(file_path, self.current_user)
-            print(f"[NotificationTab] ผลลัพธ์การนำเข้า: {result}")
+            self.logger.info(f"[NotificationTab] ผลลัพธ์การนำเข้า: success={result.get('success')} message={result.get('message')}")
 
             if result['success']:
-                print("[NotificationTab] นำเข้าสำเร็จ - กำลังรีเฟรชตาราง...")
+                self.logger.info("[NotificationTab] นำเข้าสำเร็จ - กำลังรีเฟรชตาราง...")
                 self.load_notifications()
-                print("[NotificationTab] รีเฟรชตารางเสร็จสิ้น")
+                self.logger.debug("[NotificationTab] รีเฟรชตารางเสร็จสิ้น")
 
                 # Force UI update
                 self.notification_tree.update_idletasks()
@@ -188,7 +191,7 @@ class NotificationTab:
 
                 messagebox.showinfo("สำเร็จ", result['message'])
             else:
-                print(f"[NotificationTab] นำเข้าไม่สำเร็จ: {result['message']}")
+                self.logger.warning(f"[NotificationTab] นำเข้าไม่สำเร็จ: {result.get('message')}")
                 error_msg = result['message']
                 if 'errors' in result:
                     error_msg += "\n\nข้อผิดพลาด:\n" + "\n".join(result['errors'][:5])
@@ -197,9 +200,7 @@ class NotificationTab:
                 messagebox.showerror("ผิดพลาด", error_msg)
 
         except Exception as e:
-            print(f"[NotificationTab] Exception: {e}")
-            import traceback
-            traceback.print_exc()
+            self.logger.exception(f"[NotificationTab] Exception during import: {e}")
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
 
     def download_template(self):
@@ -240,7 +241,7 @@ class NotificationTab:
 
     def edit_notification(self):
         """แก้ไขรายการ notification"""
-        print("[NotificationTab] เริ่มกระบวนการแก้ไข")
+        self.logger.debug("[NotificationTab] เริ่มกระบวนการแก้ไข")
         selected = self.notification_tree.selection()
 
         if not selected:
@@ -251,8 +252,7 @@ class NotificationTab:
         item = self.notification_tree.item(selected[0])
         values = item['values']
         notification_id = values[0]
-
-        print(f"[NotificationTab] แก้ไข notification ID: {notification_id}")
+        self.logger.debug(f"[NotificationTab] แก้ไข notification ID: {notification_id}")
 
         # แสดง dialog สำหรับแก้ไข
         self.show_edit_dialog(notification_id, values)
@@ -324,7 +324,7 @@ class NotificationTab:
                 return
 
             try:
-                print(f"[NotificationTab] บันทึกการแก้ไข ID: {notification_id}")
+                self.logger.info(f"[NotificationTab] บันทึกการแก้ไข ID: {notification_id}")
 
                 # Update notification
                 update_query = """
@@ -343,9 +343,7 @@ class NotificationTab:
                 self.load_notifications()
 
             except Exception as e:
-                print(f"[NotificationTab] ข้อผิดพลาดในการแก้ไข: {e}")
-                import traceback
-                traceback.print_exc()
+                self.logger.exception(f"[NotificationTab] ข้อผิดพลาดในการแก้ไข: {e}")
                 messagebox.showerror("ผิดพลาด", f"ไม่สามารถแก้ไขรายการได้: {str(e)}")
 
         # Buttons
@@ -357,14 +355,14 @@ class NotificationTab:
 
     def delete_selected(self):
         """ลบรายการที่เลือก"""
-        print("[NotificationTab] เริ่มกระบวนการลบรายการ")
+        self.logger.info("[NotificationTab] เริ่มกระบวนการลบรายการ")
         selected_items = self.notification_tree.selection()
 
         if not selected_items:
             messagebox.showwarning("แจ้งเตือน", "กรุณาเลือกรายการที่ต้องการลบ")
             return
 
-        print(f"[NotificationTab] เลือกรายการ: {len(selected_items)} รายการ")
+        self.logger.debug(f"[NotificationTab] เลือกรายการ: {len(selected_items)} รายการ")
 
         # ยืนยันการลบ
         confirm = messagebox.askyesno(
@@ -373,7 +371,7 @@ class NotificationTab:
         )
 
         if not confirm:
-            print("[NotificationTab] ผู้ใช้ยกเลิกการลบ")
+            self.logger.debug("[NotificationTab] ผู้ใช้ยกเลิกการลบ")
             return
 
         # ลบรายการ
@@ -383,7 +381,7 @@ class NotificationTab:
         for item in selected_items:
             values = self.notification_tree.item(item, 'values')
             notification_id = int(values[0])
-            print(f"[NotificationTab] กำลังลบ ID: {notification_id}")
+            self.logger.debug(f"[NotificationTab] กำลังลบ ID: {notification_id}")
 
             result = self.notification_service.delete_notification(notification_id)
 
@@ -392,10 +390,10 @@ class NotificationTab:
             else:
                 errors.append(f"ID {notification_id}: {result['message']}")
 
-        print(f"[NotificationTab] ลบเสร็จสิ้น: {deleted_count} รายการ")
+        self.logger.info(f"[NotificationTab] ลบเสร็จสิ้น: {deleted_count} รายการ")
 
         # รีเฟรชรายการ
-        print("[NotificationTab] กำลังรีเฟรชตาราง...")
+        self.logger.debug("[NotificationTab] กำลังรีเฟรชตาราง...")
         self.load_notifications()
 
         # Force UI update
@@ -413,7 +411,7 @@ class NotificationTab:
 
     def clear_all_notifications(self):
         """ล้าง notification ทั้งหมด"""
-        print("[NotificationTab] เริ่มกระบวนการล้างข้อมูลทั้งหมด")
+        self.logger.info("[NotificationTab] เริ่มกระบวนการล้างข้อมูลทั้งหมด")
 
         # ยืนยันการลบ
         confirm = messagebox.askyesno(
@@ -422,15 +420,15 @@ class NotificationTab:
         )
 
         if not confirm:
-            print("[NotificationTab] ผู้ใช้ยกเลิกการล้างข้อมูล")
+            self.logger.debug("[NotificationTab] ผู้ใช้ยกเลิกการล้างข้อมูล")
             return
 
         # ล้างข้อมูล
         result = self.notification_service.clear_all_notifications()
-        print(f"[NotificationTab] ผลลัพธ์การล้างข้อมูล: {result}")
+        self.logger.info(f"[NotificationTab] ผลลัพธ์การล้างข้อมูล: success={result.get('success')} message={result.get('message')}")
 
         if result['success']:
-            print("[NotificationTab] ล้างข้อมูลสำเร็จ - กำลังรีเฟรชตาราง...")
+            self.logger.info("[NotificationTab] ล้างข้อมูลสำเร็จ - กำลังรีเฟรชตาราง...")
             self.load_notifications()
 
             # Force UI update
@@ -439,11 +437,11 @@ class NotificationTab:
 
             messagebox.showinfo("สำเร็จ", result['message'])
         else:
-            messagebox.showerror("ผิดพลาด", result['message'])
+            messagebox.showerror("ผิดพลาด", result.get('message'))
 
     def test_notification(self):
         """ทดสอบแจ้งเตือน"""
-        print("[NotificationTab] เริ่มทดสอบแจ้งเตือน")
+        self.logger.info("[NotificationTab] เริ่มทดสอบแจ้งเตือน")
         selected_items = self.notification_tree.selection()
 
         if not selected_items:
@@ -453,8 +451,7 @@ class NotificationTab:
         # ดึงข้อมูลรายการที่เลือก
         values = self.notification_tree.item(selected_items[0], 'values')
         notification_id = values[0]
-
-        print(f"[NotificationTab] ทดสอบ notification ID: {notification_id}")
+        self.logger.debug(f"[NotificationTab] ทดสอบ notification ID: {notification_id}")
 
         # Get full message from service
         notifications = self.notification_service.get_all_notifications()
@@ -475,4 +472,4 @@ class NotificationTab:
         # แสดง notification dialog
         from ui.components.notification_dialog import show_notification
         show_notification(self.parent, notification_data)
-        print("[NotificationTab] แสดง notification dialog สำเร็จ")
+        self.logger.debug("[NotificationTab] แสดง notification dialog สำเร็จ")

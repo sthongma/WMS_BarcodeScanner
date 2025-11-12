@@ -1,0 +1,182 @@
+
+SQL QUERIES COMPREHENSIVE ANALYSIS - WMS Barcode Scanner
+
+TOTAL SQL QUERIES FOUND: 43 unique queries
+
+QUERY TYPE DISTRIBUTION:
+  - SELECT queries:        27
+  - INSERT queries:         7
+  - DELETE queries:         4
+  - UPDATE queries:         1
+  - CREATE TABLE queries:   4
+  - CREATE INDEX queries:   6
+
+FILES ANALYZED:
+  1. web_app.py (24 queries)
+  2. main_window.py (25 queries)
+
+CATEGORY BREAKDOWN:
+================================================================================
+
+1. JOBTYPE RELATED QUERIES (8 TOTAL)
+   - SELECT all job types (3x)
+   - SELECT by ID (3x)
+   - INSERT new (2x)
+   - DELETE (1x)
+   - CREATE TABLE (1x)
+   - SELECT COUNT check (1x)
+
+2. SUBJOB RELATED QUERIES (10 TOTAL)
+   - SELECT by main job (3x)
+   - SELECT duplicate check (1x)
+   - SELECT details (2x)
+   - INSERT new (2x)
+   - UPDATE soft delete (1x)
+   - CREATE TABLE (1x)
+   - SELECT COUNT check (1x)
+
+3. SCANLOG RELATED QUERIES (17 TOTAL)
+   - SELECT history/reports (6x)
+   - INSERT scan record (2x)
+   - SELECT duplicate check (2x)
+   - SELECT search (1x)
+   - SELECT report variants (5x)
+   - CREATE TABLE (1x)
+   - CREATE INDEX (6x)
+
+4. DEPENDENCY RELATED QUERIES (8 TOTAL)
+   - SELECT required jobs (2x)
+   - SELECT COUNT check (2x)
+   - INSERT dependency (1x)
+   - DELETE dependencies (2x)
+   - SELECT current deps (1x)
+   - SELECT all jobs (1x)
+   - CREATE TABLE (1x)
+
+5. SUMMARY/COUNT QUERIES (4 TOTAL)
+   - SELECT COUNT today - with sub job (2x)
+   - SELECT COUNT today - main job only (2x)
+
+DUPLICATE QUERIES BETWEEN FILES:
+================================================================================
+
+9 pairs of identical or nearly identical queries:
+
+1. SELECT required jobs for dependencies (IDENTICAL)
+   - web_app.py:81 vs main_window.py:1318
+
+2. SELECT COUNT required job scans (IDENTICAL)
+   - web_app.py:99 vs main_window.py:1336
+
+3. INSERT scan record (IDENTICAL)
+   - web_app.py:510 vs main_window.py:1280
+
+4. SELECT recent scan history (SIMILAR)
+   - web_app.py:540 vs main_window.py:671
+
+5. Check duplicate barcode (SIMILAR)
+   - web_app.py:465 vs main_window.py:1260
+
+6. SELECT report with sub job (IDENTICAL)
+   - web_app.py:705 vs main_window.py:1591
+
+7. SELECT report main job only (IDENTICAL)
+   - web_app.py:731 vs main_window.py:1609
+
+8. Today summary count with sub job (IDENTICAL)
+   - web_app.py:604 vs main_window.py:2622
+
+9. Today summary count main job only (IDENTICAL)
+   - web_app.py:614 vs main_window.py:2632
+
+KEY DATABASE FEATURES:
+================================================================================
+
+Security:
+  - All queries use parameterized statements (?) prevent SQL injection
+  - No hardcoded values in dynamic SQL
+
+Data Integrity:
+  - Foreign key constraints on all related tables
+  - Unique constraints prevent duplicate entries
+  - ON DELETE CASCADE for automatic cleanup
+  - UNIQUE constraint on job_dependencies
+
+Data Preservation:
+  - Soft deletes via is_active flag in sub_job_types
+  - Scan logs retained even after job deletion
+
+Performance:
+  - 6 indexes created on scan_logs table
+  - Efficient LEFT JOINs for optional relationships
+  - Date filtering uses CAST(AS DATE) for consistency
+
+Timestamps:
+  - Auto GETDATE() for scan date
+  - DATETIME2 for created_date in other tables
+
+DATABASE TABLES:
+================================================================================
+
+job_types:
+  - id (PK, IDENTITY)
+  - job_name (VARCHAR, UNIQUE)
+
+sub_job_types:
+  - id (PK, IDENTITY)
+  - main_job_id (FK to job_types, ON DELETE CASCADE)
+  - sub_job_name (NVARCHAR)
+  - description (NVARCHAR, NULL)
+  - created_date, updated_date (DATETIME2)
+  - is_active (BIT for soft delete)
+  - Unique(main_job_id, sub_job_name)
+
+scan_logs:
+  - id (PK, IDENTITY)
+  - barcode (VARCHAR)
+  - scan_date (DATETIME, default GETDATE())
+  - job_type (VARCHAR)
+  - user_id (VARCHAR)
+  - job_id (INT FK to job_types, NULL)
+  - sub_job_id (INT FK to sub_job_types, NULL)
+  - notes (NVARCHAR, NULL)
+  - 6 indexes on key columns
+
+job_dependencies:
+  - id (PK, IDENTITY)
+  - job_id (INT FK to job_types)
+  - required_job_id (INT FK to job_types)
+  - created_date (DATETIME2)
+  - Unique(job_id, required_job_id)
+
+RECOMMENDATIONS:
+================================================================================
+
+1. REDUCE CODE DUPLICATION
+   - Extract 9 duplicate queries into shared utility/service layer
+   - Create QueryBuilder or DAO classes
+   - Implement Repository pattern
+
+2. PERFORMANCE OPTIMIZATION
+   - Add composite index on (job_id, scan_date)
+   - Add index on is_active column
+   - Implement pagination for large datasets
+   - Archive scan_logs older than X days
+
+3. QUERY OPTIMIZATION
+   - Profile slow queries with SQL Profiler
+   - Use execution plans to identify bottlenecks
+   - Consider query hints for read-heavy operations
+   - Add NOLOCK hints where appropriate
+
+4. CODE QUALITY
+   - Create separate data access layer
+   - Implement logging for all queries
+   - Add query timeout settings
+   - Create audit trails for data changes
+
+5. MAINTENANCE
+   - Regular index fragmentation checks
+   - SQL Agent jobs for cleanup/archival
+   - Performance baselines and monitoring
+   - Query plan cache analysis
