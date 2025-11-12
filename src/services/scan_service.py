@@ -156,12 +156,23 @@ class ScanService:
                 job_display = existing_record['job_name'] or existing_record.get('job_type', '')
                 sub_job_display = existing_record.get('sub_job_name') or 'ไม่มี'
                 
+                # Format scan_date to a human-friendly string (avoid 'T' and microseconds)
+                try:
+                    scan_dt = existing_record['scan_date']
+                    if hasattr(scan_dt, 'strftime'):
+                        formatted_scan_date = scan_dt.strftime("%Y-%m-%d %H:%M:%S")
+                    else:
+                        # Fallback if value is already a string
+                        formatted_scan_date = str(scan_dt).replace('T', ' ').split('.')[0]
+                except Exception:
+                    formatted_scan_date = str(existing_record.get('scan_date', ''))
+
                 return {
                     'success': False,
                     'message': f'บาร์โค้ด {barcode} ถูกสแกนในงาน "{job_display} > {sub_job_display}" แล้ว',
                     'duplicate': True,
                     'existing_record': {
-                        'scan_date': existing_record['scan_date'].isoformat(),
+                        'scan_date': formatted_scan_date,
                         'job_type_name': job_display,
                         'sub_job_type_name': sub_job_display,
                         'user_id': existing_record['user_id']
