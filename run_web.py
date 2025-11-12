@@ -14,6 +14,14 @@ from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# Disable Windows QuickEdit to prevent console freeze on accidental clicks
+try:
+    from src.utils.console_utils import disable_quick_edit  # type: ignore
+    disable_quick_edit()
+except Exception:
+    # Fail silently – console tweak should not break app
+    pass
+
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 

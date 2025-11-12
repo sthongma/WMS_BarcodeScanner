@@ -8,6 +8,13 @@ WMS Barcode Scanner - Desktop Application Entry Point
 import sys
 import os
 
+# Disable Windows QuickEdit to prevent console freeze when clicking the window
+try:
+    from src.utils.console_utils import disable_quick_edit  # type: ignore
+    disable_quick_edit()
+except Exception:
+    pass
+
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 
