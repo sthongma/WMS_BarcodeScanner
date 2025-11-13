@@ -50,15 +50,15 @@ class NotificationTab:
             command=self.import_excel
         ).pack(side=tk.LEFT, padx=5, pady=10)
 
-        # ปุ่มดาวน์โหลด template
+        # ปุ่มส่งออกข้อมูล (แทนดาวน์โหลด template)
         ttk.Button(
             top_button_frame,
-            text="ดาวน์โหลด Template",
-            command=self.download_template
+            text="ส่งออกข้อมูล",
+            command=self.export_notifications
         ).pack(side=tk.LEFT, padx=5, pady=10)
 
         # Info label
-        info_text = "รูปแบบ Excel: barcode | event_type (success/error/duplicate/warning) | popup_type (modal/toast) | title | message"
+        info_text = "รูปแบบ Excel ส่งออก: barcode | event_type | popup_type | title | message | is_enabled | job_id | sub_job_id"
         info_label = ttk.Label(top_button_frame, text=info_text, foreground="gray")
         info_label.pack(side=tk.LEFT, padx=10)
 
@@ -67,7 +67,7 @@ class NotificationTab:
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
 
         # Treeview สำหรับแสดงรายการ
-        columns = ("ID", "Barcode", "Event Type", "Popup Type", "Title", "Message", "สถานะ", "วันที่สร้าง")
+        columns = ("ID", "Barcode", "Event Type", "Popup Type", "Title", "Message", "สถานะ", "Job ID", "Sub Job ID", "วันที่สร้าง")
         self.notification_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
 
         # กำหนดหัวข้อ
@@ -79,7 +79,9 @@ class NotificationTab:
             "Title": 200,
             "Message": 300,
             "สถานะ": 80,
-            "วันที่สร้าง": 150
+            "วันที่สร้าง": 150,
+            "Job ID": 80,
+            "Sub Job ID": 90
         }
 
         for col in columns:
@@ -137,6 +139,8 @@ class NotificationTab:
                 notif['title'],
                 message,
                 status,
+                notif.get('job_id'),
+                notif.get('sub_job_id'),
                 created_date
             ), tags=(notif['event_type'],))
 
@@ -203,30 +207,24 @@ class NotificationTab:
             self.logger.exception(f"[NotificationTab] Exception during import: {e}")
             messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
 
-    def download_template(self):
-        """ดาวน์โหลด template"""
+    def export_notifications(self):
+        """ส่งออกข้อมูล notification เป็นไฟล์ Excel ที่แก้ไขแล้วนำเข้ากลับได้"""
         try:
             file_path = filedialog.asksaveasfilename(
-                title="บันทึก Template",
+                title="ส่งออกข้อมูลแจ้งเตือน",
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx")]
             )
-
-            if file_path:
-                columns = ["barcode", "event_type", "popup_type", "title", "message"]
-                sample_data = [
-                    ["TEST001", "warning", "modal", "สินค้าใกล้หมดอายุ", "สินค้านี้จะหมดอายุภายใน 7 วัน กรุณาตรวจสอบ"],
-                    ["TEST002", "error", "modal", "สินค้าหมดอายุ", "สินค้านี้หมดอายุแล้ว ห้ามจัดส่ง!"],
-                    ["TEST003", "warning", "toast", "แจ้งเตือนทั่วไป", "สินค้านี้ต้องเก็บในอุณหภูมิต่ำ"]
-                ]
-
-                if create_template_excel(file_path, columns, sample_data):
-                    messagebox.showinfo("สำเร็จ", f"บันทึก template เรียบร้อยแล้วที่: {file_path}")
-                else:
-                    messagebox.showerror("ผิดพลาด", "ไม่สามารถสร้าง template ได้")
-
+            if not file_path:
+                return
+            result = self.notification_service.export_notifications(file_path)
+            if result.get('success'):
+                messagebox.showinfo("สำเร็จ", f"ส่งออกข้อมูลเรียบร้อย: {file_path}")
+            else:
+                messagebox.showerror("ผิดพลาด", result.get('message','ส่งออกข้อมูลล้มเหลว'))
         except Exception as e:
-            messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
+            self.logger.exception(f"[NotificationTab] ส่งออกข้อมูลล้มเหลว: {e}")
+            messagebox.showerror("ผิดพลาด", f"เกิดข้อผิดพลาดในการส่งออก: {e}")
 
     def show_context_menu(self, event):
         """แสดง context menu เมื่อคลิกขวา"""

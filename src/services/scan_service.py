@@ -55,8 +55,8 @@ class ScanService:
                 return dep_result
 
             # Check for notification popup BEFORE duplicate check
-            # This ensures notification shows even for duplicate scans
-            notification = self.notification_service.get_notification_for_barcode(barcode)
+            # ใช้แบบพิจารณา job_id/sub_job_id เพื่อไม่ให้เตือนในงานที่ไม่ได้ระบุ
+            notification = self.notification_service.get_notification_for_barcode_with_job(barcode, job_id, sub_job_id)
             notification_data = None
             if notification:
                 notification_data = {

@@ -6,7 +6,9 @@ Handles notification data endpoints
 """
 
 import logging
-from flask import Blueprint, jsonify, request
+import os
+import tempfile
+from flask import Blueprint, jsonify, request, send_file
 from src.services.notification_service import NotificationService
 from middleware.rate_limiter import auto_rate_limit
 from middleware.auth_middleware import require_auth
@@ -47,6 +49,58 @@ def get_notifications():
             'success': False,
             'message': f'เกิดข้อผิดพลาด: {str(e)}'
         }), 500
+
+
+@notification_bp.route('/api/notifications/export', methods=['GET'])
+@require_auth
+@auto_rate_limit
+def export_notifications():
+    """API ส่งออกข้อมูล notification เป็นไฟล์ Excel"""
+    try:
+        logger.info('📤 [API: GET /api/notifications/export] ส่งออกข้อมูล notification')
+        # สร้างไฟล์ชั่วคราว
+        tmp_dir = tempfile.gettempdir()
+        file_path = os.path.join(tmp_dir, 'notification_export.xlsx')
+        result = notification_service.export_notifications(file_path)
+        if not result['success']:
+            return jsonify(result), 400
+        return send_file(file_path, as_attachment=True, download_name='notification_export.xlsx')
+    except Exception as e:
+        logger.exception(f'❌ เกิดข้อผิดพลาดใน export_notifications: {e}')
+        return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {e}'}), 500
+
+
+@notification_bp.route('/api/notifications/import', methods=['POST'])
+@require_auth
+@auto_rate_limit
+def import_notifications():
+    """API นำเข้าข้อมูล notification จากไฟล์ Excel ที่ส่งออก"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'ไม่พบไฟล์ในคำขอ (form field "file")'}), 400
+        upload = request.files['file']
+        if upload.filename == '':
+            return jsonify({'success': False, 'message': 'ไฟล์ว่าง'}), 400
+
+        # หา user_id จาก context (พยายามเดา) หรือใช้ค่าที่ส่งมา
+        user_id = request.form.get('user_id') or request.args.get('user_id') or 'system'
+
+        tmp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(tmp_dir, f'notification_import_{next(tempfile._get_candidate_names())}.xlsx')
+        upload.save(temp_path)
+        logger.info(f'📥 [API: POST /api/notifications/import] รับไฟล์ {upload.filename} -> {temp_path}')
+
+        result = notification_service.import_notifications(temp_path, user_id)
+        # ลบไฟล์ชั่วคราว
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        logger.exception(f'❌ เกิดข้อผิดพลาดใน import_notifications: {e}')
+        return jsonify({'success': False, 'message': f'เกิดข้อผิดพลาด: {e}'}), 500
 
 
 @notification_bp.route('/api/notifications/<int:notification_id>', methods=['DELETE'])

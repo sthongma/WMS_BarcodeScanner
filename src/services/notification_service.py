@@ -5,7 +5,7 @@ Notification Service
 Handles notification data management and retrieval
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from datetime import datetime
 import pandas as pd
 from database.database_manager import DatabaseManager
@@ -13,7 +13,10 @@ import logging
 
 
 class NotificationService:
-    """บริการจัดการข้อมูล notification popup"""
+    """บริการจัดการข้อมูล notification popup
+
+    เพิ่มรองรับการผูกกับประเภทงาน (job_id) และประเภทงานย่อย (sub_job_id) เพื่อให้แสดงเฉพาะตามบริบท
+    """
 
     def __init__(self, context: str = "Service: NotificationService", db_manager=None):
         if db_manager:
@@ -22,6 +25,10 @@ class NotificationService:
             self.db = DatabaseManager.get_instance(None, context)
         # module logger - let the global logging configuration control verbosity
         self.logger = logging.getLogger(__name__)
+
+    def ensure_job_columns(self) -> None:
+        """(Disabled) เดิมใช้เพิ่มคอลัมน์ job_id/sub_job_id อัตโนมัติ ตอนนี้ schema ถูกกำหนดในไฟล์ .sql แล้ว"""
+        return
 
     def get_notification_for_barcode(self, barcode: str) -> Optional[Dict[str, Any]]:
         """
@@ -47,7 +54,9 @@ class NotificationService:
                     popup_type,
                     title,
                     message,
-                    is_enabled
+                    is_enabled,
+                    job_id,
+                    sub_job_id
                 FROM notification_data
                 WHERE barcode = ?
                     AND is_enabled = 1
@@ -65,13 +74,78 @@ class NotificationService:
                     'popup_type': result['popup_type'],
                     'title': result['title'],
                     'message': result['message'],
-                    'is_enabled': result['is_enabled']
+                    'is_enabled': result['is_enabled'],
+                    'job_id': result.get('job_id'),
+                    'sub_job_id': result.get('sub_job_id')
                 }
 
             return None
 
         except Exception as e:
             self.logger.exception(f"Error getting notification for barcode {barcode}: {e}")
+            return None
+
+    def get_notification_for_barcode_with_job(self, barcode: str, job_id: Optional[int] = None, sub_job_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """ค้นหา notification โดยพิจารณา job_id / sub_job_id (null = ไม่จำกัด)
+
+        Logic: เลือกแถวที่ barcode ตรง และ (job_id IS NULL OR job_id = ?) และ (sub_job_id IS NULL OR sub_job_id = ?)
+        ให้ priority กับแถวที่ match job_id/sub_job_id มากกว่าแถวที่เป็น NULL (ORDER BY)"""
+        try:
+            if not barcode or not barcode.strip():
+                return None
+            barcode = barcode.strip()
+
+            # สร้างเงื่อนไขตามค่าที่รับมา: ถ้าไม่ได้ส่ง job_id ให้อนุญาตเฉพาะแถว job_id IS NULL
+            conditions = ["barcode = ?", "is_enabled = 1"]
+            params: List[Any] = [barcode]
+
+            if job_id is None:
+                conditions.append("(job_id IS NULL)")
+            else:
+                conditions.append("(job_id IS NULL OR job_id = ?)")
+                params.append(job_id)
+
+            if sub_job_id is None:
+                conditions.append("(sub_job_id IS NULL)")
+            else:
+                conditions.append("(sub_job_id IS NULL OR sub_job_id = ?)")
+                params.append(sub_job_id)
+
+            where_clause = " AND ".join(conditions)
+
+            # ใช้คะแนนจัดลำดับให้แถวที่ match เฉพาะทางขึ้นก่อน
+            query = f"""
+                SELECT TOP 1 * FROM (
+                    SELECT
+                        id, barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id, created_date,
+                        (CASE WHEN (? IS NOT NULL AND job_id = ?) THEN 2 ELSE 0 END +
+                         CASE WHEN (? IS NOT NULL AND sub_job_id = ?) THEN 2 ELSE 0 END) AS match_score
+                    FROM notification_data
+                    WHERE {where_clause}
+                ) t
+                ORDER BY match_score DESC, created_date DESC
+            """
+
+            # เพิ่มพารามิเตอร์สำหรับ match_score (ต้องส่งซ้ำ)
+            score_params: List[Any] = [job_id, job_id, sub_job_id, sub_job_id]
+            final_params = score_params + params
+            results = self.db.execute_query(query, tuple(final_params))
+            if results:
+                r = results[0]
+                return {
+                    'id': r['id'],
+                    'barcode': r['barcode'],
+                    'event_type': r['event_type'],
+                    'popup_type': r['popup_type'],
+                    'title': r['title'],
+                    'message': r['message'],
+                    'is_enabled': r['is_enabled'],
+                    'job_id': r.get('job_id'),
+                    'sub_job_id': r.get('sub_job_id')
+                }
+            return None
+        except Exception as e:
+            self.logger.exception(f"Error getting notification for barcode+job {barcode}: {e}")
             return None
 
     def get_all_notifications(self) -> List[Dict[str, Any]]:
@@ -91,6 +165,8 @@ class NotificationService:
                     title,
                     message,
                     is_enabled,
+                    job_id,
+                    sub_job_id,
                     created_date,
                     created_by
                 FROM notification_data
@@ -111,6 +187,8 @@ class NotificationService:
                     'title': row['title'],
                     'message': row['message'],
                     'is_enabled': row['is_enabled'],
+                    'job_id': row.get('job_id'),
+                    'sub_job_id': row.get('sub_job_id'),
                     'created_date': row['created_date'],
                     'created_by': row['created_by']
                 })
@@ -141,6 +219,7 @@ class NotificationService:
 
             # ตรวจสอบ columns ที่จำเป็น
             required_columns = ['barcode', 'event_type', 'popup_type', 'title', 'message']
+            optional_columns = ['is_enabled', 'job_id', 'sub_job_id']
             missing_columns = [col for col in required_columns if col not in df.columns]
 
             if missing_columns:
@@ -195,8 +274,8 @@ class NotificationService:
             # นำเข้าข้อมูลใหม่
             insert_query = """
                 INSERT INTO notification_data
-                (barcode, event_type, popup_type, title, message, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             inserted_count = 0
@@ -205,6 +284,33 @@ class NotificationService:
             self.logger.info(f"[NotificationService] กำลังนำเข้าข้อมูล {len(df)} รายการ...")
             for index, row in df.iterrows():
                 try:
+                    # is_enabled default True if column absent or NaN
+                    is_enabled_val = True
+                    if 'is_enabled' in df.columns:
+                        val = row.get('is_enabled')
+                        if isinstance(val, (int, bool)):
+                            is_enabled_val = bool(val)
+                        elif isinstance(val, str):
+                            is_enabled_val = val.strip().lower() in ['1', 'true', 'yes', 't', 'เปิด', 'enable']
+
+                    # job_id/sub_job_id (nullable)
+                    job_id_val: Optional[int] = None
+                    sub_job_id_val: Optional[int] = None
+                    if 'job_id' in df.columns:
+                        jv = row.get('job_id')
+                        if pd.notna(jv) and str(jv).strip() != '':
+                            try:
+                                job_id_val = int(jv)
+                            except ValueError:
+                                raise ValueError(f"job_id ไม่ใช่ตัวเลข: {jv}")
+                    if 'sub_job_id' in df.columns:
+                        sv = row.get('sub_job_id')
+                        if pd.notna(sv) and str(sv).strip() != '':
+                            try:
+                                sub_job_id_val = int(sv)
+                            except ValueError:
+                                raise ValueError(f"sub_job_id ไม่ใช่ตัวเลข: {sv}")
+
                     self.db.execute_non_query(
                         insert_query,
                         (
@@ -213,6 +319,9 @@ class NotificationService:
                             row['popup_type'].strip().lower(),
                             row['title'].strip(),
                             row['message'].strip(),
+                            1 if is_enabled_val else 0,
+                            job_id_val,
+                            sub_job_id_val,
                             user_id
                         )
                     )
@@ -323,3 +432,37 @@ class NotificationService:
                 'success': False,
                 'message': f'เกิดข้อผิดพลาด: {str(e)}'
             }
+
+    # ---------------------- Export Function ----------------------
+    def export_notifications(self, output_path: str) -> Dict[str, Any]:
+        """ส่งออกข้อมูล notification ทั้งหมดเป็นไฟล์ Excel (สำหรับแก้ไขแล้วนำเข้ากลับ)
+
+        Columns: barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id
+        (ไม่ใส่ created_date เพื่อให้ไฟล์ใช้งานง่ายขึ้น)
+        """
+        try:
+            self.logger.info('[NotificationService] เริ่มส่งออกข้อมูล notification')
+            # columns อยู่แล้วใน schema ไม่ต้องตรวจสอบ
+            data = self.get_all_notifications()
+            if not data:
+                return {'success': False, 'message': 'ไม่มีข้อมูลสำหรับส่งออก'}
+
+            export_rows = []
+            for r in data:
+                export_rows.append({
+                    'barcode': r['barcode'],
+                    'event_type': r['event_type'],
+                    'popup_type': r['popup_type'],
+                    'title': r['title'],
+                    'message': r['message'],
+                    'is_enabled': r['is_enabled'],
+                    'job_id': r.get('job_id'),
+                    'sub_job_id': r.get('sub_job_id')
+                })
+            df = pd.DataFrame(export_rows)
+            df.to_excel(output_path, index=False)
+            self.logger.info(f'[NotificationService] ส่งออกสำเร็จ -> {output_path}')
+            return {'success': True, 'message': 'ส่งออกข้อมูลสำเร็จ', 'file': output_path}
+        except Exception as e:
+            self.logger.exception(f'[NotificationService] ส่งออกข้อมูลล้มเหลว: {e}')
+            return {'success': False, 'message': f'เกิดข้อผิดพลาดในการส่งออก: {e}'}
