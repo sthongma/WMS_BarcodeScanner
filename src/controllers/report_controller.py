@@ -96,17 +96,16 @@ class ReportController:
         """สร้างตารางสำหรับแสดงรายงาน"""
         table_frame = ttk.LabelFrame(parent, text="ผลลัพธ์รายงาน", padding=10)
         table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        # Create frame for table and scrollbars
+
         tree_frame = ttk.Frame(table_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Treeview for table display
-        columns = ('บาร์โค้ด', 'วันที่/เวลา', 'ประเภทงานหลัก', 'ประเภทงานย่อย', 'หมายเหตุ', 'ผู้ใช้')
+
+        # Include ID column for edit operations
+        columns = ('ID', 'บาร์โค้ด', 'วันที่/เวลา', 'ประเภทงานหลัก', 'ประเภทงานย่อย', 'หมายเหตุ', 'ผู้ใช้')
         self.report_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=15)
-        
-        # Define headings and column widths
+
         column_widths = {
+            'ID': 60,
             'บาร์โค้ด': 150,
             'วันที่/เวลา': 150,
             'ประเภทงานหลัก': 150,
@@ -114,25 +113,25 @@ class ReportController:
             'หมายเหตุ': 200,
             'ผู้ใช้': 120
         }
-        
+
         for col in columns:
             self.report_tree.heading(col, text=col)
             self.report_tree.column(col, width=column_widths.get(col, 150))
-        
-        # Scrollbars
+
         v_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.report_tree.yview)
         h_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.report_tree.xview)
         self.report_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
-        
-        # Grid layout for proper scrollbar positioning
+
         self.report_tree.grid(row=0, column=0, sticky='nsew')
         v_scrollbar.grid(row=0, column=1, sticky='ns')
         h_scrollbar.grid(row=1, column=0, sticky='ew')
-        
+
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
-        
-        # Info label
+
+        # Context menu for editing and copying
+        self._create_context_menu()
+
         info_frame = ttk.Frame(table_frame)
         info_frame.pack(fill=tk.X, pady=5)
         self.report_info_label = ttk.Label(info_frame, text="พร้อมสร้างรายงาน", font=("Arial", 9), foreground="gray")
@@ -231,9 +230,9 @@ class ReportController:
             
             # Build query
             if job_type_id and sub_job_type_id:
-                # Specific job type and sub job type
                 report_query = """
                     SELECT 
+                        sl.id,
                         sl.barcode,
                         sl.scan_date,
                         sl.notes,
@@ -249,9 +248,9 @@ class ReportController:
                 """
                 params = [job_type_id, sub_job_type_id, report_date]
             elif job_type_id:
-                # Specific job type, all sub job types
                 report_query = """
                     SELECT 
+                        sl.id,
                         sl.barcode,
                         sl.scan_date,
                         sl.notes,
@@ -303,6 +302,7 @@ class ReportController:
             for row in results:
                 formatted_date = row['scan_date'].strftime("%Y-%m-%d %H:%M:%S")
                 self.report_tree.insert('', tk.END, values=(
+                    row['id'],
                     row['barcode'],
                     formatted_date,
                     row['job_type_name'] or '',
@@ -344,6 +344,7 @@ class ReportController:
             export_data = []
             for row in self.current_report_data:
                 export_data.append({
+                    'ID': row['id'],
                     'บาร์โค้ด': row['barcode'],
                     'วันที่/เวลา': row['scan_date'].strftime("%Y-%m-%d %H:%M:%S"),
                     'ประเภทงานหลัก': row['job_type_name'] or '',
@@ -429,3 +430,215 @@ class ReportController:
         
         # Reset info label
         self.report_info_label.config(text="ไม่พบข้อมูล")
+
+    # ---------------------- Editing Capabilities ----------------------
+    def _create_context_menu(self):
+        self.report_context_menu = tk.Menu(self.report_tree, tearoff=0)
+        self.report_context_menu.add_command(label="แก้ไข", command=self._edit_report_record)
+        self.report_context_menu.add_command(label="ลบ", command=self._delete_report_record)
+        self.report_context_menu.add_separator()
+        self.report_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self._copy_report_barcode)
+        self.report_tree.bind('<Button-3>', self._show_report_context_menu)
+
+    def _show_report_context_menu(self, event):
+        try:
+            row_id = self.report_tree.identify_row(event.y)
+            if not row_id:
+                return
+            self.report_tree.selection_set(row_id)
+            # Use tk_popup for better behavior on some Windows builds
+            self.report_context_menu.tk_popup(event.x_root, event.y_root)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.report_context_menu.grab_release()
+            except Exception:
+                pass
+
+    def _copy_report_barcode(self):
+        try:
+            selected = self.report_tree.selection()[0]
+            values = self.report_tree.item(selected, 'values')
+            barcode = values[1]
+            self.report_tree.clipboard_clear()
+            self.report_tree.clipboard_append(barcode)
+            messagebox.showinfo("สำเร็จ", f"คัดลอกบาร์โค้ด {barcode} แล้ว")
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการ")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถคัดลอก: {str(e)}")
+
+    def _edit_report_record(self):
+        try:
+            selected = self.report_tree.selection()[0]
+            values = self.report_tree.item(selected, 'values')
+            self._show_edit_dialog(values)
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่ต้องการแก้ไข")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาด: {str(e)}")
+
+    def _delete_report_record(self):
+        """ลบข้อมูลสแกนจากรายงาน (มีการตรวจ dependencies เหมือน history)"""
+        try:
+            selected = self.report_tree.selection()[0]
+            values = self.report_tree.item(selected, 'values')
+            record_id = values[0]
+            barcode = values[1]
+            job_type_name = values[3]
+
+            if not messagebox.askyesno("ยืนยันการลบ", f"ต้องการลบข้อมูลบาร์โค้ด {barcode} หรือไม่?"):
+                return
+
+            # Get job_id for dependency check
+            job_query = "SELECT job_id FROM scan_logs WHERE id = ?"
+            job_results = self.db.execute_query(job_query, (record_id,))
+            if not job_results:
+                messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลที่ต้องการลบ")
+                return
+            current_job_id = job_results[0]['job_id']
+
+            # Check dependent jobs that come after this job
+            depend_query = """
+                SELECT COUNT(*) AS count
+                FROM scan_logs sl
+                WHERE sl.barcode = ? AND sl.job_id IN (
+                    SELECT jd.job_id FROM job_dependencies jd WHERE jd.required_job_id = ?
+                )
+            """
+            depend_results = self.db.execute_query(depend_query, (barcode, current_job_id))
+            if depend_results and depend_results[0]['count'] > 0:
+                messagebox.showwarning(
+                    "ไม่สามารถลบได้",
+                    "มีงานถัดไปที่สแกนหลังจากงานนี้แล้ว จึงไม่สามารถลบได้ (มีการพึ่งพาข้อมูล)"
+                )
+                return
+
+            from services.scan_service import ScanService
+            scan_service = ScanService()
+            result = scan_service.delete_scan_record(int(record_id), user_id=self.db.current_user)
+            if not result.get('success'):
+                messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถลบข้อมูลได้'))
+                return
+
+            # Remove row and refresh underlying data set
+            self.report_tree.delete(selected)
+            messagebox.showinfo("สำเร็จ", result.get('message', 'ลบข้อมูลเรียบร้อยแล้ว'))
+            # Refresh report view with current filters to reflect updated dataset
+            self.run_report()
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่ต้องการลบ")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการลบ: {str(e)}")
+
+    def _show_edit_dialog(self, values):
+        record_id = values[0]
+        barcode = values[1]
+        scan_datetime = values[2]
+        job_type_name = values[3]
+        current_sub_job_name = values[4]
+        current_notes = values[5]
+
+        dialog = tk.Toplevel(self.main_app.root)
+        dialog.title(f"แก้ไขข้อมูลรายงาน - {barcode}")
+        dialog.geometry("520x380")
+        dialog.transient(self.main_app.root)
+        dialog.grab_set()
+
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_frame, text="แก้ไขข้อมูลการสแกน", font=("Arial", 13, "bold")).pack(pady=(0, 10))
+        ttk.Label(main_frame, text="หมายเหตุ: สามารถแก้ไขงานรองและหมายเหตุได้", foreground="red", font=("Arial", 9, "italic")).pack(pady=(0, 10))
+
+        def _readonly(parent, label_text, value):
+            row = ttk.Frame(parent)
+            row.pack(fill=tk.X, pady=4)
+            ttk.Label(row, text=label_text, width=18).pack(side=tk.LEFT)
+            entry = ttk.Entry(row, width=40, state="readonly")
+            entry.pack(side=tk.LEFT)
+            entry.config(state="normal")
+            entry.insert(0, value)
+            entry.config(state="readonly")
+            return entry
+
+        _readonly(main_frame, "ID:", record_id)
+        _readonly(main_frame, "บาร์โค้ด:", barcode)
+        _readonly(main_frame, "วันที่/เวลา:", scan_datetime)
+        _readonly(main_frame, "งานหลัก:", job_type_name)
+
+        sub_job_frame = ttk.Frame(main_frame)
+        sub_job_frame.pack(fill=tk.X, pady=4)
+        ttk.Label(sub_job_frame, text="งานรองใหม่:", width=18).pack(side=tk.LEFT)
+        sub_job_var = tk.StringVar()
+        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=37)
+        sub_job_combo.pack(side=tk.LEFT)
+
+        notes_frame = ttk.Frame(main_frame)
+        notes_frame.pack(fill=tk.X, pady=4)
+        ttk.Label(notes_frame, text="หมายเหตุใหม่:", width=18).pack(side=tk.LEFT)
+        notes_var = tk.StringVar(value=current_notes)
+        notes_entry = ttk.Entry(notes_frame, textvariable=notes_var, width=40)
+        notes_entry.pack(side=tk.LEFT)
+
+        # Load sub jobs
+        try:
+            job_id_query = "SELECT id FROM job_types WHERE job_name = ?"
+            job_results = self.db.execute_query(job_id_query, (job_type_name,))
+            if job_results:
+                job_id = job_results[0]['id']
+                sub_query = "SELECT sub_job_name FROM sub_job_types WHERE main_job_id = ? AND is_active = 1 ORDER BY sub_job_name"
+                sub_results = self.db.execute_query(sub_query, (job_id,))
+                sub_names = [r['sub_job_name'] for r in sub_results]
+                sub_job_combo['values'] = sub_names
+                if current_sub_job_name and current_sub_job_name != 'ไม่มี':
+                    sub_job_var.set(current_sub_job_name)
+        except Exception as e:
+            print(f"Error loading sub jobs for edit: {str(e)}")
+
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=15)
+
+        def save_changes():
+            try:
+                new_sub_name = sub_job_var.get().strip()
+                new_notes = notes_var.get().strip()
+
+                if not new_sub_name:
+                    messagebox.showwarning("คำเตือน", "กรุณาเลือกงานรอง")
+                    return
+
+                job_results = self.db.execute_query(job_id_query, (job_type_name,))
+                if not job_results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบงานหลัก")
+                    return
+                job_id = job_results[0]['id']
+                sub_id_query = "SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ? AND is_active = 1"
+                sub_id_results = self.db.execute_query(sub_id_query, (new_sub_name, job_id))
+                if not sub_id_results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบงานรอง")
+                    return
+                new_sub_id = sub_id_results[0]['id']
+
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    sub_job_id=new_sub_id,
+                    notes=new_notes if new_notes else None,
+                    user_id=self.db.current_user
+                )
+
+                if result.get('success'):
+                    messagebox.showinfo("สำเร็จ", result.get('message', "บันทึกการเปลี่ยนแปลงแล้ว"))
+                    dialog.destroy()
+                    self.run_report()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถบันทึกการเปลี่ยนแปลง'))
+            except Exception as e:
+                messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการบันทึก: {str(e)}")
+
+        ttk.Button(btn_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="ยกเลิก", command=dialog.destroy).pack(side=tk.RIGHT)
+        notes_entry.focus_set()

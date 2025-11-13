@@ -714,8 +714,9 @@ class WMSScannerApp:
                 )
                 self.history_tree.insert('', tk.END, values=values)
             
-            # Show result count
-            messagebox.showinfo("ผลการค้นหา", f"พบข้อมูล {len(results)} รายการ")
+            # Update summary silently (no popup) if relevant to today's summary
+            if hasattr(self, 'recalc_today_summary'):
+                self.recalc_today_summary()
             
         except Exception as e:
             messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการค้นหา: {str(e)}")
@@ -850,6 +851,267 @@ class WMSScannerApp:
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Context menu for history/report unified table
+        self.history_context_menu = tk.Menu(self.root, tearoff=0)
+        self.history_context_menu.add_command(label="แก้ไขข้อมูล", command=self.edit_history_record)
+        self.history_context_menu.add_command(label="ลบข้อมูล", command=self.delete_history_record)
+        self.history_context_menu.add_separator()
+        self.history_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_history_barcode)
+        self.history_context_menu.add_separator()
+        self.history_context_menu.add_command(label="ยกเลิก", command=lambda: None)
+
+        # Bind right click (press + release for reliability)
+        self.history_tree.bind('<Button-3>', self.show_history_context_menu)
+        self.history_tree.bind('<ButtonRelease-3>', self.show_history_context_menu)
+
+    # ---------------- Context Menu (Unified History/Report) -----------------
+    def show_history_context_menu(self, event):
+        try:
+            row_id = self.history_tree.identify_row(event.y)
+            if row_id:
+                self.history_tree.selection_set(row_id)
+                self.history_context_menu.tk_popup(event.x_root, event.y_root)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.history_context_menu.grab_release()
+            except Exception:
+                pass
+
+    def copy_history_barcode(self):
+        try:
+            selected = self.history_tree.selection()[0]
+            values = self.history_tree.item(selected, 'values')
+            barcode = values[1]
+            self.history_tree.clipboard_clear()
+            self.history_tree.clipboard_append(barcode)
+            messagebox.showinfo("สำเร็จ", f"คัดลอกบาร์โค้ด {barcode} แล้ว")
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่จะคัดลอก")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถคัดลอก: {str(e)}")
+
+    def edit_history_record(self):
+        try:
+            selected = self.history_tree.selection()[0]
+            values = self.history_tree.item(selected, 'values')
+            self.show_history_edit_dialog(values)
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่ต้องการแก้ไข")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการแก้ไข: {str(e)}")
+
+    def show_history_edit_dialog(self, values):
+        record_id = values[0]
+        barcode = values[1]
+        scan_datetime = values[2]
+        job_type_name = values[3]
+        current_sub_job_name = values[4]
+        current_notes = values[5]
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"แก้ไขข้อมูลสแกน - {barcode}")
+        dialog.geometry("560x390")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="แก้ไขข้อมูลการสแกน", font=("Arial", 13, "bold")).pack(pady=(0, 10))
+        ttk.Label(frame, text="หมายเหตุ: สามารถแก้ไขงานรองและหมายเหตุได้", foreground="red", font=("Arial", 9, "italic")).pack(pady=(0, 10))
+
+        def readonly_row(label, value):
+            row = ttk.Frame(frame)
+            row.pack(fill=tk.X, pady=4)
+            ttk.Label(row, text=label, width=18).pack(side=tk.LEFT)
+            entry = ttk.Entry(row, width=40, state='readonly')
+            entry.pack(side=tk.LEFT)
+            entry.config(state='normal')
+            entry.insert(0, value)
+            entry.config(state='readonly')
+            return entry
+
+        readonly_row("ID:", record_id)
+        readonly_row("บาร์โค้ด:", barcode)
+        readonly_row("วันที่/เวลา:", scan_datetime)
+        readonly_row("งานหลัก:", job_type_name)
+
+        sub_job_frame = ttk.Frame(frame)
+        sub_job_frame.pack(fill=tk.X, pady=4)
+        ttk.Label(sub_job_frame, text="งานรอง:", width=18).pack(side=tk.LEFT)
+        sub_job_var = tk.StringVar()
+        # Unified combo width
+        sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state='readonly', width=25)
+        sub_job_combo.pack(side=tk.LEFT)
+
+        notes_frame = ttk.Frame(frame)
+        notes_frame.pack(fill=tk.X, pady=4)
+        ttk.Label(notes_frame, text="หมายเหตุ:", width=18).pack(side=tk.LEFT)
+        notes_var = tk.StringVar(value=current_notes)
+        notes_entry = ttk.Entry(notes_frame, textvariable=notes_var, width=40)
+        notes_entry.pack(side=tk.LEFT)
+
+        # User (readonly) to match scan dialog
+        try:
+            current_user = values[6]
+        except Exception:
+            current_user = ""
+        user_frame = ttk.Frame(frame)
+        user_frame.pack(fill=tk.X, pady=4)
+        ttk.Label(user_frame, text="ผู้ใช้:", width=18).pack(side=tk.LEFT)
+        user_entry = ttk.Entry(user_frame, width=40, state='readonly')
+        user_entry.pack(side=tk.LEFT)
+        user_entry.config(state='normal')
+        user_entry.insert(0, current_user)
+        user_entry.config(state='readonly')
+
+        # Load sub jobs list
+        try:
+            job_id_query = "SELECT id FROM job_types WHERE job_name = ?"
+            job_results = self.db.execute_query(job_id_query, (job_type_name,))
+            if job_results:
+                job_id = job_results[0]['id']
+                sub_query = "SELECT sub_job_name FROM sub_job_types WHERE main_job_id = ? AND is_active = 1 ORDER BY sub_job_name"
+                sub_results = self.db.execute_query(sub_query, (job_id,))
+                names = [r['sub_job_name'] for r in sub_results]
+                sub_job_combo['values'] = names
+                if current_sub_job_name and current_sub_job_name not in ('', 'ไม่มี'):
+                    sub_job_var.set(current_sub_job_name)
+        except Exception as e:
+            print(f"Error loading sub jobs for edit dialog: {str(e)}")
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill=tk.X, pady=15)
+
+        def save_changes():
+            try:
+                new_sub_name = sub_job_var.get().strip()
+                new_notes = notes_var.get().strip()
+                if not new_sub_name:
+                    messagebox.showwarning("คำเตือน", "กรุณาเลือกงานรอง")
+                    return
+                job_results = self.db.execute_query(job_id_query, (job_type_name,))
+                if not job_results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบงานหลัก")
+                    return
+                job_id = job_results[0]['id']
+                sub_id_results = self.db.execute_query(
+                    "SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ? AND is_active = 1",
+                    (new_sub_name, job_id)
+                )
+                if not sub_id_results:
+                    messagebox.showerror("ข้อผิดพลาด", "ไม่พบงานรอง")
+                    return
+                new_sub_id = sub_id_results[0]['id']
+                from services.scan_service import ScanService
+                scan_service = ScanService()
+                result = scan_service.update_scan_record(
+                    record_id=int(record_id),
+                    sub_job_id=new_sub_id,
+                    notes=new_notes if new_notes else None,
+                    user_id=self.db.current_user
+                )
+                if result.get('success'):
+                    messagebox.showinfo("สำเร็จ", result.get('message', 'บันทึกการเปลี่ยนแปลงแล้ว'))
+                    dialog.destroy()
+                    self.unified_search()  # refresh
+                    self.recalc_today_summary()
+                else:
+                    messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถบันทึกการเปลี่ยนแปลง'))
+            except Exception as e:
+                messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการบันทึก: {str(e)}")
+
+        ttk.Button(btn_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="ยกเลิก", command=dialog.destroy).pack(side=tk.RIGHT)
+        notes_entry.focus_set()
+
+    def delete_history_record(self):
+        try:
+            selected = self.history_tree.selection()[0]
+            values = self.history_tree.item(selected, 'values')
+            record_id = values[0]
+            barcode = values[1]
+            if not messagebox.askyesno("ยืนยันการลบ", f"ต้องการลบข้อมูลบาร์โค้ด {barcode} หรือไม่?"):
+                return
+            # Get job_id for dependency check
+            job_query = "SELECT job_id FROM scan_logs WHERE id = ?"
+            job_results = self.db.execute_query(job_query, (record_id,))
+            if not job_results:
+                messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลที่ต้องการลบ")
+                return
+            current_job_id = job_results[0]['job_id']
+            # Check dependent jobs
+            depend_query = """
+                SELECT COUNT(*) AS count
+                FROM scan_logs sl
+                WHERE sl.barcode = ? AND sl.job_id IN (
+                    SELECT jd.job_id FROM job_dependencies jd WHERE jd.required_job_id = ?
+                )
+            """
+            depend_results = self.db.execute_query(depend_query, (barcode, current_job_id))
+            if depend_results and depend_results[0]['count'] > 0:
+                messagebox.showwarning("ไม่สามารถลบได้", "มีงานถัดไปที่สแกนหลังจากงานนี้แล้ว จึงไม่สามารถลบได้ (มีการพึ่งพาข้อมูล)")
+                return
+            from services.scan_service import ScanService
+            scan_service = ScanService()
+            result = scan_service.delete_scan_record(int(record_id), user_id=self.db.current_user)
+            if not result.get('success'):
+                messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถลบข้อมูลได้'))
+                return
+            self.history_tree.delete(selected)
+            messagebox.showinfo("สำเร็จ", result.get('message', 'ลบข้อมูลเรียบร้อยแล้ว'))
+            self.unified_search()
+            self.recalc_today_summary()
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่ต้องการลบ")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการลบ: {str(e)}")
+
+    # ---------------- Summary Recalculation (After external edits/deletes) ---------------
+    def recalc_today_summary(self):
+        """Recalculate today's summary counts and labels based on current selections."""
+        try:
+            job_type = self.current_job_type.get()
+            sub_job_type = self.current_sub_job_type.get()
+            notes_filter = self.notes_var.get().strip()
+
+            # Update label texts
+            if 'job_type' in self.summary_labels:
+                self.summary_labels['job_type'].config(text=job_type if job_type else 'ไม่ได้เลือก')
+            if 'sub_job_type' in self.summary_labels:
+                self.summary_labels['sub_job_type'].config(text=sub_job_type if sub_job_type else 'ไม่ได้เลือก')
+            if 'notes_filter' in self.summary_labels:
+                self.summary_labels['notes_filter'].config(text=notes_filter if notes_filter else 'ไม่มี')
+
+            count = 0
+            if job_type:
+                # Resolve job_id
+                job_result = self.db.execute_query("SELECT id FROM job_types WHERE job_name = ?", (job_type,))
+                if job_result:
+                    job_id = job_result[0]['id']
+                    params = [job_id]
+                    query = "SELECT COUNT(*) as count FROM scan_logs WHERE job_id = ? AND CAST(scan_date AS DATE) = CAST(GETDATE() AS DATE)"
+                    if sub_job_type:
+                        sub_result = self.db.execute_query("SELECT id FROM sub_job_types WHERE sub_job_name = ? AND main_job_id = ?", (sub_job_type, job_id))
+                        if sub_result:
+                            query += " AND sub_job_id = ?"
+                            params.append(sub_result[0]['id'])
+                    if notes_filter:
+                        query += " AND notes LIKE ?"
+                        params.append(f"%{notes_filter}%")
+                    res = self.db.execute_query(query, tuple(params))
+                    if res:
+                        count = res[0]['count']
+
+            if 'count' in self.summary_labels:
+                self.summary_labels['count'].config(text=str(count))
+            if 'last_update' in self.summary_labels:
+                self.summary_labels['last_update'].config(text=datetime.datetime.now().strftime('%H:%M:%S'))
+        except Exception as e:
+            print(f"Error recalculating summary: {str(e)}")
     
 
     
@@ -908,14 +1170,18 @@ class WMSScannerApp:
         v_scrollbar_scan.pack(side=tk.RIGHT, fill=tk.Y)
         h_scrollbar_scan.pack(side=tk.BOTTOM, fill=tk.X)
         
-        # Bind right-click context menu
+        # Bind right-click context menu (press + release for reliability)
         self.scan_history_tree.bind("<Button-3>", self.show_scan_context_menu)  # Right-click
+        self.scan_history_tree.bind("<ButtonRelease-3>", self.show_scan_context_menu)
         
         # Create context menu
         self.scan_context_menu = tk.Menu(self.root, tearoff=0)
         self.scan_context_menu.add_command(label="แก้ไขข้อมูล", command=self.edit_scan_record)
         self.scan_context_menu.add_separator()
         self.scan_context_menu.add_command(label="ลบข้อมูล", command=self.delete_scan_record)
+        self.scan_context_menu.add_separator()
+        # Add copy barcode to match history/report menus
+        self.scan_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_scan_barcode)
         self.scan_context_menu.add_separator()
         self.scan_context_menu.add_command(label="ยกเลิก", command=lambda: self.scan_context_menu.unpost())
     
@@ -2126,6 +2392,20 @@ class WMSScannerApp:
         if item:
             self.scan_history_tree.selection_set(item)
             self.scan_context_menu.post(event.x_root, event.y_root)
+
+    def copy_scan_barcode(self):
+        """Copy selected barcode from scan history to clipboard"""
+        try:
+            selected = self.scan_history_tree.selection()[0]
+            values = self.scan_history_tree.item(selected, 'values')
+            barcode = values[1]
+            self.scan_history_tree.clipboard_clear()
+            self.scan_history_tree.clipboard_append(barcode)
+            messagebox.showinfo("สำเร็จ", f"คัดลอกบาร์โค้ด {barcode} แล้ว")
+        except IndexError:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกรายการที่จะคัดลอก")
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถคัดลอก: {str(e)}")
     
     def edit_scan_record(self):
         """Edit selected scan record"""
@@ -2170,6 +2450,9 @@ class WMSScannerApp:
                     messagebox.showinfo("สำเร็จ", result['message'])
                     # Refresh the history table
                     self.refresh_scanning_history()
+                    # Recalculate today's summary if function exists
+                    if hasattr(self, 'recalc_today_summary'):
+                        self.recalc_today_summary()
                 else:
                     messagebox.showerror("ข้อผิดพลาด", result['message'])
                 
@@ -2179,8 +2462,10 @@ class WMSScannerApp:
     def show_edit_dialog(self, record_id, current_values):
         """Show dialog for editing scan record"""
         dialog = tk.Toplevel(self.root)
-        dialog.title("แก้ไขข้อมูลการสแกน")
-        dialog.geometry("600x400")
+        # Unified title and size to match history dialog
+        barcode_for_title = current_values[1] if len(current_values) > 1 else ""
+        dialog.title(f"แก้ไขข้อมูลสแกน - {barcode_for_title}")
+        dialog.geometry("560x390")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -2229,7 +2514,7 @@ class WMSScannerApp:
         # Main job type (disabled - cannot edit)
         main_job_frame = ttk.Frame(main_frame)
         main_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(main_job_frame, text="ประเภทงานหลัก:", width=15).pack(side=tk.LEFT)
+        ttk.Label(main_job_frame, text="งานหลัก:", width=15).pack(side=tk.LEFT)
         main_job_var = tk.StringVar()
         main_job_combo = ttk.Combobox(main_job_frame, textvariable=main_job_var, state="disabled", width=25)
         main_job_combo.pack(side=tk.LEFT, padx=10)
@@ -2237,7 +2522,7 @@ class WMSScannerApp:
         # Sub job type (CAN BE EDITED)
         sub_job_frame = ttk.Frame(main_frame)
         sub_job_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(sub_job_frame, text="ประเภทงานย่อย:", width=15).pack(side=tk.LEFT)
+        ttk.Label(sub_job_frame, text="งานรอง:", width=15).pack(side=tk.LEFT)
         sub_job_var = tk.StringVar()
         sub_job_combo = ttk.Combobox(sub_job_frame, textvariable=sub_job_var, state="readonly", width=25)
         sub_job_combo.pack(side=tk.LEFT, padx=10)
@@ -2350,6 +2635,8 @@ class WMSScannerApp:
                     dialog.destroy()
                     # Refresh the history table
                     self.refresh_scanning_history()
+                    if hasattr(self, 'recalc_today_summary'):
+                        self.recalc_today_summary()
                 else:
                     messagebox.showerror("ข้อผิดพลาด", result.get('message', 'ไม่สามารถอัพเดทข้อมูลได้'))
 
@@ -2359,8 +2646,9 @@ class WMSScannerApp:
         def cancel_edit():
             dialog.destroy()
         
-        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.LEFT, padx=5)
+        # Pack to the right with Save rightmost (pack save first when side=RIGHT)
+        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.RIGHT, padx=5)
 
         # Focus on sub job combo
         sub_job_combo.focus_set()

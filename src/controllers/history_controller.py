@@ -128,15 +128,16 @@ class HistoryController:
     def create_context_menu(self):
         """สร้าง context menu สำหรับ history record"""
         self.context_menu = tk.Menu(self.history_tree, tearoff=0)
+        # Original simple labels
         self.context_menu.add_command(label="แก้ไข", command=self.edit_history_record)
         self.context_menu.add_command(label="ลบ", command=self.delete_history_record)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_barcode)
-        
+        # Single bind (controller not used in unified UI but kept minimal)
         self.history_tree.bind("<Button-3>", self.show_context_menu)
     
     def show_context_menu(self, event):
-        """แสดง context menu"""
+        """แสดง context menu (simple)"""
         try:
             item = self.history_tree.selection()[0]
             self.context_menu.post(event.x_root, event.y_root)
@@ -409,7 +410,7 @@ class HistoryController:
         def cancel_edit():
             dialog.destroy()
         
-        ttk.Button(button_frame, text="บันทึก", command=save_changes).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.RIGHT, padx=5)
         ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.RIGHT)
         
         # Focus on notes entry
