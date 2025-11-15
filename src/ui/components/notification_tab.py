@@ -58,7 +58,7 @@ class NotificationTab:
         ).pack(side=tk.LEFT, padx=5, pady=10)
 
         # Info label
-        info_text = "รูปแบบ Excel ส่งออก: barcode | event_type | popup_type | title | message | is_enabled | job_id | sub_job_id"
+        info_text = "รูปแบบ Excel ส่งออก: barcode | event_type | popup_type | title | message | note_fill | is_enabled | job_id | sub_job_id"
         info_label = ttk.Label(top_button_frame, text=info_text, foreground="gray")
         info_label.pack(side=tk.LEFT, padx=10)
 
@@ -67,7 +67,7 @@ class NotificationTab:
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
 
         # Treeview สำหรับแสดงรายการ
-        columns = ("ID", "Barcode", "Event Type", "Popup Type", "Title", "Message", "สถานะ", "Job ID", "Sub Job ID", "วันที่สร้าง")
+        columns = ("ID", "Barcode", "Event Type", "Popup Type", "Title", "Message", "Note Fill", "สถานะ", "Job ID", "Sub Job ID", "วันที่สร้าง")
         self.notification_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
 
         # กำหนดหัวข้อ
@@ -78,6 +78,7 @@ class NotificationTab:
             "Popup Type": 80,
             "Title": 200,
             "Message": 300,
+            "Note Fill": 200,
             "สถานะ": 80,
             "วันที่สร้าง": 150,
             "Job ID": 80,
@@ -131,6 +132,11 @@ class NotificationTab:
             if len(message) > 50:
                 message = message[:50] + '...'
 
+            # Truncate note_fill if too long
+            note_fill = notif.get('note_fill') or ''
+            if len(note_fill) > 50:
+                note_fill = note_fill[:50] + '...'
+
             self.notification_tree.insert("", tk.END, values=(
                 notif['id'],
                 notif['barcode'],
@@ -138,6 +144,7 @@ class NotificationTab:
                 notif['popup_type'],
                 notif['title'],
                 message,
+                note_fill,
                 status,
                 notif.get('job_id'),
                 notif.get('sub_job_id'),
@@ -259,7 +266,7 @@ class NotificationTab:
         """แสดง dialog สำหรับแก้ไข notification"""
         dialog = tk.Toplevel(self.parent)
         dialog.title("แก้ไขการแจ้งเตือน")
-        dialog.geometry("500x450")
+        dialog.geometry("500x550")
         dialog.transient(self.parent)
         dialog.grab_set()
 
@@ -295,16 +302,24 @@ class NotificationTab:
 
         # Message
         ttk.Label(main_dialog_frame, text="Message:").grid(row=4, column=0, sticky=tk.NW, pady=5)
-        message_text = tk.Text(main_dialog_frame, width=40, height=8, wrap=tk.WORD)
-        # Get full message from service
+        message_text = tk.Text(main_dialog_frame, width=40, height=6, wrap=tk.WORD)
+        # Get full message and note_fill from service
         notifications = self.notification_service.get_all_notifications()
         full_message = ""
+        full_note_fill = ""
         for notif in notifications:
             if notif['id'] == notification_id:
                 full_message = notif['message']
+                full_note_fill = notif.get('note_fill') or ''
                 break
         message_text.insert('1.0', full_message)
         message_text.grid(row=4, column=1, pady=5, padx=5)
+
+        # Note Fill
+        ttk.Label(main_dialog_frame, text="Note Fill:").grid(row=5, column=0, sticky=tk.NW, pady=5)
+        note_fill_text = tk.Text(main_dialog_frame, width=40, height=4, wrap=tk.WORD)
+        note_fill_text.insert('1.0', full_note_fill)
+        note_fill_text.grid(row=5, column=1, pady=5, padx=5)
 
         def save_changes():
             barcode = barcode_entry.get().strip()
@@ -312,6 +327,7 @@ class NotificationTab:
             popup_type = popup_type_var.get().strip()
             title = title_entry.get().strip()
             message = message_text.get('1.0', tk.END).strip()
+            note_fill = note_fill_text.get('1.0', tk.END).strip()
 
             if not barcode or not event_type or not popup_type or not title or not message:
                 messagebox.showerror("ผิดพลาด", "กรุณากรอกข้อมูลให้ครบถ้วน")
@@ -321,6 +337,10 @@ class NotificationTab:
                 messagebox.showerror("ผิดพลาด", "Title ต้องไม่เกิน 255 ตัวอักษร")
                 return
 
+            if len(note_fill) > 1000:
+                messagebox.showerror("ผิดพลาด", "Note Fill ต้องไม่เกิน 1000 ตัวอักษร")
+                return
+
             try:
                 self.logger.info(f"[NotificationTab] บันทึกการแก้ไข ID: {notification_id}")
 
@@ -328,12 +348,12 @@ class NotificationTab:
                 update_query = """
                     UPDATE notification_data
                     SET barcode = ?, event_type = ?, popup_type = ?,
-                        title = ?, message = ?
+                        title = ?, message = ?, note_fill = ?
                     WHERE id = ?
                 """
                 self.db_manager.execute_non_query(
                     update_query,
-                    (barcode, event_type, popup_type, title, message, notification_id)
+                    (barcode, event_type, popup_type, title, message, note_fill if note_fill else None, notification_id)
                 )
 
                 messagebox.showinfo("สำเร็จ", "แก้ไขรายการเรียบร้อยแล้ว")
@@ -346,7 +366,7 @@ class NotificationTab:
 
         # Buttons
         button_frame = ttk.Frame(main_dialog_frame)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=20)
+        button_frame.grid(row=6, column=0, columnspan=2, pady=20)
 
         ttk.Button(button_frame, text="บันทึก", command=save_changes).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="ยกเลิก", command=dialog.destroy).pack(side=tk.LEFT, padx=5)

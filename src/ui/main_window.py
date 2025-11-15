@@ -1868,7 +1868,7 @@ class WMSScannerApp:
                 messagebox.showinfo("สำเร็จ", f"ลบประเภทงาน '{job_name}' แล้ว")
             except Exception as e:
                 messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถลบประเภทงานได้: {str(e)}")
-    
+
     def process_barcode(self, event=None):
         """Process scanned barcode using ScanService"""
         from services.scan_service import ScanService

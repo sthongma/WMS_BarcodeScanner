@@ -54,6 +54,7 @@ class NotificationService:
                     popup_type,
                     title,
                     message,
+                    note_fill,
                     is_enabled,
                     job_id,
                     sub_job_id
@@ -74,6 +75,7 @@ class NotificationService:
                     'popup_type': result['popup_type'],
                     'title': result['title'],
                     'message': result['message'],
+                    'note_fill': result.get('note_fill'),
                     'is_enabled': result['is_enabled'],
                     'job_id': result.get('job_id'),
                     'sub_job_id': result.get('sub_job_id')
@@ -117,7 +119,7 @@ class NotificationService:
             query = f"""
                 SELECT TOP 1 * FROM (
                     SELECT
-                        id, barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id, created_date,
+                        id, barcode, event_type, popup_type, title, message, note_fill, is_enabled, job_id, sub_job_id, created_date,
                         (CASE WHEN (? IS NOT NULL AND job_id = ?) THEN 2 ELSE 0 END +
                          CASE WHEN (? IS NOT NULL AND sub_job_id = ?) THEN 2 ELSE 0 END) AS match_score
                     FROM notification_data
@@ -139,6 +141,7 @@ class NotificationService:
                     'popup_type': r['popup_type'],
                     'title': r['title'],
                     'message': r['message'],
+                    'note_fill': r.get('note_fill'),
                     'is_enabled': r['is_enabled'],
                     'job_id': r.get('job_id'),
                     'sub_job_id': r.get('sub_job_id')
@@ -164,6 +167,7 @@ class NotificationService:
                     popup_type,
                     title,
                     message,
+                    note_fill,
                     is_enabled,
                     job_id,
                     sub_job_id,
@@ -186,6 +190,7 @@ class NotificationService:
                     'popup_type': row['popup_type'],
                     'title': row['title'],
                     'message': row['message'],
+                    'note_fill': row.get('note_fill'),
                     'is_enabled': row['is_enabled'],
                     'job_id': row.get('job_id'),
                     'sub_job_id': row.get('sub_job_id'),
@@ -219,7 +224,7 @@ class NotificationService:
 
             # ตรวจสอบ columns ที่จำเป็น
             required_columns = ['barcode', 'event_type', 'popup_type', 'title', 'message']
-            optional_columns = ['is_enabled', 'job_id', 'sub_job_id']
+            optional_columns = ['is_enabled', 'job_id', 'sub_job_id', 'note_fill']
             missing_columns = [col for col in required_columns if col not in df.columns]
 
             if missing_columns:
@@ -274,8 +279,8 @@ class NotificationService:
             # นำเข้าข้อมูลใหม่
             insert_query = """
                 INSERT INTO notification_data
-                (barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (barcode, event_type, popup_type, title, message, note_fill, is_enabled, job_id, sub_job_id, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             inserted_count = 0
@@ -311,6 +316,13 @@ class NotificationService:
                             except ValueError:
                                 raise ValueError(f"sub_job_id ไม่ใช่ตัวเลข: {sv}")
 
+                    # note_fill (nullable)
+                    note_fill_val: Optional[str] = None
+                    if 'note_fill' in df.columns:
+                        nf = row.get('note_fill')
+                        if pd.notna(nf) and str(nf).strip() != '':
+                            note_fill_val = str(nf).strip()
+
                     self.db.execute_non_query(
                         insert_query,
                         (
@@ -319,6 +331,7 @@ class NotificationService:
                             row['popup_type'].strip().lower(),
                             row['title'].strip(),
                             row['message'].strip(),
+                            note_fill_val,
                             1 if is_enabled_val else 0,
                             job_id_val,
                             sub_job_id_val,
@@ -437,7 +450,7 @@ class NotificationService:
     def export_notifications(self, output_path: str) -> Dict[str, Any]:
         """ส่งออกข้อมูล notification ทั้งหมดเป็นไฟล์ Excel (สำหรับแก้ไขแล้วนำเข้ากลับ)
 
-        Columns: barcode, event_type, popup_type, title, message, is_enabled, job_id, sub_job_id
+        Columns: barcode, event_type, popup_type, title, message, note_fill, is_enabled, job_id, sub_job_id
         (ไม่ใส่ created_date เพื่อให้ไฟล์ใช้งานง่ายขึ้น)
         """
         try:
@@ -455,6 +468,7 @@ class NotificationService:
                     'popup_type': r['popup_type'],
                     'title': r['title'],
                     'message': r['message'],
+                    'note_fill': r.get('note_fill'),
                     'is_enabled': r['is_enabled'],
                     'job_id': r.get('job_id'),
                     'sub_job_id': r.get('sub_job_id')

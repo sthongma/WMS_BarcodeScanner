@@ -63,6 +63,7 @@ class ScanService:
                     'barcode': barcode,
                     'title': notification['title'],
                     'message': notification['message'],
+                    'note_fill': notification.get('note_fill'),
                     'event_type': notification['event_type'],
                     'popup_type': notification['popup_type']
                 }
@@ -94,8 +95,20 @@ class ScanService:
                     'sound': error_sound
                 }
 
+            # Auto-append note_fill from notification to notes if exists
+            final_notes = notes or ''
+            if notification and notification.get('note_fill'):
+                note_fill = notification['note_fill'].strip()
+                if note_fill:
+                    if final_notes:
+                        # Append note_fill with comma separator
+                        final_notes = f"{final_notes},{note_fill}"
+                    else:
+                        # Use note_fill only
+                        final_notes = note_fill
+
             # Save scan record
-            save_result = self.save_scan_record(barcode, job_id, sub_job_id, job_type_name, notes, user_id)
+            save_result = self.save_scan_record(barcode, job_id, sub_job_id, job_type_name, final_notes, user_id)
 
             # Add success sound if save was successful
             if save_result.get('success'):
