@@ -481,8 +481,8 @@ class WMSScannerApp:
                   command=self.validate_import_data).pack(side=tk.LEFT, padx=5)
         ttk.Button(import_btn_frame, text="นำเข้าข้อมูล", 
                   command=self.import_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(import_btn_frame, text="ล้างข้อมูล", 
-                  command=self.clear_import_data).pack(side=tk.LEFT, padx=5)
+        # ttk.Button(import_btn_frame, text="ล้างข้อมูล", 
+        #           command=self.clear_import_data).pack(side=tk.LEFT, padx=5)
         
         # Preview/Results section
         preview_frame = ttk.LabelFrame(import_section_frame, text="ตรวจสอบข้อมูลก่อนนำเข้า", padding=10)
@@ -854,16 +854,15 @@ class WMSScannerApp:
 
         # Context menu for history/report unified table
         self.history_context_menu = tk.Menu(self.root, tearoff=0)
+        self.history_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_history_barcode)
         self.history_context_menu.add_command(label="แก้ไขข้อมูล", command=self.edit_history_record)
+        self.history_context_menu.add_separator()
         self.history_context_menu.add_command(label="ลบข้อมูล", command=self.delete_history_record)
         self.history_context_menu.add_separator()
-        self.history_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_history_barcode)
-        self.history_context_menu.add_separator()
-        self.history_context_menu.add_command(label="ยกเลิก", command=lambda: None)
+        self.history_context_menu.add_command(label="ยกเลิก", command=lambda: self.history_context_menu.unpost())
 
-        # Bind right click (press + release for reliability)
+        # Bind right click
         self.history_tree.bind('<Button-3>', self.show_history_context_menu)
-        self.history_tree.bind('<ButtonRelease-3>', self.show_history_context_menu)
 
     # ---------------- Context Menu (Unified History/Report) -----------------
     def show_history_context_menu(self, event):
@@ -1170,20 +1169,19 @@ class WMSScannerApp:
         v_scrollbar_scan.pack(side=tk.RIGHT, fill=tk.Y)
         h_scrollbar_scan.pack(side=tk.BOTTOM, fill=tk.X)
         
-        # Bind right-click context menu (press + release for reliability)
+        # Bind right-click context menu
         self.scan_history_tree.bind("<Button-3>", self.show_scan_context_menu)  # Right-click
-        self.scan_history_tree.bind("<ButtonRelease-3>", self.show_scan_context_menu)
         
         # Create context menu
         self.scan_context_menu = tk.Menu(self.root, tearoff=0)
+        self.scan_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_scan_barcode)
         self.scan_context_menu.add_command(label="แก้ไขข้อมูล", command=self.edit_scan_record)
         self.scan_context_menu.add_separator()
         self.scan_context_menu.add_command(label="ลบข้อมูล", command=self.delete_scan_record)
         self.scan_context_menu.add_separator()
-        # Add copy barcode to match history/report menus
-        self.scan_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_scan_barcode)
-        self.scan_context_menu.add_separator()
         self.scan_context_menu.add_command(label="ยกเลิก", command=lambda: self.scan_context_menu.unpost())
+        # Add copy barcode to match history/report menus
+        
     
     def create_import_preview_table(self, parent):
         """Create table for import data preview"""
