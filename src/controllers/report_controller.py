@@ -434,10 +434,12 @@ class ReportController:
     # ---------------------- Editing Capabilities ----------------------
     def _create_context_menu(self):
         self.report_context_menu = tk.Menu(self.report_tree, tearoff=0)
+        self.report_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self._copy_report_barcode)
         self.report_context_menu.add_command(label="แก้ไข", command=self._edit_report_record)
+        self.report_context_menu.add_separator()
         self.report_context_menu.add_command(label="ลบ", command=self._delete_report_record)
         self.report_context_menu.add_separator()
-        self.report_context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self._copy_report_barcode)
+        self.report_context_menu.add_command(label="ยกเลิก", command=lambda: self.report_context_menu.unpost())
         self.report_tree.bind('<Button-3>', self._show_report_context_menu)
 
     def _show_report_context_menu(self, event):

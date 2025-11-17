@@ -129,10 +129,12 @@ class HistoryController:
         """สร้าง context menu สำหรับ history record"""
         self.context_menu = tk.Menu(self.history_tree, tearoff=0)
         # Original simple labels
+        self.context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_barcode)
         self.context_menu.add_command(label="แก้ไข", command=self.edit_history_record)
+        self.context_menu.add_separator()
         self.context_menu.add_command(label="ลบ", command=self.delete_history_record)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="คัดลอกบาร์โค้ด", command=self.copy_barcode)
+        self.context_menu.add_command(label="ยกเลิก", command=lambda: self.context_menu.unpost())
         # Single bind (controller not used in unified UI but kept minimal)
         self.history_tree.bind("<Button-3>", self.show_context_menu)
     
