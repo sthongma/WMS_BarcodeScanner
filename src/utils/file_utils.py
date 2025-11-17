@@ -48,12 +48,12 @@ def save_file(title: str = "บันทึกไฟล์", file_types: List[tu
 
 
 def read_excel_file(file_path: str) -> Optional[pd.DataFrame]:
-    """อ่านไฟล์ Excel และส่งคืน DataFrame"""
+    """อ่านไฟล์ Excel และส่งคืน DataFrame (ข้อมูลทั้งหมดเป็น text)"""
     try:
         if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path, encoding='utf-8')
+            df = pd.read_csv(file_path, encoding='utf-8', dtype=str, keep_default_na=False)
         else:
-            df = pd.read_excel(file_path)
+            df = pd.read_excel(file_path, dtype=str, keep_default_na=False)
         return df
     except Exception as e:
         messagebox.showerror("Error", f"ไม่สามารถอ่านไฟล์ได้: {str(e)}")

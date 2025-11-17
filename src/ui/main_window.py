@@ -3055,8 +3055,8 @@ ID_ประเภทงานย่อย: 10
             return
         
         try:
-            # Read Excel file
-            df = pd.read_excel(file_path, sheet_name=0)
+            # Read Excel file (ข้อมูลทั้งหมดเป็น text)
+            df = pd.read_excel(file_path, sheet_name=0, dtype=str, keep_default_na=False)
             
             # Check required columns
             required_columns = ['บาร์โค้ด', 'ID_ประเภทงานหลัก', 'ID_ประเภทงานย่อย']

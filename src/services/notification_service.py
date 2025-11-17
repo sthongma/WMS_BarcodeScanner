@@ -218,8 +218,8 @@ class NotificationService:
         try:
             self.logger.info(f"[NotificationService] เริ่มนำเข้าไฟล์: {excel_file}")
 
-            # อ่านไฟล์ Excel
-            df = pd.read_excel(excel_file)
+            # อ่านไฟล์ Excel (ข้อมูลทั้งหมดเป็น text)
+            df = pd.read_excel(excel_file, dtype=str, keep_default_na=False)
             self.logger.debug(f"[NotificationService] อ่านไฟล์ Excel สำเร็จ: {len(df)} แถว")
 
             # ตรวจสอบ columns ที่จำเป็น
