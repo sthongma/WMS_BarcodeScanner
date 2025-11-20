@@ -143,10 +143,18 @@ class WMSScannerApp:
         self.job_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.job_listbox.yview)
         self.job_listbox.bind('<<ListboxSelect>>', self.on_job_select)
-        
+
+        # Management buttons frame
+        btn_frame = ttk.Frame(left_frame)
+        btn_frame.pack(pady=5)
+
+        # Edit button
+        self.edit_job_btn = ttk.Button(btn_frame, text="แก้ไขชื่อ",
+                                       command=self.edit_main_job_type, state=tk.DISABLED)
+        self.edit_job_btn.pack(side=tk.LEFT, padx=2)
+
         # Delete button
-        ttk.Button(left_frame, text="ลบประเภทงานที่เลือก", 
-                  command=self.delete_job_type).pack(pady=5)
+        ttk.Button(btn_frame, text="ลบ", command=self.delete_job_type).pack(side=tk.LEFT, padx=2)
         
         # Right side - Dependencies
         right_frame = ttk.Frame(list_frame)
@@ -199,7 +207,7 @@ class WMSScannerApp:
         self.main_job_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         main_scrollbar.config(command=self.main_job_listbox.yview)
         self.main_job_listbox.bind('<<ListboxSelect>>', self.on_main_job_select_for_sub)
-        
+
         # Right side - Sub job management
         right_frame = ttk.LabelFrame(main_container, text="จัดการประเภทงานย่อย", padding=10)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -1372,16 +1380,16 @@ class WMSScannerApp:
         selection = self.main_job_listbox.curselection()
         if not selection:
             return
-        
+
         # Get selected job
         display_text = self.main_job_listbox.get(selection[0])
         job_name = display_text.split(" (ID: ")[0]
         job_id = self.job_types_data.get(job_name)
-        
+
         self.current_selected_main_job_id = job_id
         self.selected_main_job_label.config(text=f"จัดการประเภทงานย่อยสำหรับ: {job_name}")
         self.add_sub_job_btn.config(state=tk.NORMAL)
-        
+
         # Load sub job types for this main job
         self.refresh_sub_job_list()
     
@@ -1634,7 +1642,101 @@ class WMSScannerApp:
         # Focus on name entry
         name_entry.focus_set()
         name_entry.select_range(0, tk.END)
-    
+
+    def edit_main_job_type(self):
+        """Edit selected main job type"""
+        if not self.current_selected_job:
+            messagebox.showwarning("คำเตือน", "กรุณาเลือกประเภทงานหลักที่จะแก้ไข")
+            return
+
+        # Get current data
+        try:
+            query = "SELECT job_name FROM job_types WHERE id = ?"
+            result = self.db.execute_query(query, (self.current_selected_job,))
+
+            if not result:
+                messagebox.showerror("ข้อผิดพลาด", "ไม่พบข้อมูลประเภทงานหลัก")
+                return
+
+            current_data = result[0]
+
+            # Show edit dialog
+            self.show_main_job_edit_dialog(self.current_selected_job, current_data)
+
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถโหลดข้อมูลได้: {str(e)}")
+
+    def show_main_job_edit_dialog(self, job_id, current_data):
+        """Show dialog for editing main job type"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("แก้ไขประเภทงานหลัก")
+        dialog.geometry("400x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Center the dialog
+        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100))
+
+        # Main frame
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Job name
+        name_frame = ttk.Frame(main_frame)
+        name_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(name_frame, text="ชื่อประเภทงานหลัก:").pack(anchor=tk.W)
+        name_entry = ttk.Entry(name_frame, width=40)
+        name_entry.pack(fill=tk.X, pady=2)
+        name_entry.insert(0, current_data['job_name'])
+
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=20)
+
+        def save_changes():
+            new_name = name_entry.get().strip()
+
+            if not new_name:
+                messagebox.showwarning("คำเตือน", "กรุณาใส่ชื่อประเภทงานหลัก")
+                return
+
+            try:
+                # Check for duplicate name (excluding current record)
+                check_query = """
+                    SELECT COUNT(*) as count
+                    FROM job_types
+                    WHERE job_name = ? AND id != ?
+                """
+                result = self.db.execute_query(check_query, (new_name, job_id))
+
+                if result[0]['count'] > 0:
+                    messagebox.showwarning("คำเตือน", "ชื่อประเภทงานหลักนี้มีอยู่แล้ว")
+                    return
+
+                # Update database
+                update_query = "UPDATE job_types SET job_name = ? WHERE id = ?"
+                self.db.execute_non_query(update_query, (new_name, job_id))
+
+                messagebox.showinfo("สำเร็จ", "อัพเดทข้อมูลเรียบร้อยแล้ว")
+                dialog.destroy()
+
+                # Refresh lists
+                self.refresh_job_types()
+                self.refresh_main_job_list_for_sub()
+
+            except Exception as e:
+                messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถอัพเดทข้อมูลได้: {str(e)}")
+
+        def cancel_edit():
+            dialog.destroy()
+
+        ttk.Button(button_frame, text="บันทึกการเปลี่ยนแปลง", command=save_changes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="ยกเลิก", command=cancel_edit).pack(side=tk.LEFT, padx=5)
+
+        # Focus on name entry
+        name_entry.focus_set()
+        name_entry.select_range(0, tk.END)
+
     def on_main_job_change(self, event=None):
         """Handle main job type change in scanning tab"""
         main_job_name = self.current_job_type.get()
@@ -1727,24 +1829,29 @@ class WMSScannerApp:
         # Check if job_listbox exists
         if not hasattr(self, 'job_listbox'):
             return
-            
+
         selection = self.job_listbox.curselection()
         if not selection:
+            # Disable edit button if no selection
+            if hasattr(self, 'edit_job_btn'):
+                self.edit_job_btn.config(state=tk.DISABLED)
             return
-        
+
         # Get selected job name
         display_text = self.job_listbox.get(selection[0])
         job_name = display_text.split(" (ID: ")[0]
         job_id = self.job_types_data.get(job_name)
-        
+
         self.current_selected_job = job_id
-        
+
         # Update UI elements if they exist
         if hasattr(self, 'selected_job_label'):
             self.selected_job_label.config(text=f"ตั้งค่า Dependencies สำหรับ: {job_name}")
         if hasattr(self, 'save_dependencies_btn'):
             self.save_dependencies_btn.config(state=tk.NORMAL)
-        
+        if hasattr(self, 'edit_job_btn'):
+            self.edit_job_btn.config(state=tk.NORMAL)
+
         # Refresh dependencies checkboxes
         self.refresh_dependencies_display()
     

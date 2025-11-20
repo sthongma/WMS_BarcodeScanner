@@ -180,24 +180,24 @@ def create_sub_job_type():
     """API สำหรับสร้าง Sub Job Type ใหม่"""
     try:
         from flask import request
-        
+
         data = request.get_json()
         main_job_id = data.get('main_job_id')
         sub_job_name = data.get('sub_job_name', '').strip()
         description = data.get('description', '').strip()
-        
+
         if not main_job_id or not sub_job_name:
             return jsonify({
                 'success': False,
                 'message': 'กรุณาระบุงานหลักและชื่องานรอง'
             })
-        
+
         success = job_service.create_sub_job_type(
-            main_job_id, 
-            sub_job_name, 
+            main_job_id,
+            sub_job_name,
             description if description else None
         )
-        
+
         if success:
             return jsonify({
                 'success': True,
@@ -208,7 +208,7 @@ def create_sub_job_type():
                 'success': False,
                 'message': 'ไม่สามารถสร้างงานรองได้'
             })
-            
+
     except Exception as e:
         logger.error(f"Error creating sub job type: {str(e)}")
         return jsonify({

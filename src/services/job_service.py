@@ -64,18 +64,37 @@ class JobService:
             # Check if already exists
             check_query = "SELECT COUNT(*) as count FROM job_types WHERE job_name = ?"
             result = self.db.execute_query(check_query, (job_name,))
-            
+
             if result[0]['count'] > 0:
                 raise ValueError(f"ประเภทงาน '{job_name}' มีอยู่แล้ว")
-            
+
             # Insert new job type
             insert_query = "INSERT INTO job_types (job_name) VALUES (?)"
             self.db.execute_non_query(insert_query, (job_name,))
-            
+
             return True
-            
+
         except Exception as e:
             print(f"Error creating job type: {str(e)}")
+            return False
+
+    def update_job_type(self, job_id: int, job_name: str) -> bool:
+        """อัปเดตประเภทงานหลัก"""
+        try:
+            # Check if new name already exists for a different job
+            check_query = "SELECT COUNT(*) as count FROM job_types WHERE job_name = ? AND id != ?"
+            result = self.db.execute_query(check_query, (job_name, job_id))
+
+            if result[0]['count'] > 0:
+                raise ValueError(f"ประเภทงาน '{job_name}' มีอยู่แล้ว")
+
+            update_query = "UPDATE job_types SET job_name = ? WHERE id = ?"
+            self.db.execute_non_query(update_query, (job_name, job_id))
+
+            return True
+
+        except Exception as e:
+            print(f"Error updating job type: {str(e)}")
             return False
     
     def create_sub_job_type(self, main_job_id: int, sub_job_name: str, description: str = None) -> bool:
