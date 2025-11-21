@@ -15,7 +15,12 @@
       "Bash(move database/ิbackup_old_code_sql archive/old_backups/)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nfeat: add auto-fill notes feature from notification settings\n\nAdd note_fill column to notification_data table allowing automatic population of scan notes when a barcode triggers a notification. Notes are appended directly to the database without affecting the UI input field.\n\nChanges:\n- Add note_fill (NVARCHAR(1000)) column to notification_data schema\n- Create migration script for adding note_fill to existing databases\n- Update NotificationService to handle note_fill in CRUD operations\n- Update ScanService to append note_fill to notes before saving to scan_logs\n- Enhance notification management UI with note_fill input field\n- Support note_fill in Excel import/export functionality\n\nThe feature allows users to configure predefined note templates per notification that are automatically added to scan records when the notification is triggered.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(where:*)",
+      "Bash(cloudflared tunnel:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

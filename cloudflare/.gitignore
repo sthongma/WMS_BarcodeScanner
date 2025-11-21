@@ -1,0 +1,7 @@
+# Cloudflare Tunnel Credentials
+# DO NOT commit these files to git!
+credentials.json
+*.json
+
+# Cloudflare cert
+cert.pem

@@ -1,0 +1,7 @@
+tunnel: f0478e5a-0de3-4ce7-8764-bf0efd89479b
+credentials-file: C:\Users\shins\OneDrive\Desktop\GitHub\WMS_BarcodeScanner\cloudflare\credentials.json
+
+ingress:
+  # WMS Barcode Scanner Web App
+  # ใช้ subdomain ฟรีจาก Cloudflare: https://f0478e5a-0de3-4ce7-8764-bf0efd89479b.cfargotunnel.com
+  - service: http://localhost:5003
